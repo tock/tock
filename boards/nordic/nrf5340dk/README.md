@@ -15,6 +15,7 @@ kernel from [`../nrf5340dk-net`](../nrf5340dk-net/README.md).
 | LEDs (4)               | Yes    |
 | Buttons (4)            | Yes    |
 | Alarm (RTC1)           | Yes    |
+| ADC (SAADC, A0 to A5)  | Yes    |
 | Process console        | Yes    |
 | Network core release   | Yes    |
 | USB CDC-ACM console    | Yes    |

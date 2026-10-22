@@ -29,10 +29,10 @@ const RAM: core::ops::Range<usize> = 0x2000_0000..0x2008_0000;
 
 /// The peripherals the kernel uses, by ID.
 ///
-/// CLOCK, POWER and RESET (5), UARTE0 (8), RTC1 (21), IPC (42), USBD (54),
-/// USBREGULATOR (55), and GPIO P0 and P1 (66). A peripheral's ID is also its
-/// interrupt number.
-const PERIPHERALS: [usize; 7] = [5, 8, 21, 42, 54, 55, 66];
+/// CLOCK, POWER and RESET (5), UARTE0 (8), SAADC (14), RTC1 (21), IPC (42),
+/// USBD (54), USBREGULATOR (55), and GPIO P0 and P1 (66). A peripheral's ID is
+/// also its interrupt number.
+const PERIPHERALS: [usize; 8] = [5, 8, 14, 21, 42, 54, 55, 66];
 /// GPIOTE1 is always non-secure, but its interrupt is not.
 const GPIOTE1_INTERRUPT: usize = 47;
 

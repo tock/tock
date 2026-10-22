@@ -87,11 +87,13 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
+type AdcHw = nrf5340::adc::Adc<'static>;
 type AlarmHw = nrf5340::rtc::Rtc<'static>;
 type BleHw = BleProxy<'static>;
 type GpioHw = nrf5340::gpio::GPIOPin<'static>;
 type LedHw = LedLow<'static, GpioHw>;
 
+type AdcDriver = components::adc::AdcDedicatedComponentType<AdcHw>;
 type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 4>;
@@ -106,6 +108,7 @@ type ProcessConsoleDriver =
 
 /// Supported drivers by the platform
 pub struct Platform {
+    adc: &'static AdcDriver,
     alarm: &'static AlarmDriver,
     ble_radio: &'static BleDriver,
     button: &'static ButtonDriver,
@@ -125,6 +128,7 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             CONSOLE2_DRIVER_NUM => f(Some(self.console2)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
@@ -274,6 +278,29 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     )
     .finalize(components::alarm_component_static!(AlarmHw));
 
+    // The Arduino analog pins A0 to A5.
+    let adc_channels = static_init!(
+        [nrf5340::adc::AdcChannelSetup; 6],
+        [
+            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput0),
+            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput1),
+            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput2),
+            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput3),
+            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput4),
+            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput5),
+        ]
+    );
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_dedicated_component_static!(AdcHw));
+    // Measure VDD, the reference voltage readings are relative to.
+    peripherals.adc.calibrate();
+
     // BLE advertising, through the radio on the network core.
     let ble_proxy = static_init!(BleHw, BleProxy::new(BLE_MAILBOX, &peripherals.ipc));
     ble_proxy.init();
@@ -369,6 +396,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
+        adc,
         alarm,
         ble_radio,
         button,
