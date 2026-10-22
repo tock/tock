@@ -955,7 +955,7 @@ impl<'a> Usbd<'a> {
         }
         if self.get_state() != UsbState::PoweredOn {
             debug_info!("Waiting for power regulators...");
-            while power.is_vbus_present() && power.is_usb_power_ready() {}
+            while power.is_vbus_present() && !power.is_usb_power_ready() {}
         }
         debug_info!("usbc::start() - subscribing to interrupts.");
         self.registers.intenset.write(
