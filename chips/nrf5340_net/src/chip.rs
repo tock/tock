@@ -20,6 +20,9 @@ const CLOCK_BASE: StaticRef<crate::clock::ClockRegisters> =
 const FICR_RADIO_TRIM: StaticRef<ReadOnly<u32>> =
     unsafe { StaticRef::new(0x01FF0080 as *const ReadOnly<u32>) };
 
+const IPC_BASE: StaticRef<crate::ipc::IpcRegisters> =
+    unsafe { StaticRef::new(0x41012000 as *const crate::ipc::IpcRegisters) };
+
 const RADIO_BASE: StaticRef<crate::ble_radio::RadioRegisters> =
     unsafe { StaticRef::new(0x41008000 as *const crate::ble_radio::RadioRegisters) };
 
@@ -54,6 +57,7 @@ pub struct Nrf5340NetDefaultPeripherals<'a> {
     pub ble_radio: crate::ble_radio::Radio<'a>,
     pub clock: crate::clock::Clock,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
+    pub ipc: crate::ipc::Ipc<'a>,
     pub rtc: crate::rtc::Rtc<'a>,
     pub uarte0: crate::uarte::Uarte<'a>,
 }
@@ -82,6 +86,7 @@ impl Nrf5340NetDefaultPeripherals<'_> {
             ble_radio: crate::ble_radio::Radio::new(radio_registers, Some(FICR_RADIO_TRIM.get())),
             clock: crate::clock::Clock::new(CLOCK_BASE),
             gpio_port: crate::gpio::nrf5340_net_gpio_create(),
+            ipc: crate::ipc::Ipc::new(IPC_BASE),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             uarte0: crate::uarte::Uarte::new(uarte0_registers),
         }
@@ -93,6 +98,7 @@ impl InterruptService for Nrf5340NetDefaultPeripherals<'_> {
         match interrupt {
             crate::peripheral_interrupts::RADIO => self.ble_radio.handle_interrupt(),
             crate::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
+            crate::peripheral_interrupts::IPC => self.ipc.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::SERIAL0 => self.uarte0.handle_interrupt(),
             _ => return false,
