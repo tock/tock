@@ -1241,7 +1241,7 @@ impl<'a> entropy::Entropy32<'a> for Atecc508a<'a> {
 }
 
 impl<'a> digest::DigestData<'a, 32> for Atecc508a<'a> {
-    fn set_data_client(&'a self, _client: &'a dyn digest::ClientData<32>) {
+    fn set_data_client(&self, _client: &'a dyn digest::ClientData<32>) {
         unimplemented!()
     }
 
@@ -1316,14 +1316,11 @@ impl<'a> digest::DigestData<'a, 32> for Atecc508a<'a> {
 }
 
 impl<'a> digest::DigestHash<'a, 32> for Atecc508a<'a> {
-    fn set_hash_client(&'a self, _client: &'a dyn digest::ClientHash<32>) {
+    fn set_hash_client(&self, _client: &'a dyn digest::ClientHash<32>) {
         unimplemented!()
     }
 
-    fn run(
-        &'a self,
-        digest: &'static mut [u8; 32],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+    fn run(&self, digest: &'static mut [u8; 32]) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         let remain_len = self.remain_len.get();
 
         if self.op.get() != Operation::ReadySha {
@@ -1359,7 +1356,7 @@ impl<'a> digest::DigestHash<'a, 32> for Atecc508a<'a> {
 }
 
 impl<'a> digest::DigestDataHash<'a, 32> for Atecc508a<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::ClientDataHash<32>) {
+    fn set_client(&self, client: &'a dyn digest::ClientDataHash<32>) {
         self.digest_client.set(client);
     }
 }
