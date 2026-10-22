@@ -23,6 +23,9 @@ register_structs! {
         /// PERM and LOCK of each GPIO port.
         (0x4C0 => gpioport: [ReadWrite<u32>; 4]),
         (0x4D0 => _reserved1),
+        /// REGION and SIZE of each non-secure callable flash window.
+        (0x500 => flashnsc: [ReadWrite<u32>; 4]),
+        (0x510 => _reserved2),
         (0x600 => flashregion_perm: [ReadWrite<u32, Perm::Register>; 64]),
         (0x700 => ramregion_perm: [ReadWrite<u32, Perm::Register>; 64]),
         (0x800 => periphid_perm: [ReadWrite<u32, PeriphPerm::Register>; 256]),
@@ -64,6 +67,14 @@ impl Spu {
         for perm in &self.registers.flashregion_perm[regions] {
             perm.modify(Perm::SECATTR::NonSecure);
         }
+    }
+
+    /// Make `range` non-secure callable. It must be the last 32 to 4096 bytes,
+    /// a power of two, of a secure flash region.
+    pub fn make_flash_nonsecure_callable(&self, range: Range<usize>) {
+        self.registers.flashnsc[0].set((range.start / FLASH_REGION_SIZE) as u32);
+        // SIZE counts from 1 for 32 bytes.
+        self.registers.flashnsc[1].set(range.len().trailing_zeros() - 4);
     }
 
     /// Make the 8 KB RAM regions that `range` touches non-secure.
