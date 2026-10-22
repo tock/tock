@@ -19,7 +19,7 @@ kernel from [`../nrf5340dk-net`](../nrf5340dk-net/README.md).
 | Network core release   | Yes    |
 | USB CDC-ACM console    | Yes    |
 | BLE advertising        | Yes    |
-| TrustZone (non-secure) | No     |
+| TrustZone (non-secure) | Yes    |
 
 The console is on the J-Link virtual COM port connected to P0.20 (TX) and
 P0.22 (RX), at 115200 baud without flow control. The LFCLK runs from the
@@ -33,6 +33,11 @@ kernel leaves out of its own RAM and lets the network core access.
 A second console runs over USB CDC-ACM on the nRF5340 USB connector. It is
 registered as console instance 1 (driver number `0x1000001`). The cable must be
 plugged in when the kernel boots.
+
+The kernel also runs in TrustZone non-secure state, behind a small secure
+stage; see the
+[`nrf5340dk-ns`](../../configurations/nrf5340dk/nrf5340dk-ns/README.md)
+configuration.
 
 ## Building and Flashing the Kernel
 

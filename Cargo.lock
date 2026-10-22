@@ -1184,6 +1184,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "nrf5340dk-ns"
+version = "0.2.4-dev"
+dependencies = [
+ "kernel",
+ "nrf5340dk",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "nrf5340dk-ns-secure"
+version = "0.2.4-dev"
+dependencies = [
+ "cortexm33",
+ "nrf5340",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "nrf5x"
 version = "0.2.4-dev"
 dependencies = [
