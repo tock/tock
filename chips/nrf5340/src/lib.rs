@@ -12,5 +12,6 @@ pub mod crt1;
 pub mod gpio;
 pub mod network;
 pub mod peripheral_interrupts;
+pub mod usbreg;
 
-pub use nrf5x::{pinmux, rtc, uarte};
+pub use nrf5x::{pinmux, rtc, uarte, usbd};

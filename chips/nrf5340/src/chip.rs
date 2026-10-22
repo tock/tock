@@ -29,6 +29,12 @@ const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
 pub const UARTE0_BASE: StaticRef<crate::uarte::UarteRegisters> =
     unsafe { StaticRef::new(0x50008000 as *const crate::uarte::UarteRegisters) };
 
+const USBD_BASE: StaticRef<crate::usbd::UsbdRegisters<'static>> =
+    unsafe { StaticRef::new(0x50036000 as *const crate::usbd::UsbdRegisters<'static>) };
+
+const USBREG_BASE: StaticRef<crate::usbreg::UsbRegRegisters> =
+    unsafe { StaticRef::new(0x50037000 as *const crate::usbreg::UsbRegRegisters) };
+
 pub struct Nrf5340<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
     userspace_kernel_boundary: cortexm33::syscall::SysCall,
@@ -56,6 +62,8 @@ pub struct Nrf5340DefaultPeripherals<'a> {
     pub network: crate::network::NetworkCore,
     pub rtc: crate::rtc::Rtc<'a>,
     pub uarte0: crate::uarte::Uarte<'a>,
+    pub usbd: crate::usbd::Usbd<'a>,
+    pub usbreg: crate::usbreg::UsbReg<'a>,
 }
 
 impl Nrf5340DefaultPeripherals<'_> {
@@ -81,7 +89,15 @@ impl Nrf5340DefaultPeripherals<'_> {
             network: crate::network::NetworkCore::new(RESET_BASE, [PIN_CNF_PORT0, PIN_CNF_PORT1]),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             uarte0: crate::uarte::Uarte::new(uarte0_registers),
+            usbd: crate::usbd::Usbd::new(USBD_BASE, None),
+            usbreg: crate::usbreg::UsbReg::new(USBREG_BASE),
         }
+    }
+
+    // Necessary for setting up circular dependencies
+    pub fn init(&'static self) {
+        self.usbreg.set_usbd(&self.usbd);
+        self.usbd.set_power_ref(&self.usbreg);
     }
 }
 
@@ -91,6 +107,8 @@ impl InterruptService for Nrf5340DefaultPeripherals<'_> {
             crate::peripheral_interrupts::GPIOTE0 => self.gpio_port.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::SERIAL0 => self.uarte0.handle_interrupt(),
+            crate::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),
+            crate::peripheral_interrupts::USBREGULATOR => self.usbreg.handle_interrupt(),
             _ => return false,
         }
         true
