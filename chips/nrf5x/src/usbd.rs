@@ -708,8 +708,9 @@ impl Endpoint<'_> {
 
 pub struct Usbd<'a> {
     registers: StaticRef<UsbdRegisters<'a>>,
-    registers_chip_info: StaticRef<ChipInfoRegisters>,
-    registers_errata: StaticRef<UsbErrataRegisters>,
+    /// nRF52840 chip info and errata registers. `None` on nRF5340, where none
+    /// of the USBD errata handled here apply.
+    nrf52840: Option<(StaticRef<ChipInfoRegisters>, StaticRef<UsbErrataRegisters>)>,
     state: OptionalCell<UsbState>,
     dma_pending: Cell<bool>,
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
@@ -720,13 +721,11 @@ pub struct Usbd<'a> {
 impl<'a> Usbd<'a> {
     pub const fn new(
         registers: StaticRef<UsbdRegisters<'a>>,
-        registers_chip_info: StaticRef<ChipInfoRegisters>,
-        registers_errata: StaticRef<UsbErrataRegisters>,
+        nrf52840: Option<(StaticRef<ChipInfoRegisters>, StaticRef<UsbErrataRegisters>)>,
     ) -> Self {
         Usbd {
             registers,
-            registers_chip_info,
-            registers_errata,
+            nrf52840,
             client: OptionalCell::empty(),
             state: OptionalCell::new(UsbState::Disabled),
             dma_pending: Cell::new(false),
@@ -758,33 +757,29 @@ impl<'a> Usbd<'a> {
     // for how the different errata apply.
 
     fn has_errata_166(&self) -> bool {
-        true
+        self.nrf52840.is_some()
     }
 
     fn has_errata_171(&self) -> bool {
-        true
+        self.nrf52840.is_some()
     }
 
     fn has_errata_187(&self) -> bool {
-        self.registers_chip_info
-            .chip_model
-            .matches_all(ChipModel::MODEL::NRF52840)
-            && match self
-                .registers_chip_info
-                .chip_revision
-                .read_as_enum(ChipRevision::REV)
-            {
-                Some(ChipRevision::REV::Value::REVB)
-                | Some(ChipRevision::REV::Value::REVC)
-                | Some(ChipRevision::REV::Value::REVD)
-                | Some(ChipRevision::REV::Value::REVE)
-                | Some(ChipRevision::REV::Value::REVF) => true,
-                Some(ChipRevision::REV::Value::REVA) | None => false,
-            }
+        self.nrf52840.is_some_and(|(chip_info, _)| {
+            chip_info.chip_model.matches_all(ChipModel::MODEL::NRF52840)
+                && match chip_info.chip_revision.read_as_enum(ChipRevision::REV) {
+                    Some(ChipRevision::REV::Value::REVB)
+                    | Some(ChipRevision::REV::Value::REVC)
+                    | Some(ChipRevision::REV::Value::REVD)
+                    | Some(ChipRevision::REV::Value::REVE)
+                    | Some(ChipRevision::REV::Value::REVF) => true,
+                    Some(ChipRevision::REV::Value::REVA) | None => false,
+                }
+        })
     }
 
     fn has_errata_199(&self) -> bool {
-        true
+        self.nrf52840.is_some()
     }
 
     /// ISO double buffering not functional
@@ -797,14 +792,14 @@ impl<'a> Usbd<'a> {
 
     /// USBD might not reach its active state.
     fn apply_errata_171(&self, val: u32) {
-        if self.has_errata_171() {
+        if let Some((_, errata)) = self.nrf52840.filter(|_| self.has_errata_171()) {
             with_interrupts_disabled(|| {
-                if self.registers_errata.reg_c00.get() == 0 {
-                    self.registers_errata.reg_c00.set(0x9375);
-                    self.registers_errata.reg_c14.set(val);
-                    self.registers_errata.reg_c00.set(0x9375);
+                if errata.reg_c00.get() == 0 {
+                    errata.reg_c00.set(0x9375);
+                    errata.reg_c14.set(val);
+                    errata.reg_c00.set(0x9375);
                 } else {
-                    self.registers_errata.reg_c14.set(val);
+                    errata.reg_c14.set(val);
                 }
             });
         }
@@ -812,14 +807,14 @@ impl<'a> Usbd<'a> {
 
     /// USB cannot be enabled
     fn apply_errata_187(&self, val: u32) {
-        if self.has_errata_187() {
+        if let Some((_, errata)) = self.nrf52840.filter(|_| self.has_errata_187()) {
             with_interrupts_disabled(|| {
-                if self.registers_errata.reg_c00.get() == 0 {
-                    self.registers_errata.reg_c00.set(0x9375);
-                    self.registers_errata.reg_d14.set(val);
-                    self.registers_errata.reg_c00.set(0x9375);
+                if errata.reg_c00.get() == 0 {
+                    errata.reg_c00.set(0x9375);
+                    errata.reg_d14.set(val);
+                    errata.reg_c00.set(0x9375);
                 } else {
-                    self.registers_errata.reg_d14.set(val);
+                    errata.reg_d14.set(val);
                 }
             });
         }
@@ -917,35 +912,37 @@ impl<'a> Usbd<'a> {
         // If your chip isn't one of these, you will be alerted by these panics. You can disable
         // them but will likely need to add the relevant errata to this implementation (errata 104,
         // 154, 200).
-        let chip_model = self.registers_chip_info.chip_model.get();
-        if chip_model != u32::from(ChipModel::MODEL::NRF52840) {
-            panic!(
-                "USB was only tested on NRF52840. Your chip model is {}.",
-                chip_model
-            );
-        }
-        let chip_revision = self.registers_chip_info.chip_revision.extract();
-        match chip_revision.read_as_enum(ChipRevision::REV) {
-            Some(ChipRevision::REV::Value::REVA) | Some(ChipRevision::REV::Value::REVB) => {
+        if let Some((chip_info, _)) = self.nrf52840 {
+            let chip_model = chip_info.chip_model.get();
+            if chip_model != u32::from(ChipModel::MODEL::NRF52840) {
                 panic!(
-                    "Errata for USB on NRF52840 chips revisions A and B are not implemented. Your chip revision is {}.",
-                    chip_revision.get()
+                    "USB was only tested on NRF52840. Your chip model is {}.",
+                    chip_model
                 );
             }
-            Some(ChipRevision::REV::Value::REVC)
-            | Some(ChipRevision::REV::Value::REVD)
-            | Some(ChipRevision::REV::Value::REVE)
-            | Some(ChipRevision::REV::Value::REVF) => {
-                debug_info!(
-                    "Your chip is NRF52840 revision {}. The USB stack was tested on your chip :)",
-                    chip_revision.get()
-                );
-            }
-            None => {
-                internal_warn!(
-                    "Your chip is NRF52840 revision {} (unknown revision). Although this USB implementation should be compatible, your chip hasn't been tested.",
-                    chip_revision.get()
-                );
+            let chip_revision = chip_info.chip_revision.extract();
+            match chip_revision.read_as_enum(ChipRevision::REV) {
+                Some(ChipRevision::REV::Value::REVA) | Some(ChipRevision::REV::Value::REVB) => {
+                    panic!(
+                        "Errata for USB on NRF52840 chips revisions A and B are not implemented. Your chip revision is {}.",
+                        chip_revision.get()
+                    );
+                }
+                Some(ChipRevision::REV::Value::REVC)
+                | Some(ChipRevision::REV::Value::REVD)
+                | Some(ChipRevision::REV::Value::REVE)
+                | Some(ChipRevision::REV::Value::REVF) => {
+                    debug_info!(
+                        "Your chip is NRF52840 revision {}. The USB stack was tested on your chip :)",
+                        chip_revision.get()
+                    );
+                }
+                None => {
+                    internal_warn!(
+                        "Your chip is NRF52840 revision {} (unknown revision). Although this USB implementation should be compatible, your chip hasn't been tested.",
+                        chip_revision.get()
+                    );
+                }
             }
         }
         let power = self.power.unwrap_or_panic(); // Unwrap fail = failed to initialize power reference for USB
