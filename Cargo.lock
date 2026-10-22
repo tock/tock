@@ -1148,6 +1148,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nrf5340dk"
+version = "0.2.4-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "nrf5340",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "nrf5x"
 version = "0.2.4-dev"
 dependencies = [
