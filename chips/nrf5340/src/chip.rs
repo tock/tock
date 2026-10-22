@@ -17,6 +17,9 @@ const CLOCK_BASE: StaticRef<crate::clock::ClockRegisters> =
 const RESET_BASE: StaticRef<crate::network::ResetRegisters> =
     unsafe { StaticRef::new(0x50005000 as *const crate::network::ResetRegisters) };
 
+const IPC_BASE: StaticRef<crate::ipc::IpcRegisters> =
+    unsafe { StaticRef::new(0x5002A000 as *const crate::ipc::IpcRegisters) };
+
 const PIN_CNF_PORT0: StaticRef<crate::network::PinCnfRegisters> =
     unsafe { StaticRef::new(0x50842000 as *const crate::network::PinCnfRegisters) };
 
@@ -59,6 +62,7 @@ impl<'a, I: InterruptService + 'a> Nrf5340<'a, I> {
 pub struct Nrf5340DefaultPeripherals<'a> {
     pub clock: crate::clock::Clock,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
+    pub ipc: crate::ipc::Ipc<'a>,
     pub network: crate::network::NetworkCore,
     pub rtc: crate::rtc::Rtc<'a>,
     pub uarte0: crate::uarte::Uarte<'a>,
@@ -86,6 +90,7 @@ impl Nrf5340DefaultPeripherals<'_> {
         Self {
             clock: crate::clock::Clock::new(CLOCK_BASE),
             gpio_port: crate::gpio::nrf5340_gpio_create(),
+            ipc: crate::ipc::Ipc::new(IPC_BASE),
             network: crate::network::NetworkCore::new(RESET_BASE, [PIN_CNF_PORT0, PIN_CNF_PORT1]),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             uarte0: crate::uarte::Uarte::new(uarte0_registers),
@@ -105,6 +110,7 @@ impl InterruptService for Nrf5340DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::GPIOTE0 => self.gpio_port.handle_interrupt(),
+            crate::peripheral_interrupts::IPC => self.ipc.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::SERIAL0 => self.uarte0.handle_interrupt(),
             crate::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),

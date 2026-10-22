@@ -14,4 +14,4 @@ pub mod network;
 pub mod peripheral_interrupts;
 pub mod usbreg;
 
-pub use nrf5x::{pinmux, rtc, uarte, usbd};
+pub use nrf5x::{ble_ipc, ipc, pinmux, rtc, uarte, usbd};
