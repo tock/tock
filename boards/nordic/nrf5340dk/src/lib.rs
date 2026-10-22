@@ -98,6 +98,7 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 type AdcHw = nrf5340::adc::Adc<'static>;
 type AlarmHw = nrf5340::rtc::Rtc<'static>;
 type BleHw = BleProxy<'static>;
+type CryptoHw = nrf5340::cryptocell::CryptoCell<'static>;
 type GpioHw = nrf5340::gpio::GPIOPin<'static>;
 type SpiHw = nrf5340::spi::SPIM<'static>;
 type LedHw = LedLow<'static, GpioHw>;
@@ -108,6 +109,8 @@ type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 4>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 type ConsoleDriver = components::console::ConsoleComponentType;
+type RngDriver = components::rng::RngComponentType<CryptoHw>;
+type ShaDriver = components::sha::ShaDriverComponentType<CryptoHw, 32>;
 
 // TicKV on the external flash.
 type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<SpiHw, GpioHw, AlarmHw>;
@@ -141,7 +144,9 @@ pub struct Platform {
     kv_driver: &'static KVDriver,
     led: &'static LedDriver,
     pconsole: &'static ProcessConsoleDriver,
+    rng: &'static RngDriver,
     scheduler: &'static SchedulerInUse,
+    sha: &'static ShaDriver,
     systick: cortexm33::systick::SysTick,
 }
 
@@ -159,6 +164,8 @@ impl SyscallDriverLookup for Platform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
             _ => f(None),
         }
     }
@@ -327,6 +334,22 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     // Measure VDD, the reference voltage readings are relative to.
     peripherals.adc.calibrate();
 
+    // The CryptoCell's TRNG and SHA-256.
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        &peripherals.cryptocell,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::rng_component_static!(CryptoHw));
+    let sha = components::sha::ShaDriverComponent::new(
+        board_kernel,
+        capsules_extra::sha256_driver::DRIVER_NUM,
+        &peripherals.cryptocell,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::sha_driver_component_static!(CryptoHw, 32));
+
     // The external flash, with a TicKV key-value store over its first 32
     // sectors.
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spim1)
@@ -494,7 +517,9 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         kv_driver,
         led,
         pconsole,
+        rng,
         scheduler,
+        sha,
         // The application core runs at 64 MHz after reset.
         systick: cortexm33::systick::SysTick::new_with_calibration(64_000_000),
     };

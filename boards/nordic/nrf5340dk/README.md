@@ -17,6 +17,8 @@ kernel from [`../nrf5340dk-net`](../nrf5340dk-net/README.md).
 | Alarm (RTC1)           | Yes    |
 | ADC (SAADC, A0 to A5)  | Yes    |
 | External flash, KV     | Yes    |
+| RNG (CryptoCell TRNG)  | Yes    |
+| SHA-256 (CryptoCell)   | Yes    |
 | Process console        | Yes    |
 | Network core release   | Yes    |
 | USB CDC-ACM console    | Yes    |
@@ -36,6 +38,8 @@ The MX25R6435F external flash is on the QSPI pins, driven by SPIM1. A TicKV
 key-value store on its first 32 sectors backs the KV system call driver. The
 kernel gives each app a fixed ShortId derived from its name, and permission to
 read and write keys under that ID. It does not check app credentials.
+
+The RNG and SHA-256 system call drivers run on the CryptoCell-312.
 
 A second console runs over USB CDC-ACM on the nRF5340 USB connector. It is
 registered as console instance 1 (driver number `0x1000001`). The cable must be
