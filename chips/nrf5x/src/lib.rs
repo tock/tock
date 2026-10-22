@@ -13,3 +13,4 @@ pub mod rtc;
 pub mod temperature;
 pub mod timer;
 pub mod trng;
+pub mod uarte;

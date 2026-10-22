@@ -70,6 +70,9 @@ const TWI1_BASE: StaticRef<crate::i2c::TwiRegisters> =
 const UICR_BASE: StaticRef<crate::uicr::UicrRegisters> =
     unsafe { StaticRef::new(0x10001200 as *const crate::uicr::UicrRegisters) };
 
+pub const UARTE0_BASE: StaticRef<crate::uarte::UarteRegisters> =
+    unsafe { StaticRef::new(0x40002000 as *const crate::uarte::UarteRegisters) };
+
 const RNG_BASE: StaticRef<crate::trng::RngRegisters> =
     unsafe { StaticRef::new(0x4000D000 as *const crate::trng::RngRegisters) };
 
@@ -139,7 +142,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
         // SAFETY: See function-level doc.
-        let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new_uarte0() };
+        let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new(UARTE0_BASE) };
 
         Self {
             acomp: crate::acomp::Comparator::new(COMP_BASE),
