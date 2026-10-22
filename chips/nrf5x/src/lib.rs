@@ -15,3 +15,4 @@ pub mod temperature;
 pub mod timer;
 pub mod trng;
 pub mod uarte;
+pub mod usbd;

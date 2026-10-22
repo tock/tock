@@ -20,9 +20,8 @@ pub mod pwm;
 pub mod spi;
 pub mod uart;
 pub mod uicr;
-pub mod usbd;
 
 pub use nrf5x::{
     aes, ble_radio, constants, gpio, peripheral_interrupts, pinmux, rtc, temperature, timer, trng,
-    uarte,
+    uarte, usbd,
 };

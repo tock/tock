@@ -5,7 +5,7 @@
 //! Universal Serial Bus Device with EasyDMA (USBD)
 
 use core::cell::Cell;
-use cortexm4f::support::with_interrupts_disabled;
+use cortexm::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::StaticRef;
@@ -15,8 +15,6 @@ use kernel::utilities::registers::{
     Field, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
     register_structs,
 };
-
-use crate::power;
 
 // The following macros provide some diagnostics and panics(!)
 // while this module is experimental and should eventually be removed or
@@ -58,6 +56,12 @@ macro_rules! internal_err {
 }
 
 const NUM_ENDPOINTS: usize = 8;
+
+/// USB supply status, reported by POWER on nRF52 and USBREGULATOR on nRF5340.
+pub trait UsbPower {
+    fn is_vbus_present(&self) -> bool;
+    fn is_usb_power_ready(&self) -> bool;
+}
 
 register_structs! {
     pub ChipInfoRegisters {
@@ -710,7 +714,7 @@ pub struct Usbd<'a> {
     dma_pending: Cell<bool>,
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
     descriptors: [Endpoint<'a>; NUM_ENDPOINTS],
-    power: OptionalCell<&'a power::Power<'a>>,
+    power: OptionalCell<&'a dyn UsbPower>,
 }
 
 impl<'a> Usbd<'a> {
@@ -740,7 +744,7 @@ impl<'a> Usbd<'a> {
         }
     }
 
-    pub fn set_power_ref(&self, power: &'a power::Power<'a>) {
+    pub fn set_power_ref(&self, power: &'a dyn UsbPower) {
         self.power.set(power);
     }
 
@@ -832,7 +836,7 @@ impl<'a> Usbd<'a> {
     }
 
     // Powers the USB PHY on
-    fn enable(&self) {
+    pub fn enable(&self) {
         if self.get_state() != UsbState::Disabled {
             internal_warn!("USBC is already enabled");
             return;
@@ -874,7 +878,7 @@ impl<'a> Usbd<'a> {
         self.registers.inten.set(inter);
     }
 
-    fn power_ready(&self) {
+    pub fn power_ready(&self) {
         match self.get_state() {
             UsbState::Disabled => {
                 self.enable();
@@ -981,7 +985,7 @@ impl<'a> Usbd<'a> {
         self.state.set(UsbState::PoweredOn);
     }
 
-    fn disable(&self) {
+    pub fn disable(&self) {
         debug_info!("usbc::disable() - State={:?}", self.get_state());
         self.stop();
         self.registers.enable.write(Usb::ENABLE::OFF);
@@ -1334,7 +1338,7 @@ impl<'a> Usbd<'a> {
         // ms), but then the EPDATA event on the very first IN transfer
         // immediately after the `client.bus_reset()` call below never occurs.
         for _ in 0..800000 {
-            cortexm4f::support::nop();
+            cortexm::support::nop();
         }
 
         // TODO: reset controller stack
@@ -1919,17 +1923,6 @@ impl<'a> Usbd<'a> {
             "out={}",
             core::str::from_utf8(&packet_hex[..(2 * size)]).unwrap()
         );
-    }
-}
-
-impl power::PowerClient for Usbd<'_> {
-    fn handle_power_event(&self, event: power::PowerEvent) {
-        match event {
-            power::PowerEvent::UsbPluggedIn => self.enable(),
-            power::PowerEvent::UsbPluggedOut => self.disable(),
-            power::PowerEvent::UsbPowerReady => self.power_ready(),
-            _ => internal_warn!("usbc::handle_power_event: unknown power event"),
-        }
     }
 }
 
