@@ -6,6 +6,7 @@
 
 pub const SERIAL0: u32 = 8;
 pub const GPIOTE0: u32 = 13;
+pub const SAADC: u32 = 14;
 pub const RTC1: u32 = 21;
 pub const IPC: u32 = 42;
 pub const GPIOTE1: u32 = 47;

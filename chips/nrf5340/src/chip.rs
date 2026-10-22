@@ -24,6 +24,7 @@ pub struct PeripheralBases {
     pub pin_cnf: [StaticRef<crate::network::PinCnfRegisters>; 2],
     pub reset: StaticRef<crate::network::ResetRegisters>,
     pub rtc1: StaticRef<crate::rtc::RtcRegisters>,
+    pub saadc: StaticRef<crate::adc::AdcRegisters>,
     pub uarte0: StaticRef<crate::uarte::UarteRegisters>,
     pub usbd: StaticRef<crate::usbd::UsbdRegisters<'static>>,
     pub usbreg: StaticRef<crate::usbreg::UsbRegRegisters>,
@@ -50,6 +51,7 @@ impl PeripheralBases {
                 ],
                 reset: StaticRef::new((0x50005000 - offset) as *const _),
                 rtc1: StaticRef::new((0x50015000 - offset) as *const _),
+                saadc: StaticRef::new((0x5000E000 - offset) as *const _),
                 uarte0: StaticRef::new((0x50008000 - offset) as *const _),
                 usbd: StaticRef::new((0x50036000 - offset) as *const _),
                 usbreg: StaticRef::new((0x50037000 - offset) as *const _),
@@ -91,6 +93,7 @@ impl<'a, I: InterruptService + 'a> Nrf5340<'a, I> {
 /// This struct, when initialized, instantiates all peripheral drivers for the
 /// nRF5340 application core.
 pub struct Nrf5340DefaultPeripherals<'a> {
+    pub adc: crate::adc::Adc<'a>,
     pub clock: crate::clock::Clock,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
     pub ipc: crate::ipc::Ipc<'a>,
@@ -126,6 +129,8 @@ impl Nrf5340DefaultPeripherals<'_> {
         let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new(bases.uarte0) };
 
         Self {
+            // SAFETY: See function-level doc.
+            adc: crate::adc::Adc::new(bases.saadc, 3300, unsafe { crate::adc::AdcSample::new() }),
             clock: crate::clock::Clock::new(bases.clock),
             gpio_port: crate::gpio::nrf5340_gpio_create(bases.gpiote, bases.gpio),
             ipc: crate::ipc::Ipc::new(bases.ipc),
@@ -149,6 +154,7 @@ impl Nrf5340DefaultPeripherals<'_> {
 impl InterruptService for Nrf5340DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
+            crate::peripheral_interrupts::SAADC => self.adc.handle_interrupt(),
             crate::peripheral_interrupts::GPIOTE0 | crate::peripheral_interrupts::GPIOTE1 => {
                 self.gpio_port.handle_interrupt()
             }
