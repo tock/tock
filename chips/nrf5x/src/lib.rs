@@ -4,6 +4,7 @@
 
 #![no_std]
 
+pub mod adc;
 pub mod aes;
 pub mod ble_ipc;
 pub mod ble_radio;

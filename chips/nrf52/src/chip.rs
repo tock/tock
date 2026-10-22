@@ -163,7 +163,8 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             spim2: crate::spi::SPIM::new(SPIM2_BASE),
             twi1: crate::i2c::TWI::new(TWI1_BASE),
             // Default to 3.3 V VDD reference.
-            adc: crate::adc::Adc::new(SAADC_BASE, 3300),
+            // SAFETY: See function-level doc.
+            adc: crate::adc::Adc::new(SAADC_BASE, 3300, unsafe { crate::adc::AdcSample::new() }),
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
             clock: crate::clock::Clock::new(CLOCK_BASE),
             pwm0: crate::pwm::Pwm::new(PWM0_BASE),

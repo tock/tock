@@ -5,7 +5,6 @@
 #![no_std]
 
 pub mod acomp;
-pub mod adc;
 pub mod approtect;
 pub mod chip;
 pub mod clock;
@@ -22,6 +21,6 @@ pub mod uart;
 pub mod uicr;
 
 pub use nrf5x::{
-    aes, ble_radio, constants, gpio, peripheral_interrupts, pinmux, rtc, temperature, timer, trng,
-    uarte, usbd,
+    adc, aes, ble_radio, constants, gpio, peripheral_interrupts, pinmux, rtc, temperature, timer,
+    trng, uarte, usbd,
 };
