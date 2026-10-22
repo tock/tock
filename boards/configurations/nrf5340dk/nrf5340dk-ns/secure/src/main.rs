@@ -5,8 +5,8 @@
 //! Secure stage for the `nrf5340dk-ns` kernel.
 //!
 //! The application core starts here, in secure state. This stage applies the
-//! nRF5340 startup errata; hands the network core its console pins and
-//! releases it; makes the kernel's flash, all RAM, the peripherals the kernel
+//! nRF5340 startup errata; connects the 32.768 kHz crystal; hands the network
+//! core its console pins and releases it; makes the kernel's flash, all RAM, the peripherals the kernel
 //! uses and all GPIO pins non-secure; sends their interrupts and the BusFault,
 //! HardFault and NMI exceptions to non-secure state; then jumps to the kernel.
 //! No secure code runs after that. The SPU, CryptoCell, and the NVMC with the
@@ -18,6 +18,7 @@
 use cortexm33::trustzone;
 use nrf5340::chip::{SECURE_BASES, SPU_BASE};
 use nrf5340::gpio::Pin;
+use nrf5340::lfxo::{Lfxo, LoadCapacitance};
 use nrf5340::network::NetworkCore;
 use nrf5340::spu::Spu;
 
@@ -42,6 +43,10 @@ const NET_UART: [Pin; 2] = [Pin::P1_01, Pin::P1_00];
 unsafe extern "C" fn reset_handler() -> ! {
     // SAFETY: This runs on the nRF5340 application core in secure state.
     unsafe { nrf5340::crt1::fix_errata() };
+
+    // The DK's 32.768 kHz crystal, before the network core may select it.
+    Lfxo::new(SECURE_BASES.oscillators, SECURE_BASES.pin_cnf[0])
+        .connect(LoadCapacitance::Internal7pF);
 
     // Before RESET becomes non-secure, which faults its secure alias.
     NetworkCore::new(SECURE_BASES.reset, SECURE_BASES.pin_cnf).start(&NET_UART);

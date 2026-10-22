@@ -22,8 +22,8 @@ kernel from [`../nrf5340dk-net`](../nrf5340dk-net/README.md).
 | TrustZone (non-secure) | Yes    |
 
 The console is on the J-Link virtual COM port connected to P0.20 (TX) and
-P0.22 (RX), at 115200 baud without flow control. The LFCLK runs from the
-internal RC oscillator.
+P0.22 (RX), at 115200 baud without flow control. Both cores run their LFCLK
+from the DK's 32.768 kHz crystal.
 
 BLE advertising uses the radio on the network core, so it needs the
 [`../nrf5340dk-net`](../nrf5340dk-net/README.md) kernel there. The two kernels

@@ -155,7 +155,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     });
     peripherals
         .clock
-        .start(nrf5340_net::clock::LfclkSource::Lfrc);
+        .start(nrf5340_net::clock::LfclkSource::Lfxo);
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()

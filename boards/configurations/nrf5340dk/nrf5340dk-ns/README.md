@@ -12,13 +12,14 @@ peripheral addresses.
 The application core starts in the secure stage, at address 0x0. It:
 
 1. Applies the nRF5340 startup errata, which need secure state.
-2. Hands P1.00 and P1.01 to the network core and releases it.
-3. Makes the kernel's flash, all RAM, all GPIO pins, and the peripherals the
+2. Connects the 32.768 kHz crystal, whose pins only secure code can select.
+3. Hands P1.00 and P1.01 to the network core and releases it.
+4. Makes the kernel's flash, all RAM, all GPIO pins, and the peripherals the
    kernel uses non-secure in the SPU, and sends their interrupts to
    non-secure state.
-4. Sends BusFault, HardFault and NMI to non-secure state, so kernel faults
+5. Sends BusFault, HardFault and NMI to non-secure state, so kernel faults
    reach the kernel's fault handler.
-5. Jumps to the kernel at 0x4000 in non-secure state.
+6. Jumps to the kernel at 0x4000 in non-secure state.
 
 No secure code runs after that. The SPU, the CryptoCell, and the NVMC with the
 KMU stay secure, so the kernel cannot change the secure stage or write flash.

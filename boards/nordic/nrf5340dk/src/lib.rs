@@ -189,13 +189,18 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         Nrf5340DefaultPeripherals::new()
     });
     peripherals.init();
-    peripherals.clock.start(nrf5340::clock::LfclkSource::Lfrc);
+    // In non-secure state, the secure stage has done this.
     if cortexm33::trustzone::is_secure() {
+        // The DK's 32.768 kHz crystal, as Nordic configures it.
+        peripherals
+            .lfxo
+            .connect(nrf5340::lfxo::LoadCapacitance::Internal7pF);
         peripherals
             .spu
             .make_ram_nonsecure(BLE_MAILBOX_ADDRESS..BLE_MAILBOX_ADDRESS + 0x2000);
         peripherals.network.start(&[NET_UART_TXD, NET_UART_RXD]);
     }
+    peripherals.clock.start(nrf5340::clock::LfclkSource::Lfxo);
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
