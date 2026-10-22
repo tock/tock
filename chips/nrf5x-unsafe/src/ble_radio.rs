@@ -529,23 +529,23 @@ impl RadioRegistersManager {
         // # Safety
         //
         // The radio is off, so the hardware does not access the buffer, and
-        // this reference ends with this function. See `take_rx_payload` for
-        // references handed to clients.
+        // this reference ends with this function.
         let payload = unsafe { &mut *addr_of_mut!(PAYLOAD) };
         payload[..buf.len()].copy_from_slice(buf);
     }
 
-    /// Power the radio off, which stops its DMA, and return the packet buffer
-    /// holding the received packet.
-    pub fn take_rx_payload(&self) -> &'static mut [u8] {
+    /// Power the radio off, which stops its DMA, and copy the received packet
+    /// into `buf`. Returns the packet's LENGTH field.
+    pub fn copy_rx_payload(&self, buf: &mut [u8]) -> u8 {
         self.registers.power.write(Task::ENABLE::CLEAR);
 
         // # Safety
         //
-        // The radio is off, so the hardware does not access the buffer. The
-        // `RxClient` HIL never returns this buffer, so each receive hands out
-        // a new reference. This relies on the client not keeping it past
-        // `receive_event`, which holds for `ble_advertising_driver`.
-        unsafe { &mut *addr_of_mut!(PAYLOAD) }
+        // The radio is off, so the hardware does not access the buffer, and
+        // this reference ends with this function.
+        let payload = unsafe { &*addr_of!(PAYLOAD) };
+        let n = buf.len().min(payload.len());
+        buf[..n].copy_from_slice(&payload[..n]);
+        payload[1]
     }
 }

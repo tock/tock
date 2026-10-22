@@ -468,7 +468,7 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Ble<'a> {
         }
     }
 
-    fn receive_advertisement(&self, _channel: RadioChannel) {
+    fn receive_advertisement(&self, _buf: &'static mut [u8], _channel: RadioChannel) {
         unimplemented!();
     }
 

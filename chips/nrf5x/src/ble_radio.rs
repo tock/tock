@@ -60,6 +60,7 @@ pub struct Radio<'a> {
     rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
     buffer: TakeCell<'static, [u8]>,
+    rx_buffer: TakeCell<'static, [u8]>,
     /// FICR trim the nRF5340 network core radio needs after each power-up
     /// (erratum 117). `None` on nRF52, whose radio needs no trim.
     nrf5340_trim: Option<u32>,
@@ -73,6 +74,7 @@ impl<'a> Radio<'a> {
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
+            rx_buffer: TakeCell::empty(),
             nrf5340_trim,
         }
     }
@@ -186,13 +188,14 @@ impl<'a> Radio<'a> {
                 | crate::constants::RADIO_STATE_RXIDLE
                 | crate::constants::RADIO_STATE_RXDISABLE
                 | crate::constants::RADIO_STATE_RX => {
-                    let payload = self.registers.take_rx_payload();
-                    self.rx_client.map(|client| {
+                    self.radio_off();
+                    self.rx_buffer.take().map(|buf| {
                         // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
-                        let len = payload[1] + 2;
-                        client.receive_event(payload, len, result)
+                        let len = self.registers.copy_rx_payload(buf).saturating_add(2);
+                        self.rx_client
+                            .map(|client| client.receive_event(buf, len, result));
                     });
                 }
                 // Radio state - Disabled
@@ -351,7 +354,8 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Radio<'a> {
         self.enable_interrupts();
     }
 
-    fn receive_advertisement(&self, channel: RadioChannel) {
+    fn receive_advertisement(&self, buf: &'static mut [u8], channel: RadioChannel) {
+        self.rx_buffer.replace(buf);
         self.ble_initialize(channel);
         self.rx();
         self.enable_interrupts();
