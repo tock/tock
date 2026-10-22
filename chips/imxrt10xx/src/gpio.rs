@@ -812,9 +812,9 @@ mod tests {
         }
 
         check(0, core::iter::empty());
-        check(u32::max_value(), 0..32);
-        check(u32::max_value() >> 1, 0..31);
-        check(u32::max_value() << 1, 1..32);
+        check(u32::MAX, 0..32);
+        check(u32::MAX >> 1, 0..31);
+        check(u32::MAX << 1, 1..32);
         check(0x5555_5555, (0..32).step_by(2));
         check(0xAAAA_AAAA, (0..32).skip(1).step_by(2));
     }
