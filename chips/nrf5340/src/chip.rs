@@ -26,6 +26,9 @@ const PIN_CNF_PORT0: StaticRef<crate::network::PinCnfRegisters> =
 const PIN_CNF_PORT1: StaticRef<crate::network::PinCnfRegisters> =
     unsafe { StaticRef::new(0x50842300 as *const crate::network::PinCnfRegisters) };
 
+const SPU_BASE: StaticRef<crate::network::SpuRegisters> =
+    unsafe { StaticRef::new(0x50003000 as *const crate::network::SpuRegisters) };
+
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x50015000 as *const crate::rtc::RtcRegisters) };
 
@@ -91,7 +94,11 @@ impl Nrf5340DefaultPeripherals<'_> {
             clock: crate::clock::Clock::new(CLOCK_BASE),
             gpio_port: crate::gpio::nrf5340_gpio_create(),
             ipc: crate::ipc::Ipc::new(IPC_BASE),
-            network: crate::network::NetworkCore::new(RESET_BASE, [PIN_CNF_PORT0, PIN_CNF_PORT1]),
+            network: crate::network::NetworkCore::new(
+                RESET_BASE,
+                SPU_BASE,
+                [PIN_CNF_PORT0, PIN_CNF_PORT1],
+            ),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             uarte0: crate::uarte::Uarte::new(uarte0_registers),
             usbd: crate::usbd::Usbd::new(USBD_BASE, None),
