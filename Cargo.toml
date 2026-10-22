@@ -107,6 +107,7 @@ members = [
     "chips/nrf52832",
     "chips/nrf52833",
     "chips/nrf52840",
+    "chips/nrf5340",
     "chips/nrf5x",
     "chips/nrf5x-unsafe",
     "chips/pci-x86",
