@@ -13,8 +13,7 @@ use core::marker::PhantomData;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::symmetric_encryption::{
-    AES, AES_BLOCK_SIZE, AESCBC, AESCCM, AESCtr, AESECB, AESGCM, AESKeySize, CCMClient, Client,
-    GCMClient,
+    AES, AESCBC, AESCCM, AESCtr, AESECB, AESGCM, AESKeySize, CCMClient, Client, GCMClient,
 };
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -305,13 +304,11 @@ impl<
         match op {
             AesOperation::AESCtr(_) | AesOperation::AESCBC(_) | AesOperation::AESECB(_) => {
                 if let Some(dest_buf) = self.dest_buffer.take() {
-                    if let Some((e, source, dest)) = AES::crypt(
-                        self.aes,
-                        self.source_buffer.take(),
-                        dest_buf,
-                        0,
-                        AES_BLOCK_SIZE,
-                    ) {
+                    // The HIL requires the source to span exactly start..stop.
+                    let len = self.source_buffer.map_or(0, |buf| buf.len());
+                    if let Some((e, source, dest)) =
+                        AES::crypt(self.aes, self.source_buffer.take(), dest_buf, 0, len)
+                    {
                         // Error, clear the processid and data
                         self.aes.disable();
                         self.processid.clear();
