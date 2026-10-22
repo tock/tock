@@ -54,8 +54,10 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 //------------------------------------------------------------------------------
 
 type AlarmHw = nrf5340_net::rtc::Rtc<'static>;
+type BleHw = nrf5340_net::ble_radio::Radio<'static>;
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
 type ConsoleDriver = components::console::ConsoleComponentType;
 kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
@@ -67,6 +69,7 @@ type ProcessConsoleDriver =
 /// Supported drivers by the platform
 pub struct Platform {
     alarm: &'static AlarmDriver,
+    ble_radio: &'static BleDriver,
     console: &'static ConsoleDriver,
     pconsole: &'static ProcessConsoleDriver,
     scheduler: &'static SchedulerInUse,
@@ -81,6 +84,7 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             _ => f(None),
         }
     }
@@ -174,6 +178,15 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     )
     .finalize(components::alarm_component_static!(AlarmHw));
 
+    let ble_radio = components::ble::BLEComponent::new(
+        board_kernel,
+        capsules_extra::ble_advertising_driver::DRIVER_NUM,
+        &peripherals.ble_radio,
+        mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
+
     peripherals
         .uarte0
         .initialize(Pinmux::new(UART_TXD), Pinmux::new(UART_RXD), None, None);
@@ -224,6 +237,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
 
     let platform = Platform {
         alarm,
+        ble_radio,
         console,
         pconsole,
         scheduler,
