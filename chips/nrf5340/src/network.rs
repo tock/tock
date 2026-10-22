@@ -23,7 +23,7 @@ register_structs! {
     /// [`GpioRegisters`](crate::gpio::GpioRegisters).
     pub PinCnfRegisters {
         (0x000 => _reserved0),
-        (0x700 => pin_cnf: [ReadWrite<u32, PinCnf::Register>; 32]),
+        (0x700 => pub(crate) pin_cnf: [ReadWrite<u32, PinCnf::Register>; 32]),
         (0x780 => @END),
     }
 }
@@ -35,10 +35,11 @@ register_bitfields! [u32,
             Hold = 1
         ]
     ],
-    PinCnf [
+    pub(crate) PinCnf [
         MCUSEL OFFSET(28) NUMBITS(3) [
             AppMcu = 0,
-            NetworkMcu = 1
+            NetworkMcu = 1,
+            Peripheral = 3
         ]
     ]
 ];

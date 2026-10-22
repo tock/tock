@@ -10,6 +10,7 @@ pub mod chip;
 pub mod clock;
 pub mod crt1;
 pub mod gpio;
+pub mod lfxo;
 pub mod network;
 pub mod peripheral_interrupts;
 pub mod spu;

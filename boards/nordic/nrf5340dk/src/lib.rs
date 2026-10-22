@@ -189,7 +189,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         Nrf5340DefaultPeripherals::new()
     });
     peripherals.init();
-    peripherals.clock.start();
+    peripherals.clock.start(nrf5340::clock::LfclkSource::Lfrc);
     if cortexm33::trustzone::is_secure() {
         peripherals
             .spu
