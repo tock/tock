@@ -530,8 +530,9 @@ register_bitfields! [u32,
     ]
 ];
 
-static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
-    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
+// The radio stores S0 and LENGTH ahead of up to MAXLEN payload bytes.
+static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH + 2] =
+    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH + 2];
 
 pub struct Radio<'a> {
     registers: StaticRef<RadioRegisters>,
