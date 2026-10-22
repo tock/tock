@@ -151,7 +151,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             acomp: crate::acomp::Comparator::new(COMP_BASE),
             ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
             pwr_clk: crate::power::Power::new(POWER_BASE),
-            ble_radio: crate::ble_radio::Radio::new(radio_registers),
+            ble_radio: crate::ble_radio::Radio::new(radio_registers, None),
             trng: crate::trng::Trng::new(RNG_BASE),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             temp: crate::temperature::Temp::new(TEMP_BASE),

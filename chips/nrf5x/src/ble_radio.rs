@@ -60,16 +60,20 @@ pub struct Radio<'a> {
     rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
     buffer: TakeCell<'static, [u8]>,
+    /// FICR trim the nRF5340 network core radio needs after each power-up
+    /// (erratum 117). `None` on nRF52, whose radio needs no trim.
+    nrf5340_trim: Option<u32>,
 }
 
 impl<'a> Radio<'a> {
-    pub const fn new(registers: RadioRegistersManager) -> Radio<'a> {
+    pub const fn new(registers: RadioRegistersManager, nrf5340_trim: Option<u32>) -> Radio<'a> {
         Radio {
             registers,
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
+            nrf5340_trim,
         }
     }
 
@@ -301,6 +305,9 @@ impl<'a> Radio<'a> {
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part A], 4.6 REFERENCE SIGNAL DEFINITION
     // Bit Rate = 1 Mb/s ±1 ppm
     fn ble_set_channel_rate(&self) {
+        if let Some(trim) = self.nrf5340_trim {
+            self.registers.registers.errata_117.set(trim);
+        }
         self.registers.registers.mode.write(Mode::MODE::BLE_1MBIT);
     }
 
@@ -367,6 +374,10 @@ impl ble_advertising::BleConfig for Radio<'_> {
         match crate::constants::TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error
             Err(()) => Err(ErrorCode::NOSUPPORT),
+            // The nRF5340 network core radio tops out at 0 dBm
+            Ok(TxPower::Positive4dBM | TxPower::Positive3dBM) if self.nrf5340_trim.is_some() => {
+                Err(ErrorCode::NOSUPPORT)
+            }
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);

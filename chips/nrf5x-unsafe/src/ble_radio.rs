@@ -175,7 +175,12 @@ pub struct RadioRegisters {
     /// - Address: 0x560 - 0x564
     bcc: ReadWrite<u32, BitCounterCompare::Register>,
     /// Reserved
-    _reserved12: [u32; 39],
+    _reserved12: [u32; 9],
+    /// Mode trim, nRF5340 network core only (erratum 117)
+    /// - Address: 0x588 - 0x58c
+    pub errata_117: ReadWrite<u32>,
+    /// Reserved
+    _reserved13: [u32; 29],
     /// Device address base segments
     /// - Address: 0x600 - 0x620
     dab: [ReadWrite<u32, DeviceAddressBase::Register>; 8],
@@ -186,12 +191,12 @@ pub struct RadioRegisters {
     /// - Address: 0x640 - 0x644
     dacnf: ReadWrite<u32, DeviceAddressMatch::Register>,
     /// Reserved
-    _reserved13: [u32; 3],
+    _reserved14: [u32; 3],
     /// Radio mode configuration register
     /// - Address: 0x650 - 0x654
     modecnf0: ReadWrite<u32, RadioModeConfig::Register>,
     /// Reserved
-    _reserved14: [u32; 618],
+    _reserved15: [u32; 618],
     /// Peripheral power control
     /// - Address: 0xFFC - 0x1000
     pub power: ReadWrite<u32, Task::Register>,
