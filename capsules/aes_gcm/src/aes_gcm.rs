@@ -166,7 +166,7 @@ impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>>
     }
 
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
-        if key.len() < AES128_KEY_SIZE {
+        if key.len() != AES128_KEY_SIZE {
             Err(ErrorCode::INVAL)
         } else {
             let mut new_key = [0u8; AES128_KEY_SIZE];
