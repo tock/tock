@@ -5,6 +5,7 @@
 //! nRF5340 application core interrupt numbers.
 
 pub const SERIAL0: u32 = 8;
+pub const SERIAL1: u32 = 9;
 pub const GPIOTE0: u32 = 13;
 pub const SAADC: u32 = 14;
 pub const RTC1: u32 = 21;
