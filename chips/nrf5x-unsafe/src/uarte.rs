@@ -6,7 +6,7 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::MapCell;
-use kernel::utilities::dma_slice::DmaSubSliceMut;
+use kernel::utilities::dma_slice::{DmaSlice, DmaSubSliceMut};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
@@ -237,6 +237,37 @@ impl UarteRegistersManager {
 
     pub fn tx_dma_pending(&self) -> bool {
         self.tx_dma_buf.is_some()
+    }
+
+    /// Transmit `data`, busy-waiting until every byte has been sent.
+    ///
+    /// This is only intended for panic output. It does not coordinate with a
+    /// DMA operation started by [`start_tx_dma`](Self::start_tx_dma).
+    pub fn transmit_sync(&self, data: &[u8]) {
+        // EasyDMA can only read RAM, and `data` may be in flash.
+        let mut chunk = [0u8; 32];
+        for piece in data.chunks(chunk.len()) {
+            chunk[..piece.len()].copy_from_slice(piece);
+
+            // To create a DmaFence we must trust the implementation.
+            //
+            // # Safety
+            //
+            // The architecture-provided version is correct for nRF5x chips.
+            let fence = unsafe { cortexm::dma_fence::CortexMDmaFence::new() };
+
+            // The DmaSlice must outlive the DMA read, which ends at ENDTX.
+            let tx_dma_slice = DmaSlice::new(&chunk[..piece.len()], fence);
+
+            self.registers.event_endtx.write(Event::READY::CLEAR);
+            self.registers.txd_ptr.set(tx_dma_slice.ptr_addr() as u32);
+            self.registers
+                .txd_maxcnt
+                .write(Counter::COUNTER.val(tx_dma_slice.len() as u32));
+            self.registers.task_starttx.write(Task::ENABLE::SET);
+
+            while !self.registers.event_endtx.is_set(Event::READY) {}
+        }
     }
 
     /// Start a UART reception with DMA.

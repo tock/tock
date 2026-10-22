@@ -14,6 +14,7 @@ use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use nrf5x_unsafe::uarte::{Event, Interrupt, Psel, Task, Uart};
@@ -467,6 +468,56 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
                 .write(Task::ENABLE::SET);
             Err(ErrorCode::BUSY)
         }
+    }
+}
+
+/// Synchronous UARTE writer.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// UARTE driver.
+struct UartePanicWriter {
+    inner: Uarte<'static>,
+}
+
+impl IoWrite for UartePanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.inner.registers.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartePanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for using a UARTE as a panic writer.
+pub struct UartePanicWriterConfig {
+    /// Registers of the UARTE to print on. The regular [`Uarte`] driver for
+    /// this peripheral must not run again once the panic writer exists.
+    pub registers: UarteRegistersManager,
+    pub params: uart::Parameters,
+    pub txd: Pin,
+    pub rxd: Pin,
+    pub cts: Option<Pin>,
+    pub rts: Option<Pin>,
+}
+
+impl kernel::platform::chip::PanicWriter for Uarte<'_> {
+    type Config = UartePanicWriterConfig;
+
+    fn create_panic_writer(
+        config: Self::Config,
+        _panic: &core::panic::PanicInfo,
+    ) -> impl IoWrite + core::fmt::Write {
+        use uart::Configure as _;
+
+        let inner = Uarte::new(config.registers);
+        inner.initialize_inner(config.txd, config.rxd, config.cts, config.rts);
+        let _ = inner.configure(config.params);
+        UartePanicWriter { inner }
     }
 }
 
