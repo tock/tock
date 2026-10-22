@@ -911,6 +911,13 @@ impl<
                         CommandReturn::success()
                     }
 
+                    // Set mlen for CCM and GCM
+                    // This will not trigger a callback and will not process any data from userspace
+                    9 => {
+                        app.mlen.set(data1);
+                        CommandReturn::success()
+                    }
+
                     // default
                     _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 }
@@ -922,6 +929,7 @@ impl<
             || command_num == 6
             || command_num == 7
             || command_num == 8
+            || command_num == 9
         {
             self.check_queue();
         }
