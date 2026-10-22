@@ -6,6 +6,8 @@ use core::fmt::Write;
 use cortexm33::{CortexM33, CortexMVariant, nvic};
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::ReadOnly;
+use kernel::utilities::registers::interfaces::Readable;
 
 //
 // Peripheral Registers Instantiations
@@ -13,6 +15,13 @@ use kernel::utilities::StaticRef;
 
 const CLOCK_BASE: StaticRef<crate::clock::ClockRegisters> =
     unsafe { StaticRef::new(0x41005000 as *const crate::clock::ClockRegisters) };
+
+// FICR word the radio needs in 1 Mbit mode, for erratum 117.
+const FICR_RADIO_TRIM: StaticRef<ReadOnly<u32>> =
+    unsafe { StaticRef::new(0x01FF0080 as *const ReadOnly<u32>) };
+
+const RADIO_BASE: StaticRef<crate::ble_radio::RadioRegisters> =
+    unsafe { StaticRef::new(0x41008000 as *const crate::ble_radio::RadioRegisters) };
 
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x41016000 as *const crate::rtc::RtcRegisters) };
@@ -42,6 +51,7 @@ impl<'a, I: InterruptService + 'a> Nrf5340Net<'a, I> {
 /// This struct, when initialized, instantiates all peripheral drivers for the
 /// nRF5340 network core.
 pub struct Nrf5340NetDefaultPeripherals<'a> {
+    pub ble_radio: crate::ble_radio::Radio<'a>,
     pub clock: crate::clock::Clock,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
     pub rtc: crate::rtc::Rtc<'a>,
@@ -65,7 +75,11 @@ impl Nrf5340NetDefaultPeripherals<'_> {
         // SAFETY: See function-level doc.
         let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new(UARTE0_BASE) };
 
+        // SAFETY: See function-level doc.
+        let radio_registers = unsafe { crate::ble_radio::RadioRegistersManager::new(RADIO_BASE) };
+
         Self {
+            ble_radio: crate::ble_radio::Radio::new(radio_registers, Some(FICR_RADIO_TRIM.get())),
             clock: crate::clock::Clock::new(CLOCK_BASE),
             gpio_port: crate::gpio::nrf5340_net_gpio_create(),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
@@ -77,6 +91,7 @@ impl Nrf5340NetDefaultPeripherals<'_> {
 impl InterruptService for Nrf5340NetDefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
+            crate::peripheral_interrupts::RADIO => self.ble_radio.handle_interrupt(),
             crate::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::SERIAL0 => self.uarte0.handle_interrupt(),

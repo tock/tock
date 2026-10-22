@@ -12,4 +12,4 @@ pub mod crt1;
 pub mod gpio;
 pub mod peripheral_interrupts;
 
-pub use nrf5x::{pinmux, rtc, uarte};
+pub use nrf5x::{ble_radio, pinmux, rtc, uarte};
