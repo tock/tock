@@ -4,8 +4,8 @@
 
 //! Tock kernel for the Nordic Semiconductor nRF5340 development kit.
 //!
-//! The kernel runs on the application core (Cortex-M33) in secure state. The
-//! network core is left in reset.
+//! The kernel runs on the application core (Cortex-M33) in secure state. At
+//! boot it releases the network core from reset.
 
 #![no_std]
 #![no_main]
@@ -37,6 +37,10 @@ const BUTTON4_PIN: Pin = Pin::P0_09;
 pub const UART_TXD: Pin = Pin::P0_20;
 /// UART receive pin, connected to the J-Link virtual COM port.
 pub const UART_RXD: Pin = Pin::P0_22;
+
+// The network core's console UART, on the other J-Link virtual COM port.
+const NET_UART_TXD: Pin = Pin::P1_01;
+const NET_UART_RXD: Pin = Pin::P1_00;
 
 /// UART Writer
 pub mod io;
@@ -159,6 +163,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         Nrf5340DefaultPeripherals::new()
     });
     peripherals.clock.start();
+    peripherals.network.start(&[NET_UART_TXD, NET_UART_RXD]);
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()

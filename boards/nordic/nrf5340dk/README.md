@@ -2,8 +2,9 @@ Platform-Specific Instructions: nRF5340-DK
 ==========================================
 
 The [nRF5340 Development Kit](https://www.nordicsemi.com/Products/Development-hardware/nRF5340-DK)
-has an nRF5340 SoC with two Cortex-M33 cores. Tock runs on the application core
-in secure state. The network core is held in reset.
+has an nRF5340 SoC with two Cortex-M33 cores. This kernel runs on the
+application core in secure state. At boot it hands P1.00 and P1.01 to the
+network core and releases it from reset.
 
 ## Supported Features
 
@@ -14,7 +15,8 @@ in secure state. The network core is held in reset.
 | Buttons (4)            | Yes    |
 | Alarm (RTC1)           | Yes    |
 | Process console        | Yes    |
-| Network core, BLE      | No     |
+| Network core release   | Yes    |
+| BLE                    | No     |
 | TrustZone (non-secure) | No     |
 
 The console is on the J-Link virtual COM port connected to P0.20 (TX) and

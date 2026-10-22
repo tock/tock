@@ -2,4 +2,4 @@
 
 Support for the nRF5340 application core, running in secure state. It reuses the
 `nrf5x` GPIO, RTC and UARTE drivers, whose registers match the nRF52 versions.
-The network core is left in reset.
+It can hand pins to the network core and release it from reset.

@@ -14,6 +14,15 @@ use kernel::utilities::StaticRef;
 const CLOCK_BASE: StaticRef<crate::clock::ClockRegisters> =
     unsafe { StaticRef::new(0x50005000 as *const crate::clock::ClockRegisters) };
 
+const RESET_BASE: StaticRef<crate::network::ResetRegisters> =
+    unsafe { StaticRef::new(0x50005000 as *const crate::network::ResetRegisters) };
+
+const PIN_CNF_PORT0: StaticRef<crate::network::PinCnfRegisters> =
+    unsafe { StaticRef::new(0x50842000 as *const crate::network::PinCnfRegisters) };
+
+const PIN_CNF_PORT1: StaticRef<crate::network::PinCnfRegisters> =
+    unsafe { StaticRef::new(0x50842300 as *const crate::network::PinCnfRegisters) };
+
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x50015000 as *const crate::rtc::RtcRegisters) };
 
@@ -44,6 +53,7 @@ impl<'a, I: InterruptService + 'a> Nrf5340<'a, I> {
 pub struct Nrf5340DefaultPeripherals<'a> {
     pub clock: crate::clock::Clock,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
+    pub network: crate::network::NetworkCore,
     pub rtc: crate::rtc::Rtc<'a>,
     pub uarte0: crate::uarte::Uarte<'a>,
 }
@@ -68,6 +78,7 @@ impl Nrf5340DefaultPeripherals<'_> {
         Self {
             clock: crate::clock::Clock::new(CLOCK_BASE),
             gpio_port: crate::gpio::nrf5340_gpio_create(),
+            network: crate::network::NetworkCore::new(RESET_BASE, [PIN_CNF_PORT0, PIN_CNF_PORT1]),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             uarte0: crate::uarte::Uarte::new(uarte0_registers),
         }
