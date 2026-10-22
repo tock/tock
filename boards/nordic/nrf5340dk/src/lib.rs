@@ -5,8 +5,10 @@
 //! Board file for the Tock kernel on the Nordic Semiconductor nRF5340
 //! development kit, shared by the kernels built from it.
 //!
-//! The kernel runs on the application core (Cortex-M33) in secure state. At
-//! boot it releases the network core from reset.
+//! The kernel runs on the application core (Cortex-M33), in secure state, or in
+//! non-secure state behind the secure stage of the `nrf5340dk-ns`
+//! configuration. In secure state, it releases the network core from reset at
+//! boot; in non-secure state, the secure stage has done that.
 
 #![no_std]
 #![deny(missing_docs)]
@@ -188,10 +190,12 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     });
     peripherals.init();
     peripherals.clock.start();
-    peripherals
-        .spu
-        .make_ram_nonsecure(BLE_MAILBOX_ADDRESS..BLE_MAILBOX_ADDRESS + 0x2000);
-    peripherals.network.start(&[NET_UART_TXD, NET_UART_RXD]);
+    if cortexm33::trustzone::is_secure() {
+        peripherals
+            .spu
+            .make_ram_nonsecure(BLE_MAILBOX_ADDRESS..BLE_MAILBOX_ADDRESS + 0x2000);
+        peripherals.network.start(&[NET_UART_TXD, NET_UART_RXD]);
+    }
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
