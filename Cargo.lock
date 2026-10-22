@@ -1148,6 +1148,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nrf5340_net"
+version = "0.2.4-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "nrf5x",
+]
+
+[[package]]
 name = "nrf5340dk"
 version = "0.2.4-dev"
 dependencies = [
