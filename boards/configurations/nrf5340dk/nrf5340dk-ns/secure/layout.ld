@@ -3,8 +3,8 @@
 /* Copyright Tock Contributors 2026.                                  */
 
 /* The secure stage takes the first 16K of flash, one SPU region, which holds
- * the reset vector. Its stack is at the start of RAM, which the kernel reuses
- * once it runs. */
+ * the reset vector and ends with the non-secure callable gateway. Its stack
+ * is in the first 8K of RAM, one SPU region, which stays secure. */
 MEMORY
 {
   rom (rx)  : ORIGIN = 0x00000000, LENGTH = 16K
@@ -30,6 +30,10 @@ SECTIONS
     *(.rodata .rodata.*)
   } > rom
 
+  /* The gateway's entry points, in the window the SPU makes non-secure
+   * callable. */
+  .nsc ORIGIN(rom) + LENGTH(rom) - 32 : { KEEP(*(.nsc)) } > rom
+
   .data : { *(.data .data.*) } > ram AT > rom
   /* Only statics of the kernel code below, which never runs, land here. */
   .bss (NOLOAD) : { *(.bss .bss.* COMMON) } > ram
@@ -50,5 +54,6 @@ PROVIDE(_erelocate = 0);
 PROVIDE(_szero = 0);
 PROVIDE(_ezero = 0);
 
+ASSERT(SIZEOF(.nsc) == 32, "The gateway has four 8-byte entry points")
 ASSERT(SIZEOF(.data) == 0,
        "The secure stage does not initialize RAM, so it must not use .data")

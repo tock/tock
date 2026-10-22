@@ -6,11 +6,15 @@
 //!
 //! The application core starts here, in secure state. This stage applies the
 //! nRF5340 startup errata; connects the 32.768 kHz crystal; hands the network
-//! core its console pins and releases it; makes the kernel's flash, all RAM, the peripherals the kernel
-//! uses and all GPIO pins non-secure; sends their interrupts and the BusFault,
-//! HardFault and NMI exceptions to non-secure state; then jumps to the kernel.
-//! No secure code runs after that. The SPU, CryptoCell, and the NVMC with the
-//! KMU stay secure, so the kernel cannot write flash.
+//! core its console pins and releases it; makes the kernel's flash and RAM,
+//! the peripherals the kernel uses and all GPIO pins non-secure; sends their
+//! interrupts and the BusFault, HardFault and NMI exceptions to non-secure
+//! state; then jumps to the kernel.
+//!
+//! After that, secure code runs only when the kernel calls the CryptoCell
+//! [`gateway`]. The SPU, CryptoCell, and the NVMC with the KMU stay secure, so
+//! the kernel cannot write flash. The first 8 KB of RAM holds this stage's
+//! stack and stays secure.
 
 #![no_std]
 #![no_main]
@@ -22,10 +26,14 @@ use nrf5340::lfxo::{Lfxo, LoadCapacitance};
 use nrf5340::network::NetworkCore;
 use nrf5340::spu::Spu;
 
+// Only the gateway's assembly, built for the chip alone, reaches its
+// operations.
+#[cfg_attr(not(all(target_arch = "arm", target_os = "none")), allow(dead_code))]
+mod gateway;
+
 /// The kernel's vector table, right after this stage's 16 KB.
 const KERNEL: usize = 0x4000;
 const FLASH_END: usize = 0x10_0000;
-const RAM: core::ops::Range<usize> = 0x2000_0000..0x2008_0000;
 
 /// The peripherals the kernel uses, by ID.
 ///
@@ -53,6 +61,8 @@ unsafe extern "C" fn reset_handler() -> ! {
 
     let spu = Spu::new(SPU_BASE);
     spu.make_flash_nonsecure(KERNEL..FLASH_END);
+    spu.make_flash_nonsecure_callable(gateway::WINDOW);
+    spu.make_ram_nonsecure(gateway::KERNEL_RAM);
     for id in PERIPHERALS {
         spu.make_peripheral_nonsecure(id);
         trustzone::interrupt_target_nonsecure(id);
@@ -62,9 +72,6 @@ unsafe extern "C" fn reset_handler() -> ! {
     spu.make_gpio_nonsecure(1);
     trustzone::faults_target_nonsecure();
     trustzone::sau_all_nonsecure();
-
-    // Last, as this stage's stack is in RAM.
-    spu.make_ram_nonsecure(RAM);
 
     // SAFETY: The kernel image is at `KERNEL`, and its memory and peripherals
     // are now non-secure.
