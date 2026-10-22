@@ -4,7 +4,8 @@ Platform-Specific Instructions: nRF5340-DK
 The [nRF5340 Development Kit](https://www.nordicsemi.com/Products/Development-hardware/nRF5340-DK)
 has an nRF5340 SoC with two Cortex-M33 cores. This kernel runs on the
 application core in secure state. At boot it hands P1.00 and P1.01 to the
-network core and releases it from reset.
+network core and releases it from reset, so the network core can run its own
+kernel from [`../nrf5340dk-net`](../nrf5340dk-net/README.md).
 
 ## Supported Features
 

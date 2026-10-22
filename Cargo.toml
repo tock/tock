@@ -39,6 +39,7 @@ members = [
     "boards/nordic/nrf52840_dongle",
     "boards/nordic/nrf52dk",
     "boards/nordic/nrf5340dk",
+    "boards/nordic/nrf5340dk-net",
     "boards/sma_q3",
     "boards/nucleo_f429zi",
     "boards/nucleo_f446re",
