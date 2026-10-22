@@ -103,7 +103,7 @@ impl<'a, I: InterruptService + 'a> Nrf5340<'a, I> {
 pub struct Nrf5340DefaultPeripherals<'a> {
     pub adc: crate::adc::Adc<'a>,
     pub clock: crate::clock::Clock,
-    /// Usable only in secure state.
+    /// In non-secure state, usable once given a secure gateway.
     pub cryptocell: crate::cryptocell::CryptoCell<'a>,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
     pub ipc: crate::ipc::Ipc<'a>,

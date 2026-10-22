@@ -12,8 +12,9 @@
 //! and AES and SHA-256 finish within the call and report through a deferred
 //! call.
 //!
-//! The CryptoCell accepts only secure, privileged accesses, so this works only
-//! in secure state.
+//! The CryptoCell accepts only secure, privileged accesses. In non-secure
+//! state, [`CryptoCell`] instead calls the [`SecureCryptoCell`] gateway it is
+//! given.
 //!
 //! Register offsets and sequences follow Arm's open-source CryptoCell-312
 //! runtime and cc3xx driver, and the Nordic MDK.
@@ -149,8 +150,10 @@ pub enum AesMode {
     Ctr = 2,
 }
 
-/// SHA-256 state between calls: the chaining value and the bytes hashed.
+/// SHA-256 state between calls: the chaining value and the bytes hashed. Its
+/// layout is fixed, as it crosses into a secure stage.
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Sha256State {
     h: [u32; 8],
     len: u64,
@@ -162,6 +165,71 @@ impl Sha256State {
             h: SHA256_IV,
             len: 0,
         }
+    }
+}
+
+impl TryFrom<u32> for AesMode {
+    type Error = ErrorCode;
+
+    fn try_from(mode: u32) -> Result<Self, ErrorCode> {
+        match mode {
+            0 => Ok(AesMode::Ecb),
+            1 => Ok(AesMode::Cbc),
+            2 => Ok(AesMode::Ctr),
+            _ => Err(ErrorCode::INVAL),
+        }
+    }
+}
+
+/// The CryptoCell operations that a secure stage runs for a non-secure kernel,
+/// as [`Cc312`] runs them in secure state.
+pub trait SecureCryptoCell {
+    fn aes128(
+        &self,
+        mode: AesMode,
+        encrypt: bool,
+        key: &[u8; 16],
+        iv: &[u8; 16],
+        data: &mut [u8],
+    ) -> Result<[u8; 16], ErrorCode>;
+    fn sha256_blocks(&self, state: &mut Sha256State, blocks: &[u8]) -> Result<(), ErrorCode>;
+    fn sha256_finish(&self, state: &Sha256State, tail: &[u8]) -> Result<[u8; 32], ErrorCode>;
+    /// 192 bits from the TRNG.
+    fn trng_read(&self) -> Result<[u32; 6], ErrorCode>;
+}
+
+/// The calling convention between a non-secure kernel and a secure stage that
+/// implements [`SecureCryptoCell`].
+///
+/// The secure stage exports one non-secure callable entry point per operation,
+/// 8 bytes apart in this order. Each takes pointers into non-secure memory,
+/// which the secure stage checks, and returns [`OK`](gateway::OK) or
+/// [`INVAL`](gateway::INVAL):
+///
+/// - `AES128(request: *mut AesRequest) -> u32`
+/// - `SHA256_BLOCKS(state: *mut Sha256State, data: *const u8, len: usize) -> u32`
+/// - `SHA256_FINISH(state: *const Sha256State, tail: *const u8, len: usize, digest: *mut [u8; 32]) -> u32`
+/// - `TRNG_READ(bits: *mut [u32; 6]) -> u32`
+pub mod gateway {
+    pub const AES128: usize = 0;
+    pub const SHA256_BLOCKS: usize = 1;
+    pub const SHA256_FINISH: usize = 2;
+    pub const TRNG_READ: usize = 3;
+
+    pub const OK: u32 = 0;
+    /// An argument is invalid, such as memory the caller may not use.
+    pub const INVAL: u32 = 1;
+
+    /// An AES-128 request: `len` bytes at `data` are processed in place, and
+    /// `iv` is updated to continue the message.
+    #[repr(C)]
+    pub struct AesRequest {
+        pub mode: u32,
+        pub encrypt: u32,
+        pub key: [u8; 16],
+        pub iv: [u8; 16],
+        pub data: *mut u8,
+        pub len: usize,
     }
 }
 
@@ -459,8 +527,14 @@ pub(crate) fn trng_ready() -> bool {
 }
 
 /// The CryptoCell as Tock entropy, SHA-256 and AES-128 drivers.
+///
+/// In secure state it drives the hardware; otherwise it calls the secure stage
+/// given to [`CryptoCell::set_gateway`], and its TRNG reads block for each
+/// sample.
 pub struct CryptoCell<'a> {
     cc: Cc312,
+    secure: bool,
+    gateway: OptionalCell<&'a dyn SecureCryptoCell>,
     deferred_call: DeferredCall,
     done: OptionalCell<Done>,
 
@@ -468,6 +542,8 @@ pub struct CryptoCell<'a> {
     rng_running: Cell<bool>,
     // The first sample after a start is dropped.
     rng_warm: Cell<bool>,
+    // A TRNG read through the gateway waits for the deferred call.
+    rng_gateway_pending: Cell<bool>,
 
     aes_client: OptionalCell<&'a dyn symmetric_encryption::Client<'a>>,
     aes_key: Cell<[u8; 16]>,
@@ -486,15 +562,18 @@ pub struct CryptoCell<'a> {
     sha_pending_len: Cell<usize>,
 }
 
-impl CryptoCell<'_> {
+impl<'a> CryptoCell<'a> {
     pub fn new(cc: Cc312) -> Self {
         Self {
             cc,
+            secure: cortexm33::trustzone::is_secure(),
+            gateway: OptionalCell::empty(),
             deferred_call: DeferredCall::new(),
             done: OptionalCell::empty(),
             rng_client: OptionalCell::empty(),
             rng_running: Cell::new(false),
             rng_warm: Cell::new(false),
+            rng_gateway_pending: Cell::new(false),
             aes_client: OptionalCell::empty(),
             aes_key: Cell::new([0; 16]),
             aes_iv: Cell::new([0; 16]),
@@ -507,6 +586,44 @@ impl CryptoCell<'_> {
             sha_state: Cell::new(Sha256State::new()),
             sha_pending: MapCell::new([0; 64]),
             sha_pending_len: Cell::new(0),
+        }
+    }
+
+    /// Use `gateway` for the CryptoCell in non-secure state.
+    pub fn set_gateway(&self, gateway: &'a dyn SecureCryptoCell) {
+        self.gateway.set(gateway);
+    }
+
+    fn aes128(&self, data: &mut [u8]) -> Result<[u8; 16], ErrorCode> {
+        let (mode, encrypt) = (self.aes_mode.get(), self.aes_encrypt.get());
+        let (key, iv) = (self.aes_key.get(), self.aes_next_iv.get());
+        if self.secure {
+            Ok(self.cc.aes128(mode, encrypt, &key, &iv, data))
+        } else {
+            self.gateway.map_or(Err(ErrorCode::OFF), |gateway| {
+                gateway.aes128(mode, encrypt, &key, &iv, data)
+            })
+        }
+    }
+
+    fn sha256_blocks(&self, state: &mut Sha256State, blocks: &[u8]) -> Result<(), ErrorCode> {
+        if self.secure {
+            self.cc.sha256_blocks(state, blocks);
+            Ok(())
+        } else {
+            self.gateway.map_or(Err(ErrorCode::OFF), |gateway| {
+                gateway.sha256_blocks(state, blocks)
+            })
+        }
+    }
+
+    fn sha256_finish(&self, state: &Sha256State, tail: &[u8]) -> Result<[u8; 32], ErrorCode> {
+        if self.secure {
+            Ok(self.cc.sha256_finish(state, tail))
+        } else {
+            self.gateway.map_or(Err(ErrorCode::OFF), |gateway| {
+                gateway.sha256_finish(state, tail)
+            })
         }
     }
 
@@ -537,17 +654,17 @@ impl CryptoCell<'_> {
     }
 
     /// Add `data` to the message, hashing every whole block but the last.
-    fn sha_add(&self, mut data: &[u8]) {
-        self.sha_pending.map(|pending| {
-            let mut state = self.sha_state.get();
-            let mut len = self.sha_pending_len.get();
+    fn sha_add(&self, mut data: &[u8]) -> Result<(), ErrorCode> {
+        let mut state = self.sha_state.get();
+        let mut len = self.sha_pending_len.get();
+        let result = self.sha_pending.map_or(Err(ErrorCode::FAIL), |pending| {
             while !data.is_empty() {
                 if len == 64 {
-                    self.cc.sha256_blocks(&mut state, pending);
+                    self.sha256_blocks(&mut state, pending)?;
                     len = 0;
                     // Hash the whole blocks of `data` but one directly.
                     let direct = (data.len() - 1) / 64 * 64;
-                    self.cc.sha256_blocks(&mut state, &data[..direct]);
+                    self.sha256_blocks(&mut state, &data[..direct])?;
                     data = &data[direct..];
                 }
                 let n = data.len().min(64 - len);
@@ -555,21 +672,46 @@ impl CryptoCell<'_> {
                 len += n;
                 data = &data[n..];
             }
-            self.sha_state.set(state);
-            self.sha_pending_len.set(len);
+            Ok(())
         });
+        match result {
+            Ok(()) => {
+                self.sha_state.set(state);
+                self.sha_pending_len.set(len);
+            }
+            Err(_) => digest::DigestData::clear_data(self),
+        }
+        result
     }
 
-    fn sha_finish(&self) -> [u8; 32] {
-        let digest = self.sha_pending.map_or([0; 32], |pending| {
-            self.cc.sha256_finish(
+    fn sha_finish(&self) -> Result<[u8; 32], ErrorCode> {
+        let digest = self.sha_pending.map_or(Err(ErrorCode::FAIL), |pending| {
+            self.sha256_finish(
                 &self.sha_state.get(),
                 &pending[..self.sha_pending_len.get()],
             )
         });
-        self.sha_state.set(Sha256State::new());
-        self.sha_pending_len.set(0);
+        digest::DigestData::clear_data(self);
         digest
+    }
+
+    /// Read a TRNG sample through the gateway and give it to the client.
+    fn rng_gateway_read(&self) {
+        let result = self
+            .gateway
+            .map_or(Err(ErrorCode::OFF), |gateway| gateway.trng_read());
+        let more = self
+            .rng_client
+            .map_or(Continue::Done, |client| match result {
+                Ok(bits) => client.entropy_available(&mut bits.into_iter(), Ok(())),
+                Err(e) => client.entropy_available(&mut core::iter::empty(), Err(e)),
+            });
+        if more == Continue::More && result.is_ok() {
+            self.rng_gateway_pending.set(true);
+            self.deferred_call.set();
+        } else {
+            self.rng_running.set(false);
+        }
     }
 }
 
@@ -598,6 +740,9 @@ impl DeferredCallClient for CryptoCell<'_> {
             }
             None => (),
         }
+        if self.rng_gateway_pending.replace(false) && self.rng_running.get() {
+            self.rng_gateway_read();
+        }
     }
 
     fn register(&'static self) {
@@ -607,7 +752,15 @@ impl DeferredCallClient for CryptoCell<'_> {
 
 impl<'a> entropy::Entropy32<'a> for CryptoCell<'a> {
     fn get(&self) -> Result<(), ErrorCode> {
-        if !self.rng_running.replace(true) {
+        if !self.secure {
+            if self.gateway.is_none() {
+                return Err(ErrorCode::OFF);
+            }
+            if !self.rng_running.replace(true) {
+                self.rng_gateway_pending.set(true);
+                self.deferred_call.set();
+            }
+        } else if !self.rng_running.replace(true) {
             self.rng_warm.set(false);
             TRNG_ACTIVE.store(true, Ordering::Relaxed);
             self.cc.trng_start();
@@ -616,7 +769,7 @@ impl<'a> entropy::Entropy32<'a> for CryptoCell<'a> {
     }
 
     fn cancel(&self) -> Result<(), ErrorCode> {
-        if self.rng_running.replace(false) {
+        if self.rng_running.replace(false) && self.secure {
             TRNG_ACTIVE.store(false, Ordering::Relaxed);
             self.cc.trng_stop();
         }
@@ -683,14 +836,10 @@ impl<'a> symmetric_encryption::AES<'a, AES128> for CryptoCell<'a> {
         if let Some(source) = source.as_ref() {
             data.copy_from_slice(source);
         }
-        let next = self.cc.aes128(
-            self.aes_mode.get(),
-            self.aes_encrypt.get(),
-            &self.aes_key.get(),
-            &self.aes_next_iv.get(),
-            data,
-        );
-        self.aes_next_iv.set(next);
+        match self.aes128(data) {
+            Ok(next) => self.aes_next_iv.set(next),
+            Err(e) => return Some((Err(e), source, dest)),
+        }
         self.finish(Done::Aes(source, dest));
         None
     }
@@ -735,7 +884,9 @@ impl<'a> digest::DigestData<'a, 32> for CryptoCell<'a> {
         if data.len() == 0 {
             return Err((ErrorCode::SIZE, data));
         }
-        self.sha_add(data.as_slice());
+        if let Err(e) = self.sha_add(data.as_slice()) {
+            return Err((e, data));
+        }
         // Consumed: the client gets back an empty active range.
         data.slice(data.len()..);
         self.finish(Done::AddData(data));
@@ -752,7 +903,9 @@ impl<'a> digest::DigestData<'a, 32> for CryptoCell<'a> {
         if data.len() == 0 {
             return Err((ErrorCode::SIZE, data));
         }
-        self.sha_add(data.as_slice());
+        if let Err(e) = self.sha_add(data.as_slice()) {
+            return Err((e, data));
+        }
         data.slice(data.len()..);
         self.finish(Done::AddMutData(data));
         Ok(())
@@ -776,7 +929,10 @@ impl<'a> digest::DigestHash<'a, 32> for CryptoCell<'a> {
         if self.done.is_some() {
             return Err((ErrorCode::BUSY, digest));
         }
-        *digest = self.sha_finish();
+        match self.sha_finish() {
+            Ok(result) => *digest = result,
+            Err(e) => return Err((e, digest)),
+        }
         self.finish(Done::Hash(digest));
         Ok(())
     }
@@ -794,7 +950,10 @@ impl<'a> digest::DigestVerify<'a, 32> for CryptoCell<'a> {
         if self.done.is_some() {
             return Err((ErrorCode::BUSY, compare));
         }
-        let digest = self.sha_finish();
+        let digest = match self.sha_finish() {
+            Ok(digest) => digest,
+            Err(e) => return Err((e, compare)),
+        };
         // Compare every byte, so the time does not depend on where they differ.
         let matches = digest
             .iter()
@@ -811,6 +970,13 @@ impl<'a> digest::Digest<'a, 32> for CryptoCell<'a> {
         self.data_client.set(client);
         self.hash_client.set(client);
         self.verify_client.set(client);
+    }
+}
+
+impl<'a> digest::DigestDataHash<'a, 32> for CryptoCell<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::ClientDataHash<32>) {
+        self.data_client.set(client);
+        self.hash_client.set(client);
     }
 }
 

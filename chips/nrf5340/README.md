@@ -10,4 +10,4 @@ as POWER does on nRF52. Its SPU driver sets the security of memory, peripherals
 and pins, which also controls what the network core can reach. It can hand pins
 to the network core and release it from reset. Its CryptoCell-312 driver
 provides a TRNG, SHA-256 and AES-128 (ECB, CBC and CTR) from Arm's published
-register interface, in secure state only.
+register interface. In non-secure state it calls a secure gateway instead.
