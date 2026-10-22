@@ -1270,7 +1270,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 }
             };
 
-        Ok(app_length)
+        // Never report a size that runs past the end of the flash bank.
+        Ok(app_length.min((flash.len() - application_binary_address) as u32))
     }
 }
 
