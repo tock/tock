@@ -16,11 +16,10 @@ pub mod nvmc;
 pub mod power;
 pub mod ppi;
 pub mod pwm;
-pub mod spi;
 pub mod uart;
 pub mod uicr;
 
 pub use nrf5x::{
-    adc, aes, ble_radio, constants, gpio, peripheral_interrupts, pinmux, rtc, temperature, timer,
-    trng, uarte, usbd,
+    adc, aes, ble_radio, constants, gpio, peripheral_interrupts, pinmux, rtc, spi, temperature,
+    timer, trng, uarte, usbd,
 };

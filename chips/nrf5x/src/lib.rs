@@ -14,6 +14,7 @@ pub mod ipc;
 pub mod peripheral_interrupts;
 pub mod pinmux;
 pub mod rtc;
+pub mod spi;
 pub mod temperature;
 pub mod timer;
 pub mod trng;
