@@ -12,6 +12,7 @@ pub mod crt1;
 pub mod gpio;
 pub mod network;
 pub mod peripheral_interrupts;
+pub mod spu;
 pub mod usbreg;
 
 pub use nrf5x::{ble_ipc, ipc, pinmux, rtc, uarte, usbd};

@@ -187,7 +187,9 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     });
     peripherals.init();
     peripherals.clock.start();
-    peripherals.network.share_ram(BLE_MAILBOX_ADDRESS);
+    peripherals
+        .spu
+        .make_ram_nonsecure(BLE_MAILBOX_ADDRESS..BLE_MAILBOX_ADDRESS + 0x2000);
     peripherals.network.start(&[NET_UART_TXD, NET_UART_RXD]);
 
     // Create an array to hold process references.
