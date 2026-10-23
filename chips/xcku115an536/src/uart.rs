@@ -159,13 +159,15 @@ impl<'a> ApbUart<'a> {
 
         self.reg.intstatus.write(IntStatus::TX.val(1));
 
-        self.tx_buffer.map(|buf| {
-            //sh::s!("#+");
-            self.reg
-                .data
-                .write(Data::DATA.val(buf[self.tx_position.get()].into()));
-            self.tx_position.set(self.tx_position.get() + 1);
-        });
+        if self.tx_position.get() < self.tx_len.get() {
+            self.tx_buffer.map(|buf| {
+                //sh::v!("[{}]", buf[self.tx_position.get()]);
+                self.reg
+                    .data
+                    .write(Data::DATA.val(buf[self.tx_position.get()].into()));
+                self.tx_position.set(self.tx_position.get() + 1);
+            });
+        }
 
         if self.tx_position.get() == self.tx_len.get() {
             self.tx_client.map(|client| {
@@ -247,17 +249,28 @@ impl<'a> uart::Transmit<'a> for ApbUart<'a> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        assert!(0 < tx_len);
         if self.tx_len.get() == 0 {
-            //sh::v!("TX<{}>", str::from_utf8(tx_data).unwrap());
+            //sh::v!("TX<{}[{}]>", str::from_utf8(tx_data).unwrap(), tx_len);
             if tx_len <= tx_data.len() {
-                self.tx_buffer.put(Some(tx_data));
-                self.tx_len.set(tx_len);
-                self.tx_int_get();
-                self.tx_int_set(true);
-                self.tx_buffer.map(|buf| {
-                    self.reg.data.write(Data::DATA.val(buf[0].into()));
-                    self.tx_position.set(1);
-                });
+                if false //tx_len == 1
+                {
+                    self.reg.data.write(Data::DATA.val(tx_data[0].into()));
+                    self.tx_client.map(|client| {
+                        client.transmitted_buffer(tx_data, 1, Ok(()));
+                    });
+
+                } else {
+                    self.tx_buffer.put(Some(tx_data));
+                    self.tx_len.set(tx_len);
+                    self.tx_int_get();
+                    self.tx_int_set(true);
+                    self.tx_buffer.map(|buf| {
+                        //sh::v!("({})", buf[0]);
+                        self.reg.data.write(Data::DATA.val(buf[0].into()));
+                        self.tx_position.set(1);
+                    });
+                }
                 Ok(())
             } else {
                 sh::v!("<TX SIZE>");

@@ -18,6 +18,7 @@ unsafe impl mpu::MPU for MPU {
     type MpuConfig = kernel::platform::mpu::MpuConfigDefault;
 
     fn enable_app_mpu(&self) {
+        //sh::p!("++++ Enabling app MPU\n");
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow
         // privileged code access to all unprotected memory.
         //self.registers
@@ -26,17 +27,20 @@ unsafe impl mpu::MPU for MPU {
     }
 
     unsafe fn disable_app_mpu(&self) {
+        //sh::p!("++++ Disabling app MPU\n");
         // The MPU is not enabled for privileged mode, so we don't have to do
         // anything
         //self.registers.ctrl.write(Control::ENABLE::CLEAR);
     }
 
     fn number_total_regions(&self) -> usize {
+        //sh::p!("++++ Number of total regions\n");
         //self.registers.mpu_type.read(Type::DREGION) as usize
         0
     }
 
     fn new_config(&self) -> Option<Self::MpuConfig> {
+        //sh::p!("++++ Creating new MPU config\n");
         //let id = self.config_count.get();
         //self.config_count.set(id.checked_add(1)?);
         //
@@ -54,6 +58,7 @@ unsafe impl mpu::MPU for MPU {
     }
 
     fn reset_config(&self, _config: &mut Self::MpuConfig) {
+        //sh::p!("++++ Resetting MPU config\n");
         //for i in 0..NUM_REGIONS {
         //    config.regions[i] = CortexMRegion::empty(i);
         //}
@@ -69,6 +74,7 @@ unsafe impl mpu::MPU for MPU {
         _permissions: mpu::Permissions,
         _config: &mut Self::MpuConfig,
     ) -> Option<mpu::Region> {
+        //sh::p!("++++ Allocating MPU region\n");
         Some(mpu::Region::new(
             unallocated_memory_start,
             unallocated_memory_size,
@@ -197,6 +203,7 @@ unsafe impl mpu::MPU for MPU {
         _region: mpu::Region,
         _config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
+        //sh::p!("++++ Removing MPU region\n");
         /*
         let (idx, _r) = config
             .regions
@@ -228,7 +235,7 @@ unsafe impl mpu::MPU for MPU {
         _permissions: mpu::Permissions,
         _config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-
+        //sh::p!("++++ Allocating app memory region\n");
 
         // Make sure there is enough memory for app memory and kernel memory.
         let memory_size = cmp::max(
@@ -238,7 +245,7 @@ unsafe impl mpu::MPU for MPU {
 
         // Size must be a power of two, so:
         // https://www.youtube.com/watch?v=ovo6zwv6DX4.
-        let mut memory_size_po2 = (memory_size as u32).next_power_of_two() as usize;
+        let memory_size_po2 = (memory_size as u32).next_power_of_two() as usize;
 
         Some((unallocated_memory_start, memory_size_po2))
 
@@ -368,6 +375,7 @@ unsafe impl mpu::MPU for MPU {
         _permissions: mpu::Permissions,
         _config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
+        //sh::p!("++++ Updating app memory region\n");
         /*
         // Get first region, or error if the process tried to update app memory
         // MPU region before it was created.
@@ -438,6 +446,7 @@ unsafe impl mpu::MPU for MPU {
     }
 
     unsafe fn configure_mpu(&self, _config: &Self::MpuConfig) {
+        //sh::p!("++++ Configuring MPU");
         /*
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
