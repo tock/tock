@@ -88,13 +88,13 @@ kernel::stack_size! {0x1000}
 
 // Function for the CDC/USB stack to use to enter the bootloader.
 fn baud_rate_reset_bootloader_enter() {
-    unsafe {
-        // 0x90 is the magic value the bootloader expects
-        NRF52_POWER.get().map(|power| {
-            power.set_gpregret(0x90);
-        });
-        cortexm4::scb::reset();
-    }
+    // 0x90 is the magic value the bootloader expects
+    NRF52_POWER.get().map(|power| {
+        power.set_gpregret(0x90);
+    });
+    cortexm4::scb::reset(&kernel::create_capability!(
+        kernel::capabilities::CpuStateControlCapability
+    ));
 }
 
 fn crc(s: &'static str) -> u32 {
@@ -441,7 +441,11 @@ pub unsafe fn start() -> (
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(cortexm4::support::reset),
+        Some(|| {
+            cortexm4::support::reset(&kernel::create_capability!(
+                kernel::capabilities::CpuStateControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
