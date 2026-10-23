@@ -48,3 +48,8 @@ run: qemu_rv64_virt_tutorial.bin | install
 	@echo "To exit type C-a x"
 	@echo
 	$(QEMU_CMDLINE) -bios '$<'
+
+# Same as `run`, but booting a full flash image from the `FLASH_FILE` variable
+.PHONY: run-flash-file
+run-flash-file:
+	$(QEMU_CMDLINE) -bios '$(FLASH_FILE)'
