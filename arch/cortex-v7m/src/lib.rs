@@ -6,11 +6,11 @@
 
 #![no_std]
 
-// We need the Cortex-M crate to be a dependency because symbols from that crate
-// are used in our asm blocks. However, cargo doesn't recognize those references
-// and has a false positive on the `cargo::unused_dependencies` lint. To work
-// around that, we explicitly include the dependency here. This can be removed
-// once the lint is improved.
+// The `cortexm` crate is only referenced through `sym` operands in our asm
+// blocks, which are compiled only for ARM targets. On host (non-ARM) builds
+// those blocks are cfg'd out, so the dependency appears unused and cargo
+// reports `cargo::unused_dependencies`. To avoid that, we explicitly use the
+// crate here.
 use cortexm as _;
 
 /// ARMv7-M systick handler function.
