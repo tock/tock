@@ -5,9 +5,9 @@
 //! Definition and implementation for a virtualized UDP sending
 //! interface.
 //!
-//! The [UDPSender](trait.UDPSender.html) trait provides
+//! The [UDPSender] trait provides
 //! an interface for kernel capsules to send a UDP packet, and the
-//! [UDPSendClient](trait.UDPSendClient.html) trait is implemented by
+//! [UDPSendClient] trait is implemented by
 //! upper layer clients to allow them to receive `send_done` callbacks once
 //! transmission has completed.
 //!

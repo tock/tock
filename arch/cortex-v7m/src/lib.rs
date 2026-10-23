@@ -6,6 +6,13 @@
 
 #![no_std]
 
+// The `cortexm` crate is only referenced through `sym` operands in our asm
+// blocks, which are compiled only for ARM targets. On host (non-ARM) builds
+// those blocks are cfg'd out, so the dependency appears unused and cargo
+// reports `cargo::unused_dependencies`. To avoid that, we explicitly use the
+// crate here.
+use cortexm as _;
+
 /// ARMv7-M systick handler function.
 ///
 /// For documentation of this function, please see

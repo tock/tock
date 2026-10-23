@@ -268,7 +268,8 @@ pub trait Counter<'a>: Time {
 
 /// Extension trait for counters that support hardware overflow notifications.
 #[deprecated(
-    note = "set_overflow_client never used so moved to an independent trait. Set to be removed in future releases unless a concrete use case is raised."
+    note = "set_overflow_client never used so moved to an independent trait. Set to be removed in future releases unless a concrete use case is raised.",
+    since = "2.3.0"
 )]
 pub trait CounterOverflow<'a>: Counter<'a> {
     fn set_overflow_client(&self, client: &'a dyn OverflowClient);
@@ -286,7 +287,7 @@ pub trait AlarmClient {
 /// Interface for receiving notification when a particular time
 /// (`Counter` value) is reached.
 ///
-/// Clients use the [`AlarmClient`](trait.AlarmClient.html) trait to
+/// Clients use the [`AlarmClient`] trait to
 /// signal when the counter has reached a pre-specified value set in
 /// [`set_alarm`](#tymethod.set_alarm). Alarms are intended for
 /// low-level time needs that require precision (i.e., firing on a

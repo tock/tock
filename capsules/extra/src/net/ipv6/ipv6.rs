@@ -24,10 +24,10 @@
 //! ----------------------------------------------
 //! ```
 //!
-//! The [IP6Packet](struct.IP6Packet.html) struct contains an
-//! [IP6Header](struct.IP6Header.html) struct and an
-//! [IPPayload](struct.IPPayload.html) struct, with the `IPPayload` struct also
-//! containing a [TransportHeader](enum.TransportHeader.html) enum and a
+//! The [IP6Packet] struct contains an
+//! [IP6Header] struct and an
+//! [IPPayload] struct, with the `IPPayload` struct also
+//! containing a [TransportHeader] enum and a
 //! `Payload` buffer. Note that transport-level headers are contained inside the
 //! `TransportHeader`.
 //!

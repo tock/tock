@@ -36,7 +36,7 @@
 //! important when generating numbers from a low-bandwidth hardware
 //! random number generator or when the RNG is virtualized among many
 //! consumers.  Random numbers are yielded to the
-//! [Client](trait.Client.html) as an `Iterator` which only terminates
+//! [Client] as an `Iterator` which only terminates
 //! when no more numbers are currently available. Clients can request
 //! more randomness if needed and will be called again when more is
 //! available.
@@ -98,7 +98,7 @@
 
 use crate::ErrorCode;
 
-/// Denotes whether the [Client](trait.Client.html) wants to be notified when
+/// Denotes whether the [Client] wants to be notified when
 /// `More` randomness is available or if they are `Done`
 #[derive(Debug, Eq, PartialEq)]
 pub enum Continue {
@@ -111,7 +111,7 @@ pub enum Continue {
 /// Generic interface for a 32-bit random number generator.
 ///
 /// Implementors should assume the client implements the
-/// [Client](trait.Client.html) trait.
+/// [Client] trait.
 pub trait Rng<'a> {
     /// Initiate the aquisition of new random number generation.
     ///
@@ -138,9 +138,9 @@ pub trait Rng<'a> {
     fn set_client(&'a self, _: &'a dyn Client);
 }
 
-/// An [Rng](trait.Rng.html) client
+/// An [Rng] client
 ///
-/// Clients of an [Rng](trait.Rng.html) must implement this trait.
+/// Clients of an [Rng] must implement this trait.
 pub trait Client {
     /// Called by the (RNG)[trait.RNG.html] when there are one or more random
     /// numbers available
