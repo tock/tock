@@ -67,7 +67,7 @@ kernel::stack_size! {0x900}
 
 type RngDriver = components::rng::RngComponentType<esp32_c3::rng::Rng<'static>>;
 type GpioHw = esp32::gpio::GpioPin<'static>;
-type LedHw = components::ws2812::Ws2812LedComponentType<GpioHw, 3>;
+type LedHw = components::ws2812::Ws2812LedComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 3>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 
@@ -299,8 +299,8 @@ unsafe fn setup() -> (
     //
 
     let led_gpio = &peripherals.gpio[8];
-    let ws2812 = components::ws2812::Ws2812Component::new(led_gpio, rv32i::support::nop)
-        .finalize(components::ws2812_component_static_esp32c3_160mhz!(GpioHw,));
+    let ws2812 = components::ws2812::Ws2812Component::new(led_gpio, esp32_c3::ws2812::write_frame)
+        .finalize(components::ws2812_component_static!(GpioHw));
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHw,

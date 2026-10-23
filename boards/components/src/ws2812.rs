@@ -8,42 +8,36 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil;
 
-/// T0H clock divider for an ESP32-C3 with a 160MHz clock speed.
-pub const ESP32C3_160MHZ_T0H: usize = 3;
-
 #[macro_export]
 macro_rules! ws2812_component_static {
-    ($P:ty, $T0H:expr $(,)?) => {
-        kernel::static_buf!(capsules_extra::ws2812::Ws2812<'static, $P, $T0H>)
-    };
-}
-
-/// Custom version of the static for the ESP32-C3 board with a fixed clock speed.
-#[macro_export]
-macro_rules! ws2812_component_static_esp32c3_160mhz {
     ($P:ty $(,)?) => {
-        $crate::ws2812_component_static!($P, { $crate::ws2812::ESP32C3_160MHZ_T0H })
+        kernel::static_buf!(capsules_extra::ws2812::Ws2812<'static, $P>)
     };
 }
 
-pub struct Ws2812Component<P: 'static + hil::gpio::Pin, const T0H: usize> {
+pub struct Ws2812Component<P: 'static + hil::gpio::Pin> {
     led_pin: &'static P,
-    nop: fn(),
+    write_frame: fn(&P, u32),
 }
 
-impl<P: 'static + hil::gpio::Pin, const T0H: usize> Ws2812Component<P, T0H> {
-    pub fn new(led_pin: &'static P, nop: fn()) -> Self {
-        Self { led_pin, nop }
+impl<P: 'static + hil::gpio::Pin> Ws2812Component<P> {
+    pub fn new(led_pin: &'static P, write_frame: fn(&P, u32)) -> Self {
+        Self {
+            led_pin,
+            write_frame,
+        }
     }
 }
 
-impl<P: 'static + hil::gpio::Pin, const T0H: usize> Component for Ws2812Component<P, T0H> {
-    type StaticInput = &'static mut MaybeUninit<capsules_extra::ws2812::Ws2812<'static, P, T0H>>;
-    type Output = &'static capsules_extra::ws2812::Ws2812<'static, P, T0H>;
+impl<P: 'static + hil::gpio::Pin> Component for Ws2812Component<P> {
+    type StaticInput = &'static mut MaybeUninit<capsules_extra::ws2812::Ws2812<'static, P>>;
+    type Output = &'static capsules_extra::ws2812::Ws2812<'static, P>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let ws2812 =
-            static_buffer.write(capsules_extra::ws2812::Ws2812::new(self.led_pin, self.nop));
+        let ws2812 = static_buffer.write(capsules_extra::ws2812::Ws2812::new(
+            self.led_pin,
+            self.write_frame,
+        ));
         ws2812.init();
         ws2812
     }
@@ -51,39 +45,27 @@ impl<P: 'static + hil::gpio::Pin, const T0H: usize> Component for Ws2812Componen
 
 #[macro_export]
 macro_rules! ws2812_led_component_static {
-    ($P:ty,  $T0H:expr $(,)?) => {
-        kernel::static_buf!(capsules_extra::ws2812::Ws2812Led<'static, $P, $T0H>)
-    };
-}
-
-/// Custom version of the static for the ESP32-C3 board with a fixed clock speed.
-#[macro_export]
-macro_rules! ws2812_led_component_static_esp32c3_160mhz {
     ($P:ty $(,)?) => {
-        $crate::ws2812_led_component_static!($P, { $crate::ws2812::ESP32C3_160MHZ_T0H })
+        kernel::static_buf!(capsules_extra::ws2812::Ws2812Led<'static, $P>)
     };
 }
 
-pub type Ws2812LedComponentType<P, const T0H: usize> =
-    capsules_extra::ws2812::Ws2812Led<'static, P, T0H>;
+pub type Ws2812LedComponentType<P> = capsules_extra::ws2812::Ws2812Led<'static, P>;
 
-pub struct Ws2812LedComponent<P: 'static + hil::gpio::Pin, const T0H: usize> {
-    ws2812: &'static capsules_extra::ws2812::Ws2812<'static, P, T0H>,
+pub struct Ws2812LedComponent<P: 'static + hil::gpio::Pin> {
+    ws2812: &'static capsules_extra::ws2812::Ws2812<'static, P>,
     index: usize,
 }
 
-impl<P: 'static + hil::gpio::Pin, const T0H: usize> Ws2812LedComponent<P, T0H> {
-    pub fn new(
-        ws2812: &'static capsules_extra::ws2812::Ws2812<'static, P, T0H>,
-        index: usize,
-    ) -> Self {
+impl<P: 'static + hil::gpio::Pin> Ws2812LedComponent<P> {
+    pub fn new(ws2812: &'static capsules_extra::ws2812::Ws2812<'static, P>, index: usize) -> Self {
         Self { ws2812, index }
     }
 }
 
-impl<P: 'static + hil::gpio::Pin, const T0H: usize> Component for Ws2812LedComponent<P, T0H> {
-    type StaticInput = &'static mut MaybeUninit<capsules_extra::ws2812::Ws2812Led<'static, P, T0H>>;
-    type Output = &'static capsules_extra::ws2812::Ws2812Led<'static, P, T0H>;
+impl<P: 'static + hil::gpio::Pin> Component for Ws2812LedComponent<P> {
+    type StaticInput = &'static mut MaybeUninit<capsules_extra::ws2812::Ws2812Led<'static, P>>;
+    type Output = &'static capsules_extra::ws2812::Ws2812Led<'static, P>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let ws2812_led = static_buffer.write(capsules_extra::ws2812::Ws2812Led::new(

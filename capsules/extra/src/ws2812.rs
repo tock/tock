@@ -4,7 +4,8 @@
 
 //! WS2812-compatible single-wire RGB LED (WS2812, SK68XX).
 //!
-//! Tested with the SK68XXMINI on the ESP32-C3-DevKitM-1.
+//! Tested with the SK68XXMINI on the ESP32-C3-DevKitM-1 and the WS2812 on the
+//! ESP32-C3-DevKit-RUST-2.
 //!
 //! Datasheet: <https://www.rose-lighting.com/wp-content/uploads/sites/53/2020/05/SK68XX-MINI-HS-REV.04-EN23535RGB-thick.pdf>
 
@@ -15,22 +16,20 @@ use kernel::hil::led::Led;
 
 /// The single-wire, tri-color (RGB) LED.
 ///
-/// The pulses need to be calibrated based on the clock speed of the chip.
-/// - `T0H`: Number of nops needed for about 0.28 us. This is then scaled for
-///   `T0L`, `T1H`, and `T1L`.
-pub struct Ws2812<'a, P: Pin, const T0H: usize> {
+/// `write_frame` is provided by the chip and sends one 24-bit GRB frame.
+pub struct Ws2812<'a, P: Pin> {
     pin: &'a P,
-    nop: fn(),
+    write_frame: fn(&P, u32),
     red: Cell<bool>,
     green: Cell<bool>,
     blue: Cell<bool>,
 }
 
-impl<'a, P: Pin, const T0H: usize> Ws2812<'a, P, T0H> {
-    pub fn new(pin: &'a P, nop: fn()) -> Self {
+impl<'a, P: Pin> Ws2812<'a, P> {
+    pub fn new(pin: &'a P, write_frame: fn(&P, u32)) -> Self {
         Self {
             pin,
-            nop,
+            write_frame,
             red: Cell::new(false),
             green: Cell::new(false),
             blue: Cell::new(false),
@@ -40,60 +39,12 @@ impl<'a, P: Pin, const T0H: usize> Ws2812<'a, P, T0H> {
     pub fn init(&self) {
         self.pin.make_output();
         self.pin.clear();
-        // Wait for 80 us.
-        for _ in 0..(286 * T0H) {
-            (self.nop)();
-        }
     }
 
     fn write(&self) {
-        let red = self.red.get();
-        let green = self.green.get();
-        let blue = self.blue.get();
-
-        for i in 0..24 {
-            let high = if i < 8 {
-                // Green
-                green
-            } else if i < 16 {
-                // Red
-                red
-            } else {
-                // Blue
-                blue
-            };
-            if high {
-                // High for 0.74 us
-                self.pin.set();
-                for _ in 0..(T0H * 3) {
-                    (self.nop)();
-                }
-
-                // Low for 0.52 us
-                self.pin.clear();
-                for _ in 0..(T0H * 2) {
-                    (self.nop)();
-                }
-            } else {
-                // High for 0.28 us
-                self.pin.set();
-                for _ in 0..T0H {
-                    (self.nop)();
-                }
-
-                // Low for 0.94 us
-                self.pin.clear();
-                for _ in 0..(T0H * 4) {
-                    (self.nop)();
-                }
-            }
-        }
-
-        // 80 us rest period after to reset the writing and permit a subsequent
-        // write to the LED.
-        for _ in 0..(286 * T0H) {
-            (self.nop)();
-        }
+        let byte = |on: bool| if on { 0xFF } else { 0 };
+        let grb = byte(self.green.get()) << 16 | byte(self.red.get()) << 8 | byte(self.blue.get());
+        (self.write_frame)(self.pin, grb);
     }
 
     fn update_red(&self, on: bool) {
@@ -144,18 +95,18 @@ impl<'a, P: Pin, const T0H: usize> Ws2812<'a, P, T0H> {
 // - Index 0: Red
 // - Index 1: Green
 // - Index 2: Blue
-pub struct Ws2812Led<'a, P: Pin, const T0H: usize> {
-    ws2812: &'a Ws2812<'a, P, T0H>,
+pub struct Ws2812Led<'a, P: Pin> {
+    ws2812: &'a Ws2812<'a, P>,
     index: usize,
 }
 
-impl<'a, P: Pin, const T0H: usize> Ws2812Led<'a, P, T0H> {
-    pub fn new(ws2812: &'a Ws2812<'a, P, T0H>, index: usize) -> Self {
+impl<'a, P: Pin> Ws2812Led<'a, P> {
+    pub fn new(ws2812: &'a Ws2812<'a, P>, index: usize) -> Self {
         Self { ws2812, index }
     }
 }
 
-impl<P: Pin, const T0H: usize> Led for Ws2812Led<'_, P, T0H> {
+impl<P: Pin> Led for Ws2812Led<'_, P> {
     fn init(&self) {}
 
     fn on(&self) {
