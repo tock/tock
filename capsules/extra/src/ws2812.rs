@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
-//! Single-wire LED.
+//! WS2812-compatible single-wire RGB LED (WS2812, SK68XX).
 //!
 //! Tested with the SK68XXMINI on the ESP32-C3-DevKitM-1.
 //!
@@ -18,7 +18,7 @@ use kernel::hil::led::Led;
 /// The pulses need to be calibrated based on the clock speed of the chip.
 /// - `T0H`: Number of nops needed for about 0.28 us. This is then scaled for
 ///   `T0L`, `T1H`, and `T1L`.
-pub struct Sk68xx<'a, P: Pin, const T0H: usize> {
+pub struct Ws2812<'a, P: Pin, const T0H: usize> {
     pin: &'a P,
     nop: fn(),
     red: Cell<bool>,
@@ -26,7 +26,7 @@ pub struct Sk68xx<'a, P: Pin, const T0H: usize> {
     blue: Cell<bool>,
 }
 
-impl<'a, P: Pin, const T0H: usize> Sk68xx<'a, P, T0H> {
+impl<'a, P: Pin, const T0H: usize> Ws2812<'a, P, T0H> {
     pub fn new(pin: &'a P, nop: fn()) -> Self {
         Self {
             pin,
@@ -144,52 +144,52 @@ impl<'a, P: Pin, const T0H: usize> Sk68xx<'a, P, T0H> {
 // - Index 0: Red
 // - Index 1: Green
 // - Index 2: Blue
-pub struct Sk68xxLed<'a, P: Pin, const T0H: usize> {
-    sk68xx: &'a Sk68xx<'a, P, T0H>,
+pub struct Ws2812Led<'a, P: Pin, const T0H: usize> {
+    ws2812: &'a Ws2812<'a, P, T0H>,
     index: usize,
 }
 
-impl<'a, P: Pin, const T0H: usize> Sk68xxLed<'a, P, T0H> {
-    pub fn new(sk68xx: &'a Sk68xx<'a, P, T0H>, index: usize) -> Self {
-        Self { sk68xx, index }
+impl<'a, P: Pin, const T0H: usize> Ws2812Led<'a, P, T0H> {
+    pub fn new(ws2812: &'a Ws2812<'a, P, T0H>, index: usize) -> Self {
+        Self { ws2812, index }
     }
 }
 
-impl<P: Pin, const T0H: usize> Led for Sk68xxLed<'_, P, T0H> {
+impl<P: Pin, const T0H: usize> Led for Ws2812Led<'_, P, T0H> {
     fn init(&self) {}
 
     fn on(&self) {
         match self.index {
-            0 => self.sk68xx.update_red(true),
-            1 => self.sk68xx.update_green(true),
-            2 => self.sk68xx.update_blue(true),
+            0 => self.ws2812.update_red(true),
+            1 => self.ws2812.update_green(true),
+            2 => self.ws2812.update_blue(true),
             _ => {}
         }
     }
 
     fn off(&self) {
         match self.index {
-            0 => self.sk68xx.update_red(false),
-            1 => self.sk68xx.update_green(false),
-            2 => self.sk68xx.update_blue(false),
+            0 => self.ws2812.update_red(false),
+            1 => self.ws2812.update_green(false),
+            2 => self.ws2812.update_blue(false),
             _ => {}
         }
     }
 
     fn toggle(&self) {
         match self.index {
-            0 => self.sk68xx.toggle_red(),
-            1 => self.sk68xx.toggle_green(),
-            2 => self.sk68xx.toggle_blue(),
+            0 => self.ws2812.toggle_red(),
+            1 => self.ws2812.toggle_green(),
+            2 => self.ws2812.toggle_blue(),
             _ => {}
         }
     }
 
     fn read(&self) -> bool {
         match self.index {
-            0 => self.sk68xx.get_red(),
-            1 => self.sk68xx.get_green(),
-            2 => self.sk68xx.get_blue(),
+            0 => self.ws2812.get_red(),
+            1 => self.ws2812.get_green(),
+            2 => self.ws2812.get_blue(),
             _ => false,
         }
     }
