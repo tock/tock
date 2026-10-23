@@ -14,9 +14,7 @@ use kernel::platform::chip::ThreadIdProvider;
 /// - 1: Any interrupt service routine
 pub enum CortexMThreadIdProvider {}
 
-// # Safety
-//
-// By implementing [`ThreadIdProvider`] we are guaranteeing that we correctly
+// SAFETY: By implementing [`ThreadIdProvider`] we are guaranteeing that we correctly
 // return the thread ID. On single-core platforms the thread ID only depends on
 // whether execution is in an interrupt service routine or not, which is what
 // this implementation checks for.
