@@ -13,8 +13,7 @@ use core::marker::PhantomData;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::symmetric_encryption::{
-    AES, AES_BLOCK_SIZE, AESCBC, AESCCM, AESCtr, AESECB, AESGCM, AESKeySize, CCMClient, Client,
-    GCMClient,
+    AES, AESCBC, AESCCM, AESCtr, AESECB, AESGCM, AESKeySize, CCMClient, Client, GCMClient,
 };
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -125,15 +124,21 @@ impl<
                                             AesOperation::AESCtr(_)
                                             | AesOperation::AESCBC(_)
                                             | AesOperation::AESECB(_) => {
-                                                AES::set_key(self.aes, buf)?;
+                                                AES::set_key(self.aes, &buf[..static_buffer_len])?;
                                                 Ok(())
                                             }
                                             AesOperation::AESCCM(_) => {
-                                                AESCCM::set_key(self.aes, buf)?;
+                                                AESCCM::set_key(
+                                                    self.aes,
+                                                    &buf[..static_buffer_len],
+                                                )?;
                                                 Ok(())
                                             }
                                             AesOperation::AESGCM(_) => {
-                                                AESGCM::set_key(self.aes, buf)?;
+                                                AESGCM::set_key(
+                                                    self.aes,
+                                                    &buf[..static_buffer_len],
+                                                )?;
                                                 Ok(())
                                             }
                                         }
@@ -167,7 +172,7 @@ impl<
                                             AesOperation::AESCtr(_)
                                             | AesOperation::AESCBC(_)
                                             | AesOperation::AESECB(_) => {
-                                                AES::set_iv(self.aes, buf)?;
+                                                AES::set_iv(self.aes, &buf[..static_buffer_len])?;
                                                 Ok(())
                                             }
                                             AesOperation::AESCCM(_) => {
@@ -175,7 +180,7 @@ impl<
                                                 Ok(())
                                             }
                                             AesOperation::AESGCM(_) => {
-                                                AESGCM::set_iv(self.aes, &buf[0..13])?;
+                                                AESGCM::set_iv(self.aes, &buf[0..12])?;
                                                 Ok(())
                                             }
                                         }
@@ -299,13 +304,11 @@ impl<
         match op {
             AesOperation::AESCtr(_) | AesOperation::AESCBC(_) | AesOperation::AESECB(_) => {
                 if let Some(dest_buf) = self.dest_buffer.take() {
-                    if let Some((e, source, dest)) = AES::crypt(
-                        self.aes,
-                        self.source_buffer.take(),
-                        dest_buf,
-                        0,
-                        AES_BLOCK_SIZE,
-                    ) {
+                    // The HIL requires the source to span exactly start..stop.
+                    let len = self.source_buffer.map_or(0, |buf| buf.len());
+                    if let Some((e, source, dest)) =
+                        AES::crypt(self.aes, self.source_buffer.take(), dest_buf, 0, len)
+                    {
                         // Error, clear the processid and data
                         self.aes.disable();
                         self.processid.clear();
@@ -558,22 +561,9 @@ impl<
                             .get_readwrite_processbuffer(rw_allow::DEST)
                             .and_then(|dest| {
                                 dest.mut_enter(|dest| {
-                                    let offset = self.data_copied.get()
-                                        - (core::cmp::min(buf.len(), dest.len()));
-                                    let app_len = dest.len();
-                                    let static_len = buf.len();
-
-                                    if app_len < static_len {
-                                        if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
-                                        }
-                                    } else {
-                                        if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
-                                        }
-                                    }
+                                    // One-shot operation: the result starts at offset 0.
+                                    let len = core::cmp::min(buf.len(), dest.len());
+                                    dest[..len].copy_from_slice(&buf[..len]);
                                 })
                             });
 
@@ -630,22 +620,9 @@ impl<
                             .get_readwrite_processbuffer(rw_allow::DEST)
                             .and_then(|dest| {
                                 dest.mut_enter(|dest| {
-                                    let offset = self.data_copied.get()
-                                        - (core::cmp::min(buf.len(), dest.len()));
-                                    let app_len = dest.len();
-                                    let static_len = buf.len();
-
-                                    if app_len < static_len {
-                                        if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
-                                        }
-                                    } else {
-                                        if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
-                                        }
-                                    }
+                                    // One-shot operation: the result starts at offset 0.
+                                    let len = core::cmp::min(buf.len(), dest.len());
+                                    dest[..len].copy_from_slice(&buf[..len]);
                                 })
                             });
 
@@ -908,6 +885,13 @@ impl<
                         CommandReturn::success()
                     }
 
+                    // Set mlen for CCM and GCM
+                    // This will not trigger a callback and will not process any data from userspace
+                    9 => {
+                        app.mlen.set(data1);
+                        CommandReturn::success()
+                    }
+
                     // default
                     _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 }
@@ -919,6 +903,7 @@ impl<
             || command_num == 6
             || command_num == 7
             || command_num == 8
+            || command_num == 9
         {
             self.check_queue();
         }
