@@ -41,15 +41,10 @@
 //! more randomness if needed and will be called again when more is
 //! available.
 //!
-//! The Random trait is synchronous, so designed to work
-//! with arithmetically simple random number generators that can
-//! return a result quickly.
-//!
-//!
 //! # Example
 //!
 //! The following example is a simple capsule that prints out a random number
-//! once a second using the `Alarm` and `RNG` traits.
+//! once a second using the `Alarm` and `Rng` traits.
 //!
 //! ```
 //! use kernel::hil;
@@ -162,22 +157,4 @@ pub trait Client {
         randomness: &mut dyn Iterator<Item = u32>,
         error: Result<(), ErrorCode>,
     ) -> Continue;
-}
-
-/// Generic interface for a synchronous 32-bit random number
-/// generator.
-pub trait Random<'a> {
-    /// Initialize/reseed the random number generator from an
-    /// internal source. This initialization MAY be deterministic
-    /// (e.g., based on an EUI-64) or MAY be random (e.g., based on an
-    /// underlying hardware entropy source); an implementation SHOULD
-    /// make reseeding random.
-    fn initialize(&'a self);
-
-    /// Reseed the random number generator with a specific
-    /// seed. Useful for deterministic tests.
-    fn reseed(&self, seed: u32);
-
-    /// Generate a 32-bit random number.
-    fn random(&self) -> u32;
 }
