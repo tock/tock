@@ -445,7 +445,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                     // The behavior of DTR is different on windows vs. linux and mac. On
                     // windows, the SetControlLineState message that is sent when the
                     // USB device is first enumerated has DTR set to false. On mac and
-                    // linux, that first message has DTR set to true. On both platforms,
+                    // linux, that first message has DTR set to true. On all three platforms,
                     // when tockloader opens the serial port, the SetControlLineState
                     // message has DTR set to false.
                     //
