@@ -27,7 +27,7 @@ impl<'a, V: CortexMVariant, I: InterruptService + 'a> QemuArmMps2Chip<'a, V, I> 
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: unsafe { Mps2Mpu::new(addresses::MPU_BASE) },
-            userspace_kernel_boundary: unsafe { cortexm::syscall::SysCall::new() },
+            userspace_kernel_boundary: cortexm::syscall::SysCall::new(),
             interrupt_service,
         }
     }
@@ -71,9 +71,9 @@ impl<'a, V: CortexMVariant, I: InterruptService + 'a> kernel::platform::chip::Ch
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm::support::wfi();
-        }
+        cortexm::support::wfi(&kernel::create_capability!(
+            kernel::capabilities::CpuStateControlCapability
+        ));
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
@@ -84,8 +84,6 @@ impl<'a, V: CortexMVariant, I: InterruptService + 'a> kernel::platform::chip::Ch
     }
 
     unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
-        unsafe {
-            V::print_cortexm_state(write);
-        }
+        V::print_cortexm_state(write);
     }
 }

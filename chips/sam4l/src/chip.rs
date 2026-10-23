@@ -18,9 +18,12 @@ pub struct Sam4l<I: InterruptService + 'static> {
 }
 
 impl<I: InterruptService + 'static> Sam4l<I> {
-    pub unsafe fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
+    pub fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
+        // SAFETY: All SAM4L chips are Cortex-M4 cores with valid MPU hardware.
+        let mpu = unsafe { cortexm4::mpu::new() };
+
         Self {
-            mpu: cortexm4::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             pm,
             interrupt_service,
@@ -271,19 +274,13 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     }
 
     fn sleep(&self) {
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
         if pm::deep_sleep_ready() {
-            unsafe {
-                cortexm4::scb::set_sleepdeep();
-            }
+            cortexm4::scb::set_sleepdeep(&cap);
         } else {
-            unsafe {
-                cortexm4::scb::unset_sleepdeep();
-            }
+            cortexm4::scb::unset_sleepdeep(&cap);
         }
-
-        unsafe {
-            cortexm4::support::wfi();
-        }
+        cortexm4::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

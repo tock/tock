@@ -34,9 +34,12 @@ pub struct Rp2350<'a, I: InterruptService + 'a> {
 }
 
 impl<'a, I: InterruptService> Rp2350<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
+    pub fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
+        // SAFETY: All RP2350 chips are Cortex-M33 cores with valid MPU hardware.
+        let mpu = unsafe { cortexm33::mpu::new() };
+
         Self {
-            mpu: cortexm33::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm33::syscall::SysCall::new(),
             interrupt_service,
             sio,
@@ -100,9 +103,8 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm33::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
+        cortexm33::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

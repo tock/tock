@@ -17,6 +17,7 @@ pub mod timer;
 pub mod uart;
 pub mod watchdog;
 
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::StaticRef;
 
@@ -41,14 +42,21 @@ impl Mps2DefaultPeripherals<'_> {
         fpgaio: StaticRef<led::FpgaioRegisters>,
         spi_shield0: StaticRef<spi::SpiRegisters>,
         watchdog: StaticRef<watchdog::WatchdogRegisters>,
+        uart0_ring_buffer: &'static mut kernel::collections::ring_buffer::RingBuffer<'static, u8>,
     ) -> Self {
+        let uart0 = uart::Uart::new(uart0);
+        uart0.set_ring_buffer(uart0_ring_buffer);
         Self {
-            uart0: uart::Uart::new(uart0),
+            uart0,
             timer0: timer::Timer::new(timer0),
             fpgaio: led::Fpgaio::new(fpgaio),
             spi_shield0: spi::Spi::new(spi_shield0),
             watchdog: watchdog::Watchdog::new(watchdog),
         }
+    }
+
+    pub fn init(&'static self) {
+        self.uart0.register();
     }
 }
 

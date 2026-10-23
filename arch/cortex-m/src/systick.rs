@@ -144,6 +144,16 @@ impl SysTick {
     pub fn set_hertz(&self, clock_speed: u32, _capability: &dyn SysTickFrequencyCapability) {
         self.hertz.set(clock_speed);
     }
+
+    /// Set the reload value (`SYST_RVR`).
+    ///
+    /// This doesn't write `SYST_CVR`, so it takes effect only once the
+    /// counter next wraps on its own rather than immediately.
+    pub fn reload(&self, reload_value: u32) {
+        SYSTICK_BASE
+            .syst_rvr
+            .write(ReloadValue::RELOAD.val(reload_value));
+    }
 }
 
 impl kernel::platform::scheduler_timer::SchedulerTimer for SysTick {
@@ -169,9 +179,7 @@ impl kernel::platform::scheduler_timer::SchedulerTimer for SysTick {
         };
 
         // n.b.: 4.4.5 'hints and tips' suggests setting reload before value
-        SYSTICK_BASE
-            .syst_rvr
-            .write(ReloadValue::RELOAD.val(reload as u32));
+        self.reload(reload as u32);
         SYSTICK_BASE.syst_cvr.set(0);
 
         // OK, arm it. We really just need to set the TICKINT bit here, but

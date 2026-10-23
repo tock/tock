@@ -11,7 +11,7 @@ use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
 #[repr(C)]
-struct PwmRegisters {
+pub struct PwmRegisters {
     _reserved0: [u8; 4],
     /// Stops PWM pulse generation on all channels at the end of current PWM period
     tasks_stop: WriteOnly<u32, TASK::Register>,
@@ -164,9 +164,6 @@ register_bitfields![u32,
     ]
 ];
 
-const PWM0_BASE: StaticRef<PwmRegisters> =
-    unsafe { StaticRef::new(0x4001C000 as *const PwmRegisters) };
-
 /// `DUTY_CYCLES` is a static array that must be passed to the PWM hardware.
 ///
 /// The nRF52 hardware uses this static array in memory to enable switching
@@ -180,10 +177,8 @@ pub struct Pwm {
 }
 
 impl Pwm {
-    pub const fn new() -> Pwm {
-        Pwm {
-            registers: PWM0_BASE,
-        }
+    pub const fn new(registers: StaticRef<PwmRegisters>) -> Pwm {
+        Pwm { registers }
     }
 
     fn start_pwm(

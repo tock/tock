@@ -10,7 +10,7 @@ use kernel::hil::uart;
 /// Panic handler.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     debug::panic_print::<qemu_rv32_virt_chip::uart::UartPanicWriter, _, _>(
         qemu_rv32_virt_chip::uart::UartPanicWriterConfig {
             params: uart::Parameters {
@@ -28,7 +28,9 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     // The system is no longer in a well-defined state. Use
     // semihosting commands to exit QEMU with a return code of 1.
-    rv32i::semihost_command(0x18, 1, 0);
+    unsafe {
+        rv32i::semihost_command(0x18, 1, 0);
+    }
 
     // To satisfy the ! return type constraints.
     loop {}

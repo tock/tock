@@ -93,9 +93,11 @@ pub unsafe fn main() {
 
     // Create the strings we include in the USB descriptor. We use the
     // hardcoded DEVICEADDR register on the nRF52 to set the serial number.
-    let ficr = nrf52840::ficr::Ficr::new();
     let serial_number_buf = static_init!([u8; 17], [0; 17]);
-    let serial_number_string: &'static str = ficr.address_str(serial_number_buf);
+    let serial_number_string: &'static str = nrf52840_peripherals
+        .nrf52
+        .ficr
+        .address_str(serial_number_buf);
     let strings = static_init!(
         [&str; 3],
         [

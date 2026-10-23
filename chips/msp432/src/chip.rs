@@ -95,9 +95,12 @@ impl kernel::platform::chip::InterruptService for Msp432DefaultPeripherals<'_> {
 }
 
 impl<'a, I: InterruptService + 'a> Msp432<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+    pub fn new(interrupt_service: &'a I) -> Self {
+        // SAFETY: All MSP432 chips are Cortex-M4 cores with valid MPU hardware.
+        let mpu = unsafe { cortexm4::mpu::new() };
+
         Self {
-            mpu: cortexm4::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             interrupt_service,
         }
@@ -140,9 +143,8 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm4::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
+        cortexm4::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

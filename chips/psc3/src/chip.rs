@@ -97,9 +97,12 @@ pub struct Psc3<'a, I: InterruptService + 'a> {
 }
 
 impl<'a, I: InterruptService> Psc3<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+    pub fn new(interrupt_service: &'a I) -> Self {
+        // SAFETY: All PSC3 chips are Cortex-M33 cores with valid MPU hardware.
+        let mpu = unsafe { cortexm33::mpu::new() };
+
         Self {
-            mpu: cortexm33::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm33::syscall::SysCall::new(),
             interrupt_service,
         }
@@ -142,9 +145,8 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm33::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
+        cortexm33::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

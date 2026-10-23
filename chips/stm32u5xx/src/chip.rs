@@ -437,9 +437,12 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
 }
 
 impl<'a, I: InterruptService + 'a> Stm32u5xx<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+    pub fn new(interrupt_service: &'a I) -> Self {
+        // SAFETY: All STM32U5xx chips are Cortex-M33 cores with valid MPU hardware.
+        let mpu = unsafe { cortexm33::mpu::new::<8>() };
+
         Self {
-            mpu: cortexm33::mpu::new::<8>(),
+            mpu,
             userspace_kernel_boundary: cortexm33::syscall::SysCall::new(),
             interrupt_service,
         }
@@ -482,10 +485,9 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm33::scb::unset_sleepdeep();
-            cortexm33::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
+        cortexm33::scb::unset_sleepdeep(&cap);
+        cortexm33::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

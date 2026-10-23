@@ -92,9 +92,12 @@ impl InterruptService for Stm32f3xxDefaultPeripherals<'_> {
 }
 
 impl<'a, I: InterruptService + 'a> Stm32f3xx<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+    pub fn new(interrupt_service: &'a I) -> Self {
+        // SAFETY: All STM32F3xx chips are Cortex-M4F cores with valid MPU hardware.
+        let mpu = unsafe { cortexm4f::mpu::new() };
+
         Self {
-            mpu: cortexm4f::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }
@@ -136,10 +139,9 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f3xx<'a, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm4f::scb::unset_sleepdeep();
-            cortexm4f::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
+        cortexm4f::scb::unset_sleepdeep(&cap);
+        cortexm4f::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
