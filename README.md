@@ -45,12 +45,14 @@ To run everything:
 
 TODO next
 ---------
-- app crashing when adding a few more basic stuff
-- cannot load more than 2 apps (tockloader)
 - need more detailed debug prints
 - need MPU driver
 - need dual timer driver for scheduler timer
+- app crashing when many after a few minutes
 - ... a lot more ...
+
+- DONE: app crashing when adding a few more basic stuff
+- DONE: cannot load more than 2 apps (tockloader)
 
 ...
 

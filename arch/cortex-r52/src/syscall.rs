@@ -76,6 +76,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) -> Result<(), ()> {
         state.sp_usr = app_brk as usize;
 
+        //sh::p!("--- INIT PROC {:?} {:?}", accessible_memory_start, app_brk);
+
         // just copied from Cortex-M (didn't check)
         if (app_brk as usize - accessible_memory_start as usize) < SVC_FRAME_SIZE {
             return Err(());
@@ -107,7 +109,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let sp = state.sp_usr as *mut u32;
         let (r0, r1, r2, r3) = (sp.offset(3), sp.offset(4), sp.offset(5), sp.offset(6));
 
-        //sh::p!("--- syscall return r0:{:x} r1:{:x} r2:{:x} r3:{:x}", *r0, *r1, *r2, *r3);
+        //sh::p!("--- syscall return sp:{:?} r0:{:x} r1:{:x} r2:{:x} r3:{:x}", sp, *r0, *r1, *r2, *r3);
 
         kernel::utilities::arch_helpers::encode_syscall_return_trd104(
             //&kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value,),
@@ -156,7 +158,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         app_brk: *const u8,
         state: &mut Self::StoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
-        //sh::p!("--- switch_to_process BEG");
+
+        //let stack_bottom = state.sp_usr as *mut usize;
+        //sh::p!("--- switch_to_process BEG sp:{:8x} lr:{:8x} pc:{:x}  r11:{:x} r12:{:x}",
+        //    state.sp_usr,
+        //    *stack_bottom.offset(0),
+        //    *stack_bottom.offset(2),
+        //    *stack_bottom.offset(14),
+        //    *stack_bottom.offset(15));
 
         // Big stuff occuring here: call the asm context switch and run user code
         let new_stack_pointer =
@@ -170,7 +179,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let invalid_stack_pointer = state.sp_usr < accessible_memory_start as usize
             || state.sp_usr.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
 
+        //sh::p!("--- STACK {:?} sp:{:x} {:x} {:?}", accessible_memory_start, state.sp_usr, SVC_FRAME_SIZE,app_brk);
+
         if invalid_stack_pointer {
+            sh::v!("STACK OVERFLOW!");
             return (kernel::syscall::ContextSwitchReason::Fault, None);
         }
 
@@ -205,7 +217,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
             match syscall {
                 Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
-                None => kernel::syscall::ContextSwitchReason::Fault,
+                None => {
+                    //sh::p!("--- NONE");
+                    kernel::syscall::ContextSwitchReason::Fault
+                }
             }
         } else {
             //sh::p!("--- switch_to_process IRQ");

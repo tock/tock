@@ -24,7 +24,7 @@ mod io;
 mod low_level_debug;
 
 /// Maximum number of concurrent processes.
-const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 6;
 
 /// Chip hardware type alias used by `main.rs` and `io.rs`.
 type ChipHw = XckuChip;
@@ -270,7 +270,7 @@ pub unsafe fn main() {
     //    Ticks64::from(150_000_000_u64),
     //);
 
-    fn debugfn() {
+    fn _debugfn() {
         // unsafe {
         //let reg : u32;
         //core::arch::asm!("
