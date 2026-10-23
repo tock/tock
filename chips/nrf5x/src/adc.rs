@@ -6,13 +6,13 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::ptr::addr_of;
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+pub use nrf5x_unsafe::adc::AdcSample;
 
 #[repr(C)]
 pub struct AdcRegisters {
@@ -244,9 +244,6 @@ pub enum AdcChannel {
     VDDHDIV5 = 0xD,
 }
 
-// Buffer to save completed sample to.
-static mut SAMPLE: [u16; 1] = [0; 1];
-
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum AdcChannelGain {
@@ -343,10 +340,15 @@ pub struct Adc<'a> {
     length: Cell<usize>,
     next_buffer: TakeCell<'static, [u16]>,
     next_length: Cell<usize>,
+    sample: AdcSample,
 }
 
 impl Adc<'_> {
-    pub const fn new(registers: StaticRef<AdcRegisters>, voltage_reference_in_mv: usize) -> Self {
+    pub const fn new(
+        registers: StaticRef<AdcRegisters>,
+        voltage_reference_in_mv: usize,
+        sample: AdcSample,
+    ) -> Self {
         Self {
             registers,
             reference: Cell::new(voltage_reference_in_mv),
@@ -357,6 +359,7 @@ impl Adc<'_> {
             length: Cell::new(0),
             next_buffer: TakeCell::empty(),
             next_length: Cell::new(0),
+            sample,
         }
     }
 
@@ -396,9 +399,7 @@ impl Adc<'_> {
                     self.setup_sample_count(1);
 
                     // Where to put the reading.
-                    let sample: *const [u16; 1] = addr_of!(SAMPLE);
-                    let sample: *const u16 = sample.cast();
-                    self.registers.result_ptr.set(sample as u32);
+                    self.registers.result_ptr.set(self.sample.address());
 
                     // No automatic sampling, will trigger manually.
                     self.registers.samplerate.write(SAMPLERATE::MODE::Task);
@@ -427,7 +428,7 @@ impl Adc<'_> {
                     // ADC is stopped. Disable and return value.
                     self.registers.enable.write(ENABLE::ENABLE::CLEAR);
 
-                    let reading = unsafe { SAMPLE[0] as i16 } as usize;
+                    let reading = self.sample.read() as usize;
 
                     // reading = val * (gain/ref) * 2^12
                     //         = val * ((1/6)/0.6 V) * 2^12
@@ -463,7 +464,7 @@ impl Adc<'_> {
                     // ADC is stopped. Disable and return value.
                     self.registers.enable.write(ENABLE::ENABLE::CLEAR);
 
-                    let val = unsafe { SAMPLE[0] as i16 };
+                    let val = self.sample.read();
                     self.client.map(|client| {
                         // shift left to meet the ADC HIL requirement
                         client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
@@ -579,9 +580,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
             .result_maxcnt
             .write(RESULT_MAXCNT::MAXCNT.val(1));
         // Where to put the reading.
-        let sample: *const [u16; 1] = addr_of!(SAMPLE);
-        let sample: *const u16 = sample.cast();
-        self.registers.result_ptr.set(sample as u32);
+        self.registers.result_ptr.set(self.sample.address());
 
         // No automatic sampling, will trigger manually.
         self.registers.samplerate.write(SAMPLERATE::MODE::Task);

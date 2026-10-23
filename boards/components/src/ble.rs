@@ -32,7 +32,9 @@ macro_rules! ble_component_static {
         );
         let buffer =
             kernel::static_buf!([u8; capsules_extra::ble_advertising_driver::PACKET_LENGTH]);
-        (alarm, ble, buffer)
+        let rx_buffer =
+            kernel::static_buf!([u8; capsules_extra::ble_advertising_driver::PACKET_LENGTH]);
+        (alarm, ble, buffer, rx_buffer)
     }};
 }
 
@@ -88,6 +90,7 @@ impl<
             capsules_extra::ble_advertising_driver::BLE<'static, B, VirtualMuxAlarm<'static, A>>,
         >,
         &'static mut MaybeUninit<[u8; capsules_extra::ble_advertising_driver::PACKET_LENGTH]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::ble_advertising_driver::PACKET_LENGTH]>,
     );
     type Output = &'static capsules_extra::ble_advertising_driver::BLE<
         'static,
@@ -102,12 +105,15 @@ impl<
         ble_radio_virtual_alarm.setup();
         let buffer =
             s.2.write([0; capsules_extra::ble_advertising_driver::PACKET_LENGTH]);
+        let rx_buffer =
+            s.3.write([0; capsules_extra::ble_advertising_driver::PACKET_LENGTH]);
 
         let ble_radio = s.1.write(capsules_extra::ble_advertising_driver::BLE::new(
             self.radio,
             self.board_kernel
                 .create_grant(self.driver_num, &self.mem_cap),
             buffer,
+            rx_buffer,
             ble_radio_virtual_alarm,
         ));
         kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
