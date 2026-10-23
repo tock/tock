@@ -287,7 +287,7 @@ pub trait AlarmClient {
 /// Interface for receiving notification when a particular time
 /// (`Counter` value) is reached.
 ///
-/// Clients use the [`AlarmClient`](trait.AlarmClient.html) trait to
+/// Clients use the [`AlarmClient`] trait to
 /// signal when the counter has reached a pre-specified value set in
 /// [`set_alarm`](#tymethod.set_alarm). Alarms are intended for
 /// low-level time needs that require precision (i.e., firing on a

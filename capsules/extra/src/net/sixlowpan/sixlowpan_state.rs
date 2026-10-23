@@ -27,7 +27,7 @@
 //! Transmit
 //! --------
 //! For a layer interested in sending a packet, this library exposes a
-//! [TxState](struct.TxState.html) struct that statefully compresses an
+//! [TxState] struct that statefully compresses an
 //! [IP6Packet](struct.IP6Packet.html) struct. First, the `TxState` object
 //! is initialized for compressing a new packet by calling the `TxState.init`
 //! method. The caller then repeatedly calls `TxState.next_fragment`, which
@@ -40,7 +40,7 @@
 //! The Sixlowpan library is responsible for receiving and reassembling
 //! individual 6LoWPAN-compressed frames. Upper layers interested in receiving
 //! the fully reassembled and decompressed IPv6 packet implement the
-//! [SixlowpanRxClient](trait.SixlowpanRxClient.html) trait, which is called
+//! [SixlowpanRxClient] trait, which is called
 //! after a packet is fully received.
 //!
 //! At a high level, clients interact with this module as shown in the diagrams
@@ -255,7 +255,7 @@ const FRAG_TIMEOUT: u32 = 60;
 /// Client trait for receiving 6lowpan frames.
 ///
 /// Objects that implement this trait can set themselves to be the client
-/// for the [Sixlowpan](struct.Sixlowpan.html) struct, and will then receive
+/// for the [Sixlowpan] struct, and will then receive
 /// a callback once an IPv6 packet has been fully reassembled.
 pub trait SixlowpanRxClient {
     fn receive(&self, buf: &[u8], len: usize, result: Result<(), ErrorCode>);
@@ -629,7 +629,7 @@ impl<'a> TxState<'a> {
 
 /// Tracks the decompression and defragmentation of an IPv6 packet
 ///
-/// A list of `RxState`s is maintained by [Sixlowpan](struct.Sixlowpan.html) to
+/// A list of `RxState`s is maintained by [Sixlowpan] to
 /// keep track of ongoing packet reassemblies. The number of `RxState`s is the
 /// number of packets that can be reassembled at the same time. Generally,
 /// two `RxState`s are sufficient for normal-case operation.
@@ -791,8 +791,8 @@ impl<'a> RxState<'a> {
 ///
 /// The `new` method creates an instance of `Sixlowpan` that can send packets.
 /// To receive packets, `Sixlowpan` needs one or more
-/// [RxState](struct.RxState.html)s which can be added with `add_rx_state`. More
-/// [RxState](struct.RxState.html)s allow the `Sixlowpan` to receive more
+/// [RxState]s which can be added with `add_rx_state`. More
+/// [RxState]s allow the `Sixlowpan` to receive more
 /// packets concurrently.
 ///
 /// Finally, `set_client` controls the client that will receive transmission
@@ -854,7 +854,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'
 
     /// Adds an additional `RxState` for reassembling IPv6 packets
     ///
-    /// Each [RxState](struct.RxState.html) struct allows an additional IPv6
+    /// Each [RxState] struct allows an additional IPv6
     /// packet to be reassembled concurrently.
     fn add_rx_state(&self, rx_state: &'a RxState<'a>) {
         self.rx_states.push_head(rx_state);
