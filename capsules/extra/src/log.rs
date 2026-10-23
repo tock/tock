@@ -133,6 +133,8 @@ pub struct Log<'a, F: Flash + 'static> {
     records_lost: Cell<bool>,
     /// Error returned by previously executed operation (or Ok(())).
     error: Cell<Result<(), ErrorCode>>,
+    /// Page being erased before the pagebuffer is flushed to it.
+    flush_page: OptionalCell<usize>,
 }
 
 impl<'a, F: Flash + 'static> Log<'a, F> {
@@ -163,6 +165,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             length: Cell::new(0),
             records_lost: Cell::new(false),
             error: Cell::new(Err(ErrorCode::NODEVICE)),
+            flush_page: OptionalCell::empty(),
         };
 
         log.reconstruct();
@@ -457,6 +460,17 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         let oldest_entry_id = self.oldest_entry_id.get();
         if oldest_entry_id / self.page_size == overwritten_page {
             self.oldest_entry_id.set(oldest_entry_id + self.page_size);
+        }
+
+        // Erase the page first, unless it is erased already. A previous sync may have written
+        // part of this page. In that case, `erase_complete` issues the write.
+        if !self.driver.is_page_erased(page_number) {
+            self.pagebuffer.replace(pagebuffer);
+            self.flush_page.set(page_number);
+            return self
+                .driver
+                .erase_page(page_number)
+                .inspect_err(|_| self.flush_page.clear());
         }
 
         // Sync page to flash.
@@ -850,6 +864,21 @@ impl<F: Flash + 'static> flash::Client<F> for Log<'_, F> {
     /// Erase next page if log erase complete, else make client callback. Fails with BUSY if flash
     /// is busy and erase cannot be completed.
     fn erase_complete(&self, result: Result<(), flash::Error>) {
+        if let Some(page_number) = self.flush_page.take() {
+            // This erase precedes flushing the pagebuffer. Errors are reported through
+            // `write_complete`.
+            let pagebuffer = self.pagebuffer.take().unwrap();
+            match result {
+                Ok(()) => {
+                    if let Err((_, pagebuffer)) = self.driver.write_page(page_number, pagebuffer) {
+                        self.write_complete(pagebuffer, Err(flash::Error::FlashError));
+                    }
+                }
+                Err(error) => self.write_complete(pagebuffer, Err(error)),
+            }
+            return;
+        }
+
         match result.is_ok() {
             true => {
                 let oldest_entry_id = self.oldest_entry_id.get();
