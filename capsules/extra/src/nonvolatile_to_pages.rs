@@ -10,6 +10,8 @@
 //!
 //! This module is designed to be used on top of any flash storage and below any
 //! user of `NonvolatileStorage`. This module handles different sized pages.
+//! Before writing a page, this module erases the page, unless the flash reports
+//! the page as already erased through [`hil::flash::Flash::is_page_erased`].
 //!
 //! ```plain
 //! hil::nonvolatile_storage::NonvolatileStorage
@@ -53,6 +55,8 @@ enum State {
     Idle,
     Read,
     Write,
+    // `usize` indicates the page number being erased
+    Erase(usize),
 }
 
 pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
@@ -90,6 +94,29 @@ impl<'a, F: hil::flash::Flash> NonvolatileToPages<'a, F> {
             length: Cell::new(0),
             remaining_length: Cell::new(0),
             buffer_index: Cell::new(0),
+        }
+    }
+
+    /// Write the page buffer to page `page_number`, erasing the page first if
+    /// the flash does not report it as erased.
+    fn erase_and_write_page(
+        &self,
+        page_number: usize,
+        pagebuffer: &'static mut F::Page,
+    ) -> Result<(), (ErrorCode, &'static mut F::Page)> {
+        if self.driver.is_page_erased(page_number) {
+            return self.driver.write_page(page_number, pagebuffer);
+        }
+
+        self.pagebuffer.replace(pagebuffer);
+        let state = self.state.replace(State::Erase(page_number));
+
+        match self.driver.erase_page(page_number) {
+            Ok(()) => Ok(()),
+            Err(error_code) => {
+                self.state.set(state);
+                Err((error_code, self.pagebuffer.take().unwrap()))
+            }
         }
     }
 }
@@ -167,7 +194,7 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
             self.remaining_length.set(length - page_size);
             self.buffer_index.set(page_size);
 
-            match self.driver.write_page(address / page_size, pagebuffer) {
+            match self.erase_and_write_page(address / page_size, pagebuffer) {
                 Ok(()) => Ok(()),
                 Err((error_code, pagebuffer)) => {
                     self.pagebuffer.replace(pagebuffer);
@@ -265,7 +292,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                     self.remaining_length.subtract(len);
                     self.address.add(len);
                     self.buffer_index.set(buffer_index + len);
-                    if let Err((_, pagebuffer)) = self.driver.write_page(page_number, pagebuffer) {
+                    if let Err((_, pagebuffer)) = self.erase_and_write_page(page_number, pagebuffer)
+                    {
                         self.pagebuffer.replace(pagebuffer);
                     }
                 });
@@ -303,7 +331,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                 self.remaining_length.subtract(page_size);
                 self.address.add(page_size);
                 self.buffer_index.set(buffer_index + page_size);
-                if let Err((_, pagebuffer)) = self.driver.write_page(page_number, pagebuffer) {
+                if let Err((_, pagebuffer)) = self.erase_and_write_page(page_number, pagebuffer) {
                     self.pagebuffer.replace(pagebuffer);
                 }
             } else {
@@ -319,5 +347,14 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
         });
     }
 
-    fn erase_complete(&self, _result: Result<(), hil::flash::Error>) {}
+    fn erase_complete(&self, _result: Result<(), hil::flash::Error>) {
+        if let State::Erase(page_number) = self.state.get() {
+            self.state.set(State::Write);
+            self.pagebuffer.take().map(|pagebuffer| {
+                if let Err((_, pagebuffer)) = self.driver.write_page(page_number, pagebuffer) {
+                    self.pagebuffer.replace(pagebuffer);
+                }
+            });
+        }
+    }
 }
