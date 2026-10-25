@@ -598,9 +598,8 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     }
 
     fn setup(&self, app_length: usize) -> Result<usize, ErrorCode> {
-        // An app must at least hold a 16 byte TBF base header. This also
-        // keeps the address alignment math from dividing by zero.
-        if app_length < 16 {
+        // An app must at least hold a TBF base header.
+        if app_length < tock_tbf::types::TBF_HEADER_V2_BASE_SIZE {
             return Err(ErrorCode::INVAL);
         }
 

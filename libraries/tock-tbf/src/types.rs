@@ -109,6 +109,9 @@ impl fmt::Debug for TbfParseError {
 
 // TBF structure
 
+/// Size in bytes of [`TbfHeaderV2Base`], the minimum valid v2 TBF header.
+pub const TBF_HEADER_V2_BASE_SIZE: usize = 16;
+
 /// TBF fields that must be present in all v2 headers.
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2Base {
