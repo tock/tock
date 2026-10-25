@@ -73,7 +73,7 @@ impl Sha1Adapter<'_> {
 }
 
 impl<'a> digest::DigestData<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
-    fn set_data_client(&'a self, client: &'a dyn kernel::hil::digest::ClientData<SHA1_DIGEST_LEN>) {
+    fn set_data_client(&self, client: &'a dyn kernel::hil::digest::ClientData<SHA1_DIGEST_LEN>) {
         if let Some(HashClient::Split(_, hash, verify)) = self.client.get() {
             self.client
                 .set(HashClient::Split(Some(client), hash, verify));
@@ -114,7 +114,7 @@ impl<'a> digest::DigestData<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
 }
 
 impl<'a> digest::DigestHash<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
-    fn set_hash_client(&'a self, client: &'a dyn kernel::hil::digest::ClientHash<SHA1_DIGEST_LEN>) {
+    fn set_hash_client(&self, client: &'a dyn kernel::hil::digest::ClientHash<SHA1_DIGEST_LEN>) {
         if let Some(HashClient::Split(data, _, verify)) = self.client.get() {
             self.client
                 .set(HashClient::Split(data, Some(client), verify));
@@ -124,7 +124,7 @@ impl<'a> digest::DigestHash<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
     }
 
     fn run(
-        &'a self,
+        &self,
         digest: &'static mut [u8; SHA1_DIGEST_LEN],
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8; SHA1_DIGEST_LEN])> {
         self.hash.run(digest).map_err(|(e, buf)| {
@@ -139,7 +139,7 @@ impl<'a> digest::DigestHash<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
 
 impl<'a> digest::DigestVerify<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
     fn set_verify_client(
-        &'a self,
+        &self,
         client: &'a dyn kernel::hil::digest::ClientVerify<SHA1_DIGEST_LEN>,
     ) {
         if let Some(HashClient::Split(data, hash, _)) = self.client.get() {
@@ -150,7 +150,7 @@ impl<'a> digest::DigestVerify<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
     }
 
     fn verify(
-        &'a self,
+        &self,
         compare: &'static mut [u8; SHA1_DIGEST_LEN],
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8; SHA1_DIGEST_LEN])> {
         self.hash.verify(compare).map_err(|(e, buf)| {
@@ -164,19 +164,19 @@ impl<'a> digest::DigestVerify<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
 }
 
 impl<'a> digest::Digest<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<SHA1_DIGEST_LEN>) {
+    fn set_client(&self, client: &'a dyn digest::Client<SHA1_DIGEST_LEN>) {
         self.client.set(HashClient::AllInOne(client));
     }
 }
 
 impl<'a> digest::DigestDataHash<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::ClientDataHash<SHA1_DIGEST_LEN>) {
+    fn set_client(&self, client: &'a dyn digest::ClientDataHash<SHA1_DIGEST_LEN>) {
         self.client.set(HashClient::DataHasher(client));
     }
 }
 
 impl<'a> digest::DigestDataVerify<'a, SHA1_DIGEST_LEN> for Sha1Adapter<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::ClientDataVerify<SHA1_DIGEST_LEN>) {
+    fn set_client(&self, client: &'a dyn digest::ClientDataVerify<SHA1_DIGEST_LEN>) {
         self.client.set(HashClient::DataVerifier(client));
     }
 }

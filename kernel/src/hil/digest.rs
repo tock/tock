@@ -144,7 +144,7 @@ impl<T: ClientData<DIGEST_LEN> + ClientVerify<DIGEST_LEN>, const DIGEST_LEN: usi
 pub trait DigestData<'a, const DIGEST_LEN: usize> {
     /// Set the client instance which will handle the `add_data_done`
     /// and `add_mut_data_done` callbacks.
-    fn set_data_client(&'a self, client: &'a dyn ClientData<DIGEST_LEN>);
+    fn set_data_client(&self, client: &'a dyn ClientData<DIGEST_LEN>);
 
     /// Add data to the input of the hash function/digest.
     ///
@@ -201,7 +201,7 @@ pub trait DigestData<'a, const DIGEST_LEN: usize> {
 pub trait DigestHash<'a, const DIGEST_LEN: usize> {
     /// Set the client instance which will receive the `hash_done()`
     /// callback.
-    fn set_hash_client(&'a self, client: &'a dyn ClientHash<DIGEST_LEN>);
+    fn set_hash_client(&self, client: &'a dyn ClientHash<DIGEST_LEN>);
 
     /// Compute a digest of all of the data added with `add_data` and
     /// `add_data_mut`, storing the computed value in `digest`.
@@ -226,7 +226,7 @@ pub trait DigestHash<'a, const DIGEST_LEN: usize> {
     /// suitable or obvious default option, the implementation can return
     /// [`ErrorCode::NOSUPPORT`].
     fn run(
-        &'a self,
+        &self,
         digest: &'static mut [u8; DIGEST_LEN],
     ) -> Result<(), (ErrorCode, &'static mut [u8; DIGEST_LEN])>;
 }
@@ -238,7 +238,7 @@ pub trait DigestHash<'a, const DIGEST_LEN: usize> {
 pub trait DigestVerify<'a, const DIGEST_LEN: usize> {
     /// Set the client instance which will receive the `verification_done()`
     /// callback.
-    fn set_verify_client(&'a self, client: &'a dyn ClientVerify<DIGEST_LEN>);
+    fn set_verify_client(&self, client: &'a dyn ClientVerify<DIGEST_LEN>);
 
     /// Compute a digest of all of the data added with `add_data` and
     /// `add_data_mut` then compare it with value in `compare`.
@@ -264,7 +264,7 @@ pub trait DigestVerify<'a, const DIGEST_LEN: usize> {
     /// suitable or obvious default option, the implementation can return
     /// [`ErrorCode::NOSUPPORT`].
     fn verify(
-        &'a self,
+        &self,
         compare: &'static mut [u8; DIGEST_LEN],
     ) -> Result<(), (ErrorCode, &'static mut [u8; DIGEST_LEN])>;
 }
@@ -277,7 +277,7 @@ pub trait Digest<'a, const DIGEST_LEN: usize>:
 {
     /// Set the client instance which will receive `hash_done()`,
     /// `add_data_done()` and `verification_done()` callbacks.
-    fn set_client(&'a self, client: &'a dyn Client<DIGEST_LEN>);
+    fn set_client(&self, client: &'a dyn Client<DIGEST_LEN>);
 }
 
 /// Computes a digest (cryptographic hash) over data.
@@ -288,7 +288,7 @@ pub trait DigestDataHash<'a, const DIGEST_LEN: usize>:
 {
     /// Set the client instance which will receive `hash_done()` and
     /// `add_data_done()` callbacks.
-    fn set_client(&'a self, client: &'a dyn ClientDataHash<DIGEST_LEN>);
+    fn set_client(&self, client: &'a dyn ClientDataHash<DIGEST_LEN>);
 }
 
 /// Verify a digest (cryptographic hash) over data.
@@ -299,7 +299,7 @@ pub trait DigestDataVerify<'a, const DIGEST_LEN: usize>:
 {
     /// Set the client instance which will receive `verify_done()` and
     /// `add_data_done()` callbacks.
-    fn set_client(&'a self, client: &'a dyn ClientDataVerify<DIGEST_LEN>);
+    fn set_client(&self, client: &'a dyn ClientDataVerify<DIGEST_LEN>);
 }
 
 pub trait Md5 {
