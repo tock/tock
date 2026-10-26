@@ -134,10 +134,10 @@ register_structs! {
         (0x020 => task_bcstop: WriteOnly<u32, Task::Register>),
         /// Reserved
         (0x024 => _reserved1: [u32; 2]),
-        /// Stop the bit counter
+        /// Start the clear channel assessment used in IEEE 802.15.4 mode
         /// - Address: 0x02c - 0x030
         (0x02C => task_ccastart: WriteOnly<u32, Task::Register>),
-        /// Stop the bit counter
+        /// Stop the clear channel assessment
         /// - Address: 0x030 - 0x034
         (0x030 => task_ccastop: WriteOnly<u32, Task::Register>),
         /// Reserved
