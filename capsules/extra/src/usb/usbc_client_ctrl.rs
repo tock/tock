@@ -365,6 +365,12 @@ impl<'a, 'b, U: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, U> {
         }
     }
 
+    /// Allow the upper ctrl layer to set data for a CtrlIn response.
+    pub fn prepare_ctrl_in(&'a self, endpoint: usize, f: fn(&'a [Cell<u8>]) -> usize) {
+        let len = f(self.descriptor_buf());
+        self.state[endpoint].set(State::CtrlIn(0, len));
+    }
+
     /// Handle a Control In transaction
     pub fn ctrl_in(&'a self, endpoint: usize) -> hil::usb::CtrlInResult {
         match self.state[endpoint].get() {
