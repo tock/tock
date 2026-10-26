@@ -34,6 +34,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use tock_registers_v0 as registers;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::register_structs;
 use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 use core::cell::Cell;
@@ -42,14 +43,16 @@ use core::ops::Index;
 
 use crate::ccm;
 
-/// DMA Multiplexer.
-///
-/// The multiplexer is used for routing between DMA channels and hardware
-/// peripherals. It's a detail of `DmaChannel`.
-#[repr(C)]
-struct DmaMultiplexerRegisters {
-    /// Channel configuration registers, one per channel.
-    chcfg: [ReadWrite<u32, ChannelConfiguration::Register>; 32],
+register_structs! {
+    /// DMA Multiplexer.
+    ///
+    /// The multiplexer is used for routing between DMA channels and hardware
+    /// peripherals. It's a detail of `DmaChannel`.
+    DmaMultiplexerRegisters {
+        /// Channel configuration registers, one per channel.
+        (0x000 => chcfg: [ReadWrite<u32, ChannelConfiguration::Register>; 32]),
+        (0x080 => @END),
+    }
 }
 
 const DMA_MUX_BASE: StaticRef<DmaMultiplexerRegisters> =
