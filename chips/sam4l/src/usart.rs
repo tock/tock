@@ -18,39 +18,43 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
 use crate::dma;
 use crate::pm;
 
 // Register map for SAM4L USART
-#[repr(C)]
-struct UsartRegisters {
-    cr: WriteOnly<u32, Control::Register>,       // 0x00
-    mr: ReadWrite<u32, Mode::Register>,          // 0x04
-    ier: WriteOnly<u32, Interrupt::Register>,    // 0x08
-    idr: WriteOnly<u32, Interrupt::Register>,    // 0x0C
-    imr: ReadOnly<u32, Interrupt::Register>,     // 0x10
-    csr: ReadOnly<u32, ChannelStatus::Register>, // 0x14
-    rhr: ReadOnly<u32, ReceiverHold::Register>,  // 0x18
-    thr: WriteOnly<u32, TransmitHold::Register>, // 0x1C
-    brgr: ReadWrite<u32, BaudRate::Register>,    // 0x20
-    rtor: ReadWrite<u32, RxTimeout::Register>,   // 0x24
-    ttgr: ReadWrite<u32, TxTimeGuard::Register>, // 0x28
-    _reserved0: [ReadOnly<u32>; 5],
-    fidi: ReadWrite<u32, FidiRatio::Register>, // 0x40
-    ner: ReadOnly<u32, NumErrors::Register>,   // 0x44
-    _reserved1: ReadOnly<u32>,
-    ifr: ReadWrite<u32, IrdaFilter::Register>, // 0x4C
-    man: ReadWrite<u32, Manchester::Register>, // 0x50
-    linmr: ReadWrite<u32, LinMode::Register>,  // 0x54
-    linir: ReadWrite<u32, LinID::Register>,    // 0x58
-    linbr: ReadOnly<u32, LinBaud::Register>,   // 0x5C
-    _reserved2: [ReadOnly<u32>; 33],
-    wpmr: ReadWrite<u32, ProtectMode::Register>,  // 0xE4
-    wpsr: ReadOnly<u32, ProtectStatus::Register>, // 0xE8
-    _reserved3: [ReadOnly<u32>; 4],
-    version: ReadOnly<u32, Version::Register>, // 0xFC
+register_structs! {
+    UsartRegisters {
+        (0x000 => cr: WriteOnly<u32, Control::Register>),
+        (0x004 => mr: ReadWrite<u32, Mode::Register>),
+        (0x008 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x00C => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x010 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x014 => csr: ReadOnly<u32, ChannelStatus::Register>),
+        (0x018 => rhr: ReadOnly<u32, ReceiverHold::Register>),
+        (0x01C => thr: WriteOnly<u32, TransmitHold::Register>),
+        (0x020 => brgr: ReadWrite<u32, BaudRate::Register>),
+        (0x024 => rtor: ReadWrite<u32, RxTimeout::Register>),
+        (0x028 => ttgr: ReadWrite<u32, TxTimeGuard::Register>),
+        (0x02C => _reserved0: [ReadOnly<u32>; 5]),
+        (0x040 => fidi: ReadWrite<u32, FidiRatio::Register>),
+        (0x044 => ner: ReadOnly<u32, NumErrors::Register>),
+        (0x048 => _reserved1: ReadOnly<u32>),
+        (0x04C => ifr: ReadWrite<u32, IrdaFilter::Register>),
+        (0x050 => man: ReadWrite<u32, Manchester::Register>),
+        (0x054 => linmr: ReadWrite<u32, LinMode::Register>),
+        (0x058 => linir: ReadWrite<u32, LinID::Register>),
+        (0x05C => linbr: ReadOnly<u32, LinBaud::Register>),
+        (0x060 => _reserved2: [ReadOnly<u32>; 33]),
+        (0x0E4 => wpmr: ReadWrite<u32, ProtectMode::Register>),
+        (0x0E8 => wpsr: ReadOnly<u32, ProtectStatus::Register>),
+        (0x0EC => _reserved3: [ReadOnly<u32>; 4]),
+        (0x0FC => version: ReadOnly<u32, Version::Register>),
+        (0x100 => @END),
+    }
 }
 
 register_bitfields![u32,
