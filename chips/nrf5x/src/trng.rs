@@ -30,40 +30,44 @@ use kernel::hil::entropy::{self, Continue};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
-#[repr(C)]
-pub struct RngRegisters {
-    /// Task starting the random number generator
-    /// Address: 0x000 - 0x004
-    pub task_start: WriteOnly<u32, Task::Register>,
-    /// Task stopping the random number generator
-    /// Address: 0x004 - 0x008
-    pub task_stop: WriteOnly<u32, Task::Register>,
-    /// Reserved
-    _reserved1: [u32; 62],
-    /// Event being generated for every new random number written to the VALUE register
-    /// Address: 0x100 - 0x104
-    pub event_valrdy: ReadWrite<u32, Event::Register>,
-    /// Reserved
-    _reserved2: [u32; 63],
-    /// Shortcut register
-    /// Address: 0x200 - 0x204
-    pub shorts: ReadWrite<u32, Shorts::Register>,
-    _reserved3: [u32; 64],
-    /// Enable interrupt
-    /// Address: 0x304 - 0x308
-    pub intenset: ReadWrite<u32, Intenset::Register>,
-    /// Disable interrupt
-    /// Address: 0x308 - 0x30c
-    pub intenclr: ReadWrite<u32, Intenclr::Register>,
-    _reserved4: [u32; 126],
-    /// Configuration register
-    /// Address: 0x504 - 0x508
-    pub config: ReadWrite<u32, Config::Register>,
-    /// Output random number
-    /// Address: 0x508 - 0x50c
-    pub value: ReadOnly<u32, Value::Register>,
+register_structs! {
+    pub RngRegisters {
+        /// Task starting the random number generator
+        /// Address: 0x000 - 0x004
+        (0x000 => pub task_start: WriteOnly<u32, Task::Register>),
+        /// Task stopping the random number generator
+        /// Address: 0x004 - 0x008
+        (0x004 => pub task_stop: WriteOnly<u32, Task::Register>),
+        /// Reserved
+        (0x008 => _reserved1: [u32; 62]),
+        /// Event being generated for every new random number written to the VALUE register
+        /// Address: 0x100 - 0x104
+        (0x100 => pub event_valrdy: ReadWrite<u32, Event::Register>),
+        /// Reserved
+        (0x104 => _reserved2: [u32; 63]),
+        /// Shortcut register
+        /// Address: 0x200 - 0x204
+        (0x200 => pub shorts: ReadWrite<u32, Shorts::Register>),
+        (0x204 => _reserved3: [u32; 64]),
+        /// Enable interrupt
+        /// Address: 0x304 - 0x308
+        (0x304 => pub intenset: ReadWrite<u32, Intenset::Register>),
+        /// Disable interrupt
+        /// Address: 0x308 - 0x30c
+        (0x308 => pub intenclr: ReadWrite<u32, Intenclr::Register>),
+        (0x30C => _reserved4: [u32; 126]),
+        /// Configuration register
+        /// Address: 0x504 - 0x508
+        (0x504 => pub config: ReadWrite<u32, Config::Register>),
+        /// Output random number
+        /// Address: 0x508 - 0x50c
+        (0x508 => pub value: ReadOnly<u32, Value::Register>),
+        (0x50C => @END),
+    }
 }
 
 register_bitfields! [u32,
