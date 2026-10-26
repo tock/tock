@@ -47,9 +47,11 @@ pub fn parse_tbf_header_lengths(
             let tbf_size = u32::from_le_bytes([app[4], app[5], app[6], app[7]]);
 
             // Check that the header length isn't greater than the entire app,
-            // and is at least as large as the v2 required header (which is 16
-            // bytes). If that at least looks good then return the sizes.
-            if u32::from(tbf_header_size) > tbf_size || tbf_header_size < 16 {
+            // and is at least as large as the v2 required header. If that at
+            // least looks good then return the sizes.
+            if u32::from(tbf_header_size) > tbf_size
+                || usize::from(tbf_header_size) < types::TBF_HEADER_V2_BASE_SIZE
+            {
                 Err(types::InitialTbfParseError::InvalidHeader(tbf_size))
             } else {
                 Ok((version, tbf_header_size, tbf_size))
@@ -107,7 +109,7 @@ pub fn parse_tbf_header(
             // continue to hold the remainder of the header we have not
             // processed.
             let mut remaining = header
-                .get(16..)
+                .get(types::TBF_HEADER_V2_BASE_SIZE..)
                 .ok_or(types::TbfParseError::NotEnoughFlash)?;
 
             // If there is nothing left in the header then this is just a
