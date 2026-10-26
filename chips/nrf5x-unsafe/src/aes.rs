@@ -8,37 +8,39 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::dma_slice::DmaSliceMut;
 use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct AesEcbRegisters {
-    /// Start ECB block encrypt
-    /// - Address 0x000 - 0x004
-    task_startecb: WriteOnly<u32, Task::Register>,
-    /// Abort a possible executing ECB operation
-    /// - Address: 0x004 - 0x008
-    task_stopecb: WriteOnly<u32, Task::Register>,
-    /// Reserved
-    _reserved1: [u32; 62],
-    /// ECB block encrypt complete
-    /// - Address: 0x100 - 0x104
-    pub event_endecb: ReadWrite<u32, Event::Register>,
-    /// ECB block encrypt aborted because of a STOPECB task or due to an error
-    /// - Address: 0x104 - 0x108
-    pub event_errorecb: ReadWrite<u32, Event::Register>,
-    /// Reserved
-    _reserved2: [u32; 127],
-    /// Enable interrupt
-    /// - Address: 0x304 - 0x308
-    pub intenset: ReadWrite<u32, Intenset::Register>,
-    /// Disable interrupt
-    /// - Address: 0x308 - 0x30c
-    pub intenclr: ReadWrite<u32, Intenclr::Register>,
-    /// Reserved
-    _reserved3: [u32; 126],
-    /// ECB block encrypt memory pointers
-    /// - Address: 0x504 - 0x508
-    ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
+register_structs! {
+    pub AesEcbRegisters {
+        /// Start ECB block encrypt
+        /// - Address 0x000 - 0x004
+        (0x000 => task_startecb: WriteOnly<u32, Task::Register>),
+        /// Abort a possible executing ECB operation
+        /// - Address: 0x004 - 0x008
+        (0x004 => task_stopecb: WriteOnly<u32, Task::Register>),
+        /// Reserved
+        (0x008 => _reserved1),
+        /// ECB block encrypt complete
+        /// - Address: 0x100 - 0x104
+        (0x100 => pub event_endecb: ReadWrite<u32, Event::Register>),
+        /// ECB block encrypt aborted because of a STOPECB task or due to an error
+        /// - Address: 0x104 - 0x108
+        (0x104 => pub event_errorecb: ReadWrite<u32, Event::Register>),
+        /// Reserved
+        (0x108 => _reserved2),
+        /// Enable interrupt
+        /// - Address: 0x304 - 0x308
+        (0x304 => pub intenset: ReadWrite<u32, Intenset::Register>),
+        /// Disable interrupt
+        /// - Address: 0x308 - 0x30c
+        (0x308 => pub intenclr: ReadWrite<u32, Intenclr::Register>),
+        /// Reserved
+        (0x30C => _reserved3),
+        /// ECB block encrypt memory pointers
+        /// - Address: 0x504 - 0x508
+        (0x504 => ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>),
+        (0x508 => @END),
+    }
 }
 
 register_bitfields! [u32,
