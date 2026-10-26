@@ -191,6 +191,9 @@ pub struct SequentialDynamicBinaryStorage<
     unload_client: OptionalCell<&'static dyn DynamicProcessUnloadClient>,
     uninstall_client: OptionalCell<&'static dyn DynamicProcessUninstallClient>,
     process_metadata: OptionalCell<ProcessLoadMetadata>,
+    /// Flash address of the most recently unloaded process binary, the only
+    /// `app_handle` that may be uninstalled.
+    unloaded_app_handle: OptionalCell<usize>,
     state: Cell<State>,
     deferred_call: DeferredCall,
 }
@@ -214,6 +217,7 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             unload_client: OptionalCell::empty(),
             uninstall_client: OptionalCell::empty(),
             process_metadata: OptionalCell::empty(),
+            unloaded_app_handle: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             deferred_call: DeferredCall::new(),
         }
@@ -404,7 +408,10 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                 true => {
                     // Write the header only if there are more than 16 bytes.
                     // available in the flash.
-                    let padding_slice = SubSliceMut::new(buffer);
+                    let mut padding_slice = SubSliceMut::new(buffer);
+                    // Do not write past the end of the padded region.
+                    padding_slice
+                        .slice(..padding_app_length.clamp(PADDING_TBF_HEADER_LENGTH, BUF_LEN));
                     // padding_slice.slice(..PADDING_TBF_HEADER_LENGTH);
                     // // We are only writing the header, so 16 bytes is enough.
                     self.write_buffer(padding_slice, offset)
@@ -435,7 +442,8 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
 
         // If power cycle happens here
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
-            let erase_chunk = SubSliceMut::new(buffer);
+            let mut erase_chunk = SubSliceMut::new(buffer);
+            erase_chunk.slice(..chunk_size);
             self.write_buffer(erase_chunk, offset).map_err(|(e, buf)| {
                 self.buffer.replace(buf.take());
                 e
@@ -554,8 +562,13 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 if let Some(metadata) = self.process_metadata.get() {
                     if metadata.erase_chunk_offset < metadata.uninstall_app_end_address {
                         // We are still within the bounds of this application, so let
-                        // us erase it.
-                        let _ = self.erase_chunk(metadata.erase_chunk_offset, BUF_LEN);
+                        // us erase it, stopping at its end.
+                        let _ = self.erase_chunk(
+                            metadata.erase_chunk_offset,
+                            BUF_LEN.min(
+                                metadata.uninstall_app_end_address - metadata.erase_chunk_offset,
+                            ),
+                        );
                     } else {
                         // Reset metadata and let client know we are done uninstalling the app.
                         self.reset_process_loading_metadata();
@@ -837,6 +850,9 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                     Ok(id) => {
                         let res = Ok(());
                         let handle = id;
+                        // shortcut: only the latest unloaded binary can be
+                        // uninstalled, track more handles if apps need that.
+                        self.unloaded_app_handle.set(handle);
 
                         self.state.set(State::Unload(res, handle));
                         self.deferred_call.set();
@@ -869,6 +885,20 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     fn uninstall_with_app_handle(&self, app_handle: usize) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Idle => {
+                // `app_handle` comes from userspace. Only accept the binary we
+                // unloaded, and only if it has not been loaded again since, so
+                // an app cannot erase the flash of another (running) app.
+                if !self.unloaded_app_handle.contains(&app_handle)
+                    || self
+                        .kernel
+                        .process_until(|p| {
+                            (p.get_addresses().flash_start == app_handle).then_some(())
+                        })
+                        .is_some()
+                {
+                    return Err(ErrorCode::INVAL);
+                }
+
                 self.state.set(State::Uninstall);
                 self.process_metadata.set(ProcessLoadMetadata::default());
 
@@ -895,6 +925,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                                 application_binary_address + application_binary_size;
                             self.process_metadata.set(metadata);
                         }
+                        self.unloaded_app_handle.clear();
                         Ok(())
                     }
                     Err(_) => {
