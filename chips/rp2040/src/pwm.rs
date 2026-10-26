@@ -109,18 +109,15 @@ register_bitfields![u32,
 
 const NUMBER_CHANNELS: usize = 8;
 
-#[repr(C)]
-struct Channel {
-    // Control and status register
-    csr: ReadWrite<u32, CSR::Register>,
-    // Division register
-    div: ReadWrite<u32, DIV::Register>,
-    // Direct access to the PWM counter register
-    ctr: ReadWrite<u32, CTR::Register>,
-    // Counter compare values register
-    cc: ReadWrite<u32, CC::Register>,
-    // Counter wrap value register
-    top: ReadWrite<u32, TOP::Register>,
+register_structs! {
+    Channel {
+        (0x000 => csr: ReadWrite<u32, CSR::Register>),
+        (0x004 => div: ReadWrite<u32, DIV::Register>),
+        (0x008 => ctr: ReadWrite<u32, CTR::Register>),
+        (0x00C => cc: ReadWrite<u32, CC::Register>),
+        (0x010 => top: ReadWrite<u32, TOP::Register>),
+        (0x014 => @END),
+    }
 }
 
 register_structs! {
