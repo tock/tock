@@ -8,7 +8,7 @@ use kernel::hil::led::LedHigh;
 
 /// Panic handler.
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_pin = esp32::gpio::GpioPin::new(
         esp32::gpio::GPIO_BASE,
         esp32::gpio::IOMUX_BASE,

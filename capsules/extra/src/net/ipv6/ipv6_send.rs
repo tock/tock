@@ -4,7 +4,7 @@
 
 //! This file contains the interface definition for sending an IPv6 packet.
 //!
-//! The [IP6Sender](trait.IP6Sender.html) trait provides an interface
+//! The [IP6Sender] trait provides an interface
 //! for sending IPv6 packets, while the [IP6SendClient](trait.IP6SendClient) trait
 //! must be implemented by upper layers to receive the `send_done` callback
 //! when a transmission has completed.

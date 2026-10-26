@@ -207,10 +207,7 @@ impl<'a> SpiMasterDevice<'a> for PioGSpi<'a> {
 
         // Try to push the number of bits
         let write_bits = (write_buffer.len() as u32) * 8 - 1;
-        let read_bits = read_buffer
-            .as_ref()
-            .map(|rx| rx.len() * 8 - 1)
-            .unwrap_or_default();
+        let read_bits = read_buffer.as_ref().map_or_default(|rx| rx.len() * 8 - 1);
 
         current_sm.push_blocking(write_bits).unwrap();
         current_sm.push_blocking(read_bits as _).unwrap();

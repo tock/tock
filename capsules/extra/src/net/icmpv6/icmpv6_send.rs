@@ -5,9 +5,9 @@
 //! Definition and implementation of a simple ICMPv6 sending
 //! interface.
 //!
-//! The [ICMP6Sender](trait.ICMP6Sender.html) trait provides an
+//! The [ICMP6Sender] trait provides an
 //! interface for an upper layer to send an ICMPv6 packet, and the
-//! [ICMP6SendClient](trait.ICMP6SendClient.html) trait is implemented
+//! [ICMP6SendClient] trait is implemented
 //! by the upper layer to allow them to receive the `send_done`
 //! callback once transmission has completed.
 // - Author: Conor McAvity <cmcavity@stanford.edu>
