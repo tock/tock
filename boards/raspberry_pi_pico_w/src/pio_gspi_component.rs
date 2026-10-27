@@ -64,7 +64,7 @@ impl Component for PioGspiComponent {
 
         self.dma_channel.set_client(pio_gspi);
         pio_gspi.init();
-        self.pio.sm(self.pio_sm).set_sm_client(pio_gspi);
+        self.pio.set_irq_client(pio_gspi);
 
         pio_gspi
     }
