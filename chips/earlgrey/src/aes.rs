@@ -384,8 +384,6 @@ impl<'a> hil::symmetric_encryption::AES<'a, AES128> for Aes<'a> {
         Ok(())
     }
 
-    fn start_message(&self) {}
-
     fn crypt(
         &self,
         source: Option<&'static mut [u8]>,
