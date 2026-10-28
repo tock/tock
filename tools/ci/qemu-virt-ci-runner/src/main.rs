@@ -32,7 +32,7 @@ const QEMU_CMDLINE_EXTRA: &str = concat!(
 );
 
 // Maximum time to wait for QEMU sockets to become available.
-const SOCKET_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const SOCKET_CONNECT_TIMEOUT: Duration = Duration::from_secs(120);
 
 // Default read timeout on raw TCP socket connections (used for QMP reads and
 // as a polling interval inside expect_serial; the per-test serial timeout is
