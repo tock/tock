@@ -1,0 +1,12 @@
+[package]
+name = "capsules-crypto"
+version.workspace = true
+authors.workspace = true
+edition = "2024"
+
+[dependencies]
+kernel = { path = "../../kernel" }
+capsules-core = { path = "../core" }
+
+[lints]
+workspace = true
