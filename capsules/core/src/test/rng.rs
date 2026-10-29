@@ -20,24 +20,6 @@ use kernel::hil::rng;
 
 const ELEMENTS: usize = 8;
 
-pub struct TestRandom<'a> {
-    random: &'a dyn rng::Random<'a>,
-}
-
-impl<'a> TestRandom<'a> {
-    pub fn new(random: &'a dyn rng::Random<'a>) -> TestRandom<'a> {
-        TestRandom { random }
-    }
-
-    pub fn run(&self) {
-        self.random.initialize();
-        for _i in 0..ELEMENTS {
-            let val = self.random.random();
-            debug!("TestRandom: generated synchronous random number: {}", val);
-        }
-    }
-}
-
 // Use this test to test an Rng
 pub struct TestRng<'a> {
     rng: &'a dyn rng::Rng<'a>,
