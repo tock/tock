@@ -108,7 +108,7 @@ fn crc(s: &'static str) -> u32 {
 type AlarmHw = nrf52840::rtc::Rtc<'static>;
 type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 
-type Screen = components::ssd13xx::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
+type Screen = components::ssd13xx::Ssd13xxI2CComponentType<nrf52840::i2c::TWI<'static>>;
 type ScreenDriver = components::screen::ScreenSharedComponentType<Screen>;
 
 type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
@@ -562,8 +562,9 @@ pub unsafe fn start() -> (
         .finalize(components::i2c_component_static!(nrf52840::i2c::TWI));
 
     // Create the ssd1306 object for the actual screen driver.
-    let ssd1306 = components::ssd13xx::Ssd1306Component::new(ssd1306_i2c, true)
-        .finalize(components::ssd1306_component_static!(nrf52840::i2c::TWI));
+    let ssd1306 = components::ssd13xx::Ssd13xxI2CComponent::new(ssd1306_i2c, true).finalize(
+        components::ssd13xx_i2c_component_static!(nrf52840::i2c::TWI),
+    );
 
     // Create a Driver for userspace access to the screen.
     // let screen = components::screen::ScreenComponent::new(
