@@ -3,6 +3,9 @@
 // Copyright Tock Contributors 2023.
 
 //! SSD1306/SSD1315 OLED Screen
+//!
+//! The controller can be attached over I2C ([`I2CTransport`]) or 4-wire SPI
+//! with a data/command pin ([`SpiTransport`]).
 
 use core::cell::Cell;
 use kernel::ErrorCode;
@@ -14,6 +17,146 @@ pub const BUFFER_SIZE: usize = 1032;
 
 const WIDTH: usize = 128;
 const HEIGHT: usize = 64;
+
+/// Whether bytes sent to the controller are commands or display data.
+#[derive(Clone, Copy, PartialEq)]
+pub enum DataKind {
+    Command,
+    Data,
+}
+
+/// Bus that connects the controller.
+pub trait Transport<'a> {
+    fn set_client(&self, client: &'a dyn TransportClient);
+
+    /// Send `buffer[1..len]` to the controller as `kind` bytes.
+    ///
+    /// `buffer[0]` is reserved for the transport (e.g. the I2C control byte).
+    /// On success, [`TransportClient::send_done`] returns the buffer. `len`
+    /// includes this byte.
+    fn send(
+        &self,
+        kind: DataKind,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+}
+
+pub trait TransportClient {
+    fn send_done(&self, buffer: &'static mut [u8], result: Result<(), ErrorCode>);
+}
+
+/// I2C transport for SSD13xx screens.
+///
+/// Each transfer starts with a control byte that marks the following bytes as
+/// commands or data.
+pub struct I2CTransport<'a, I: hil::i2c::I2CDevice<'a>> {
+    i2c: &'a I,
+    client: OptionalCell<&'a dyn TransportClient>,
+}
+
+impl<'a, I: hil::i2c::I2CDevice<'a>> I2CTransport<'a, I> {
+    pub fn new(i2c: &'a I) -> Self {
+        Self {
+            i2c,
+            client: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a, I: hil::i2c::I2CDevice<'a>> Transport<'a> for I2CTransport<'a, I> {
+    fn set_client(&self, client: &'a dyn TransportClient) {
+        self.client.set(client);
+    }
+
+    fn send(
+        &self,
+        kind: DataKind,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        buffer[0] = match kind {
+            DataKind::Command => 0, // Co = 0, D/C̅ = 0
+            DataKind::Data => 0x40, // Co = 0, D/C̅ = 1
+        };
+
+        self.i2c.enable();
+        self.i2c.write(buffer, len).map_err(|(e, buf)| {
+            self.i2c.disable();
+            (e.into(), buf)
+        })
+    }
+}
+
+impl<'a, I: hil::i2c::I2CDevice<'a>> hil::i2c::I2CClient for I2CTransport<'a, I> {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), hil::i2c::Error>) {
+        self.i2c.disable();
+        self.client
+            .map(|client| client.send_done(buffer, status.map_err(Into::into)));
+    }
+}
+
+/// 4-wire SPI transport: the D/C̅ pin marks the transferred bytes as commands
+/// (low) or data (high).
+///
+/// The transport uses the SPI controller directly, so the controller cannot
+/// be shared with other devices. Its chip select, clock rate, and mode must be
+/// configured before use (SPI mode 0).
+pub struct SpiTransport<'a, S: hil::spi::SpiMaster<'a>, P: hil::gpio::Output> {
+    spi: &'a S,
+    dc: &'a P,
+    client: OptionalCell<&'a dyn TransportClient>,
+}
+
+impl<'a, S: hil::spi::SpiMaster<'a>, P: hil::gpio::Output> SpiTransport<'a, S, P> {
+    pub fn new(spi: &'a S, dc: &'a P) -> Self {
+        Self {
+            spi,
+            dc,
+            client: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a, S: hil::spi::SpiMaster<'a>, P: hil::gpio::Output> Transport<'a>
+    for SpiTransport<'a, S, P>
+{
+    fn set_client(&self, client: &'a dyn TransportClient) {
+        self.client.set(client);
+    }
+
+    fn send(
+        &self,
+        kind: DataKind,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        match kind {
+            DataKind::Command => self.dc.clear(),
+            DataKind::Data => self.dc.set(),
+        }
+
+        let mut buf_slice = SubSliceMut::new(buffer);
+        buf_slice.slice(1..len);
+        self.spi
+            .read_write_bytes(buf_slice, None)
+            .map_err(|(e, buf_slice, _)| (e, buf_slice.take()))
+    }
+}
+
+impl<'a, S: hil::spi::SpiMaster<'a>, P: hil::gpio::Output> hil::spi::SpiMasterClient
+    for SpiTransport<'a, S, P>
+{
+    fn read_write_done(
+        &self,
+        write_buffer: SubSliceMut<'static, u8>,
+        _read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
+    ) {
+        self.client
+            .map(|client| client.send_done(write_buffer.take(), status.map(|_| ())));
+    }
+}
 
 #[derive(Copy, Clone, PartialEq)]
 #[repr(usize)]
@@ -281,8 +424,8 @@ enum State {
     Write,
 }
 
-pub struct Ssd1306<'a, I: hil::i2c::I2CDevice<'a>> {
-    i2c: &'a I,
+pub struct Ssd13xx<'a, T: Transport<'a>> {
+    transport: &'a T,
     state: Cell<State>,
     client: OptionalCell<&'a dyn hil::screen::ScreenClient>,
     setup_client: OptionalCell<&'a dyn hil::screen::ScreenSetupClient>,
@@ -291,10 +434,10 @@ pub struct Ssd1306<'a, I: hil::i2c::I2CDevice<'a>> {
     enable_charge_pump: bool,
 }
 
-impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
-    pub fn new(i2c: &'a I, buffer: &'static mut [u8], enable_charge_pump: bool) -> Ssd1306<'a, I> {
-        Ssd1306 {
-            i2c,
+impl<'a, T: Transport<'a>> Ssd13xx<'a, T> {
+    pub fn new(transport: &'a T, buffer: &'static mut [u8], enable_charge_pump: bool) -> Self {
+        Ssd13xx {
+            transport,
             state: Cell::new(State::Idle),
             client: OptionalCell::empty(),
             setup_client: OptionalCell::empty(),
@@ -351,10 +494,8 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
             self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                 let mut buf_slice = SubSliceMut::new(buffer);
 
-                // Specify this is a series of command bytes.
-                buf_slice[0] = 0; // Co = 0, D/C̅ = 0
-
-                // Move the window of the subslice after the command byte header.
+                // Move the window of the subslice after the header byte
+                // reserved for the transport.
                 buf_slice.slice(1..);
 
                 for cmd in sequence.iter() {
@@ -367,13 +508,14 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
                 buf_slice.reset();
                 let tx_len = buf_slice.len() - remaining_len;
 
-                self.i2c.enable();
-                match self.i2c.write(buf_slice.take(), tx_len) {
+                match self
+                    .transport
+                    .send(DataKind::Command, buf_slice.take(), tx_len)
+                {
                     Ok(()) => Ok(()),
-                    Err((_e, buf)) => {
+                    Err((e, buf)) => {
                         self.buffer.replace(buf);
-                        self.i2c.disable();
-                        Err(ErrorCode::INVAL)
+                        Err(e)
                     }
                 }
             })
@@ -383,7 +525,7 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::ScreenSetup<'a> for Ssd1306<'a, I> {
+impl<'a, T: Transport<'a>> hil::screen::ScreenSetup<'a> for Ssd13xx<'a, T> {
     fn set_client(&self, client: &'a dyn hil::screen::ScreenSetupClient) {
         self.setup_client.set(client);
     }
@@ -423,7 +565,7 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::ScreenSetup<'a> for Ssd1306<'a
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> {
+impl<'a, T: Transport<'a>> hil::screen::Screen<'a> for Ssd13xx<'a, T> {
     fn set_client(&self, client: &'a dyn hil::screen::ScreenClient) {
         self.client.set(client);
     }
@@ -470,10 +612,8 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> 
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             let mut buf_slice = SubSliceMut::new(buffer);
 
-            // Specify this is data.
-            buf_slice[0] = 0x40; // Co = 0, D/C̅ = 1
-
-            // Move the window of the subslice after the command byte header.
+            // Move the window of the subslice after the header byte reserved
+            // for the transport.
             buf_slice.slice(1..);
 
             // Figure out how much we can send.
@@ -485,16 +625,18 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> 
 
             let tx_len = copy_len + 1;
 
-            self.i2c.enable();
-            match self.i2c.write(buf_slice.take(), tx_len) {
+            match self
+                .transport
+                .send(DataKind::Data, buf_slice.take(), tx_len)
+            {
                 Ok(()) => {
                     self.state.set(State::Write);
                     self.write_buffer.replace(data);
                     Ok(())
                 }
-                Err((_e, buf)) => {
+                Err((e, buf)) => {
                     self.buffer.replace(buf);
-                    Err(ErrorCode::INVAL)
+                    Err(e)
                 }
             }
         })
@@ -536,10 +678,9 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> 
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice<'a>> hil::i2c::I2CClient for Ssd1306<'a, I> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), hil::i2c::Error>) {
+impl<'a, T: Transport<'a>> TransportClient for Ssd13xx<'a, T> {
+    fn send_done(&self, buffer: &'static mut [u8], result: Result<(), ErrorCode>) {
         self.buffer.replace(buffer);
-        self.i2c.disable();
 
         match self.state.get() {
             State::Init => {
@@ -549,13 +690,13 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::i2c::I2CClient for Ssd1306<'a, I> {
 
             State::SimpleCommand => {
                 self.state.set(State::Idle);
-                self.client.map(|client| client.command_complete(Ok(())));
+                self.client.map(|client| client.command_complete(result));
             }
 
             State::Write => {
                 self.state.set(State::Idle);
                 self.write_buffer.take().map(|buf| {
-                    self.client.map(|client| client.write_complete(buf, Ok(())));
+                    self.client.map(|client| client.write_complete(buf, result));
                 });
             }
             _ => {}

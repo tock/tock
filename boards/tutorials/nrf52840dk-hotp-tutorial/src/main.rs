@@ -177,8 +177,10 @@ pub unsafe fn main() {
 
     // Create the ssd1306 object for the actual screen driver.
     #[cfg(feature = "screen_ssd1306")]
-    let ssd1306_sh1106 = components::ssd13xx::Ssd1306Component::new(ssd1306_sh1106_i2c, true)
-        .finalize(components::ssd1306_component_static!(nrf52840::i2c::TWI));
+    let ssd1306_sh1106 = components::ssd13xx::Ssd13xxI2CComponent::new(ssd1306_sh1106_i2c, true)
+        .finalize(components::ssd13xx_i2c_component_static!(
+            nrf52840::i2c::TWI
+        ));
 
     #[cfg(feature = "screen_sh1106")]
     let ssd1306_sh1106 = components::sh1106::Sh1106Component::new(ssd1306_sh1106_i2c, true)
