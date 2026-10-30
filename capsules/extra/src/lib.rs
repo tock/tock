@@ -106,7 +106,7 @@ pub mod signature_verify_in_memory_keys;
 pub mod sip_hash;
 pub mod sk68xx;
 pub mod sound_pressure;
-pub mod ssd1306;
+pub mod ssd13xx;
 pub mod st77xx;
 pub mod symmetric_encryption;
 pub mod syscall_return_test;
