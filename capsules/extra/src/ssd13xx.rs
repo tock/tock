@@ -2,9 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2023.
 
-//! SSD1306/SSD1315 OLED Screen
+//! SSD1306/SSD1309/SSD1315 OLED Screen
 //!
-//! The controller can be attached over I2C ([`I2CTransport`]) or 4-wire SPI
+//! The SSD1306, SSD1309, and SSD1315 share their command set and 128x64 display
+//! RAM. The exact chip is selected through the [`Variant`] generic type
+//! parameter ([`Ssd1306`], [`Ssd1309`], or [`Ssd1315`]). Select the panel
+//! resolution with the `WIDTH` and `HEIGHT` const generics (128x64 by default).
+//! Panels narrower than 128 columns are assumed to be centered in the
+//! controller's columns.
+//!
+//! Both controllers can be attached over I2C ([`I2CTransport`]) or 4-wire SPI
 //! with a data/command pin ([`SpiTransport`]).
 
 use core::cell::Cell;
@@ -15,8 +22,89 @@ use kernel::utilities::leasable_buffer::SubSliceMut;
 
 pub const BUFFER_SIZE: usize = 1032;
 
-const WIDTH: usize = 128;
-const HEIGHT: usize = 64;
+/// Number of columns in the controller's display RAM.
+const CONTROLLER_WIDTH: usize = 128;
+/// Number of rows (COM lines) of the controller.
+const CONTROLLER_HEIGHT: usize = 64;
+
+/// Settings that differ between the controllers this driver supports.
+pub trait Variant {
+    /// Whether the controller has an internal charge pump (command `0x8D`).
+    const HAS_CHARGE_PUMP: bool;
+
+    /// Controller-specific commands sent during initialization, before the
+    /// display is turned on.
+    const INIT_COMMANDS: &'static [Command];
+}
+
+/// The SSD1306 controller.
+pub enum Ssd1306 {}
+
+impl Variant for Ssd1306 {
+    const HAS_CHARGE_PUMP: bool = true;
+    const INIT_COMMANDS: &'static [Command] = &[
+        Command::SetPrechargePeriod {
+            phase1: 0x1,
+            phase2: 0xf,
+        },
+        Command::SetVcomDeselect { level: 2 },
+    ];
+}
+
+/// The SSD1315 controller, which is compatible with the SSD1306.
+pub type Ssd1315 = Ssd1306;
+
+/// The SSD1309 controller.
+///
+/// The SSD1309 has no charge pump (the panel voltage is supplied externally)
+/// and encodes the VCOMH deselect level differently from the SSD1306. It keeps
+/// its reset defaults for the pre-charge period (`0x22`) and VCOMH level
+/// (`0x34`, ~0.78 x VCC).
+pub enum Ssd1309 {}
+
+impl Variant for Ssd1309 {
+    const HAS_CHARGE_PUMP: bool = false;
+    const INIT_COMMANDS: &'static [Command] = &[];
+}
+
+/// How the panel is wired to the controller's segment (column) and COM (row)
+/// lines. This depends on the display module, and decides the orientation of
+/// the image.
+///
+/// The fields are named after the controller commands they configure.
+#[derive(Clone, Copy)]
+pub struct PanelConfig {
+    /// Set Segment Re-map (`0xA0`/`0xA1`).
+    ///
+    /// `true` maps column 0 to SEG127, mirroring the image horizontally.
+    pub segment_remap: bool,
+    /// Set COM Output Scan Direction (`0xC0`/`0xC8`).
+    ///
+    /// `true` scans from COM[N-1] to COM0, mirroring the image vertically.
+    pub com_scan_decrement: bool,
+    /// Set COM Pins Hardware Configuration (`0xDA`).
+    ///
+    /// `true` means alternative (interleaved) instead of sequential COM pin
+    /// configuration. Panels with 64 rows typically use the alternative
+    /// configuration, panels with 32 rows the sequential one.
+    pub com_pins_alternative: bool,
+    /// Set COM Pins Hardware Configuration (`0xDA`).
+    ///
+    /// `true` means enabling COM left/right remap.
+    pub com_left_right_remap: bool,
+}
+
+impl Default for PanelConfig {
+    /// The configuration of common 128x64 modules.
+    fn default() -> Self {
+        PanelConfig {
+            segment_remap: true,
+            com_scan_decrement: true,
+            com_pins_alternative: true,
+            com_left_right_remap: false,
+        }
+    }
+}
 
 /// Whether bytes sent to the controller are commands or display data.
 #[derive(Clone, Copy, PartialEq)]
@@ -424,7 +512,13 @@ enum State {
     Write,
 }
 
-pub struct Ssd13xx<'a, T: Transport<'a>> {
+pub struct Ssd13xx<
+    'a,
+    V: Variant,
+    T: Transport<'a>,
+    const WIDTH: usize = CONTROLLER_WIDTH,
+    const HEIGHT: usize = CONTROLLER_HEIGHT,
+> {
     transport: &'a T,
     state: Cell<State>,
     client: OptionalCell<&'a dyn hil::screen::ScreenClient>,
@@ -432,10 +526,36 @@ pub struct Ssd13xx<'a, T: Transport<'a>> {
     buffer: TakeCell<'static, [u8]>,
     write_buffer: MapCell<SubSliceMut<'static, u8>>,
     enable_charge_pump: bool,
+    panel: PanelConfig,
+    _variant: core::marker::PhantomData<V>,
 }
 
-impl<'a, T: Transport<'a>> Ssd13xx<'a, T> {
-    pub fn new(transport: &'a T, buffer: &'static mut [u8], enable_charge_pump: bool) -> Self {
+impl<'a, V: Variant, T: Transport<'a>, const WIDTH: usize, const HEIGHT: usize>
+    Ssd13xx<'a, V, T, WIDTH, HEIGHT>
+{
+    /// Column of the controller's display RAM where the panel starts.
+    const COLUMN_OFFSET: usize = (CONTROLLER_WIDTH - WIDTH) / 2;
+
+    /// Rejects unsupported resolutions at compile time.
+    const VALID_RESOLUTION: () = assert!(
+        WIDTH > 0
+            && WIDTH <= CONTROLLER_WIDTH
+            && HEIGHT > 0
+            && HEIGHT <= CONTROLLER_HEIGHT
+            && HEIGHT.is_multiple_of(8)
+    );
+
+    /// Create the screen driver.
+    ///
+    /// `enable_charge_pump` is ignored for controllers without a charge pump.
+    pub fn new(
+        transport: &'a T,
+        buffer: &'static mut [u8],
+        enable_charge_pump: bool,
+        panel: PanelConfig,
+    ) -> Self {
+        let () = Self::VALID_RESOLUTION;
+
         Ssd13xx {
             transport,
             state: Cell::new(State::Idle),
@@ -444,6 +564,8 @@ impl<'a, T: Transport<'a>> Ssd13xx<'a, T> {
             buffer: TakeCell::new(buffer),
             write_buffer: MapCell::empty(),
             enable_charge_pump,
+            panel,
+            _variant: core::marker::PhantomData,
         }
     }
 
@@ -459,29 +581,33 @@ impl<'a, T: Transport<'a>> Ssd13xx<'a, T> {
             },
             Command::SetDisplayOffset { vertical_shift: 0 },
             Command::SetDisplayStartLine { line: 0 },
-            Command::SetChargePump {
-                enable: self.enable_charge_pump,
-            },
             Command::SetMemoryAddressingMode { mode: 0 }, //horizontal
-            Command::SetSegmentRemap { reverse: true },
-            Command::SetComScanDirection { decrement: true },
+            Command::SetSegmentRemap {
+                reverse: self.panel.segment_remap,
+            },
+            Command::SetComScanDirection {
+                decrement: self.panel.com_scan_decrement,
+            },
             Command::SetComPins {
-                alternative: true,
-                enable_com: false,
+                alternative: self.panel.com_pins_alternative,
+                enable_com: self.panel.com_left_right_remap,
             },
             Command::SetContrast { contrast: 0xcf },
-            Command::SetPrechargePeriod {
-                phase1: 0x1,
-                phase2: 0xf,
-            },
-            Command::SetVcomDeselect { level: 2 },
             Command::EntireDisplayOn { ignore_ram: false },
             Command::SetDisplayInvert { inverse: false },
             Command::DeactivateScroll,
-            Command::SetDisplayOnOff { on: true },
         ];
+        let charge_pump = Command::SetChargePump {
+            enable: self.enable_charge_pump,
+        };
 
-        match self.send_sequence(&commands) {
+        let sequence = commands
+            .iter()
+            .chain(V::HAS_CHARGE_PUMP.then_some(&charge_pump))
+            .chain(V::INIT_COMMANDS)
+            .chain(&[Command::SetDisplayOnOff { on: true }]);
+
+        match self.send_sequence(sequence) {
             Ok(()) => {
                 self.state.set(State::Init);
             }
@@ -489,7 +615,10 @@ impl<'a, T: Transport<'a>> Ssd13xx<'a, T> {
         }
     }
 
-    fn send_sequence(&self, sequence: &[Command]) -> Result<(), ErrorCode> {
+    fn send_sequence<'c>(
+        &self,
+        sequence: impl IntoIterator<Item = &'c Command>,
+    ) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                 let mut buf_slice = SubSliceMut::new(buffer);
@@ -498,7 +627,7 @@ impl<'a, T: Transport<'a>> Ssd13xx<'a, T> {
                 // reserved for the transport.
                 buf_slice.slice(1..);
 
-                for cmd in sequence.iter() {
+                for cmd in sequence {
                     cmd.encode(&mut buf_slice);
                 }
 
@@ -525,7 +654,9 @@ impl<'a, T: Transport<'a>> Ssd13xx<'a, T> {
     }
 }
 
-impl<'a, T: Transport<'a>> hil::screen::ScreenSetup<'a> for Ssd13xx<'a, T> {
+impl<'a, V: Variant, T: Transport<'a>, const WIDTH: usize, const HEIGHT: usize>
+    hil::screen::ScreenSetup<'a> for Ssd13xx<'a, V, T, WIDTH, HEIGHT>
+{
     fn set_client(&self, client: &'a dyn hil::screen::ScreenSetupClient) {
         self.setup_client.set(client);
     }
@@ -565,7 +696,9 @@ impl<'a, T: Transport<'a>> hil::screen::ScreenSetup<'a> for Ssd13xx<'a, T> {
     }
 }
 
-impl<'a, T: Transport<'a>> hil::screen::Screen<'a> for Ssd13xx<'a, T> {
+impl<'a, V: Variant, T: Transport<'a>, const WIDTH: usize, const HEIGHT: usize>
+    hil::screen::Screen<'a> for Ssd13xx<'a, V, T, WIDTH, HEIGHT>
+{
     fn set_client(&self, client: &'a dyn hil::screen::ScreenClient) {
         self.client.set(client);
     }
@@ -595,8 +728,8 @@ impl<'a, T: Transport<'a>> hil::screen::Screen<'a> for Ssd13xx<'a, T> {
                 page_end: ((y / 8) + (height / 8) - 1) as u8,
             },
             Command::SetColumnAddress {
-                column_start: x as u8,
-                column_end: (x + width - 1) as u8,
+                column_start: (Self::COLUMN_OFFSET + x) as u8,
+                column_end: (Self::COLUMN_OFFSET + x + width - 1) as u8,
             },
         ];
         match self.send_sequence(&commands) {
@@ -678,7 +811,9 @@ impl<'a, T: Transport<'a>> hil::screen::Screen<'a> for Ssd13xx<'a, T> {
     }
 }
 
-impl<'a, T: Transport<'a>> TransportClient for Ssd13xx<'a, T> {
+impl<'a, V: Variant, T: Transport<'a>, const WIDTH: usize, const HEIGHT: usize> TransportClient
+    for Ssd13xx<'a, V, T, WIDTH, HEIGHT>
+{
     fn send_done(&self, buffer: &'static mut [u8], result: Result<(), ErrorCode>) {
         self.buffer.replace(buffer);
 
