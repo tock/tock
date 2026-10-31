@@ -1,12 +1,10 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2025.
+// Copyright Tock Contributors 2026.
 
 //! True Random Number Generator (RNG) for the LPC55S6x family.
 //!
-//! Follows the initialization and normal usage procedures for design
-//! revision 1B described in UM11126 sections 48.15.5 and 48.15.6. Before
-//! calling [`RNG::init`], the board must power up the entropy sources
+//! Before calling [`RNG::init`], the board must power up the entropy sources
 //! (`Pmc::power_up_rng`) and enable and reset the RNG block
 //! (`Clock::start_rng_clock`).
 
@@ -82,8 +80,7 @@ MODULEID [
 const RNG_BASE: StaticRef<RngRegisters> =
     unsafe { StaticRef::new(0x4003A000 as *const RngRegisters) };
 
-/// Clock on which the CHI squared statistics are computed, as recommended
-/// for revision 1B devices.
+/// Clock on which the CHI squared statistics are computed
 const CHI_CLOCK_SEL: u32 = 4;
 
 /// Largest MAX_CHI_SQUARED value for which the entropy is considered good.
@@ -254,8 +251,6 @@ impl<'a> entropy::Entropy32<'a> for RNG<'a> {
     }
 
     fn cancel(&self) -> Result<(), ErrorCode> {
-        // A pending deferred call cannot be unscheduled, but it will see
-        // that the request is gone and return without a callback.
         self.requested.set(false);
         Ok(())
     }
