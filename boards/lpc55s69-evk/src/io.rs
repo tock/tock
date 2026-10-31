@@ -7,7 +7,8 @@
 //! This module provides:
 //! - A `Writer` type that implements both `core::fmt::Write` and
 //!   Tock’s `IoWrite` trait, allowing formatted output and debug
-//!   messages to be sent over UART0.
+//!   messages to be sent over UART0, or over Segger RTT when
+//!   `RTT_DEBUGGING` is enabled in `main.rs`.
 //! - UART initialization and pin configuration via the IOCON block
 //!   (TX on P0_29, RX on P0_30).
 //! - A global `WRITER` instance used by the kernel’s debug system.
@@ -43,6 +44,7 @@ impl Writer {
         self.uart.set(uart);
     }
 
+    /// Route output to Segger RTT instead of UART.
     pub fn set_rtt_memory(&self, rtt: &'static segger::rtt::SeggerRttMemory<'static>) {
         self.rtt.set(rtt);
     }
@@ -109,6 +111,11 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
+        if let Some(rtt) = self.rtt.get() {
+            rtt.write_sync(buf);
+            return buf.len();
+        }
+
         self.uart.map_or_else(
             || {
                 let clocks = lpc55s6x::clocks::Clock::new();
@@ -123,9 +130,6 @@ impl IoWrite for Writer {
                 self.write_to_uart(uart, buf);
             },
         );
-        self.rtt.map(|rtt| {
-            rtt.write_sync(buf);
-        });
         buf.len()
     }
 }
