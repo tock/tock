@@ -665,6 +665,7 @@ dependencies = [
  "cortexm33",
  "kernel",
  "lpc55s6x",
+ "segger",
  "tock_build_scripts",
 ]
 
