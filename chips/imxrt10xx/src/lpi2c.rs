@@ -8,7 +8,9 @@ use kernel::debug;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
 use kernel::hil;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
@@ -22,77 +24,51 @@ pub enum Lpi2cSpeed {
     Speed1M,
 }
 
-/// Inter-integrated Circuit
-#[repr(C)]
-struct Lpi2cRegisters {
-    // Version ID Register
-    verid: ReadOnly<u32, VERID::Register>,
-    // Parameter Register
-    param: ReadOnly<u32, PARAM::Register>,
-    _reserved1: [u8; 8],
-    // Master Control Register
-    mcr: ReadWrite<u32, MCR::Register>,
-    // Master Status Register
-    msr: ReadWrite<u32, MSR::Register>,
-    // Master Interrupt Enable Register
-    mier: ReadWrite<u32, MIER::Register>,
-    // Master DMA Enable Register
-    mder: ReadWrite<u32, MDER::Register>,
-    // Master Configuration Register 0
-    mcfgr0: ReadWrite<u32, MCFGR0::Register>,
-    // Master Configuration Register 1
-    mcfgr1: ReadWrite<u32, MCFGR1::Register>,
-    // Master Configuration Register 2
-    mcfgr2: ReadWrite<u32, MCFGR2::Register>,
-    // Master Configuration Register 3
-    mcfgr3: ReadWrite<u32, MCFGR3::Register>,
-    _reserved2: [u8; 16],
-    // Master Data Match Register
-    mdmr: ReadWrite<u32, MDMR::Register>,
-    _reserved3: [u8; 4],
-    // Master Configuration Register 0
-    mccr0: ReadWrite<u32, MCCR0::Register>,
-    _reserved4: [u8; 4],
-    // Master Configuration Register 1
-    mccr1: ReadWrite<u32, MCCR1::Register>,
-    _reserved5: [u8; 4],
-    // Master FIFO Control Register
-    mfcr: ReadWrite<u32, MFCR::Register>,
-    // Master FIFO Status Register
-    mfsr: ReadOnly<u32, MFSR::Register>,
-    // Master Transmit Data Register
-    mtdr: WriteOnly<u32, MTDR::Register>,
-    _reserved6: [u8; 12],
-    // Master Receive Data Register
-    mrdr: ReadOnly<u32, MRDR::Register>,
-    _reserved7: [u8; 156],
-    // Slave Control Register
-    scr: ReadWrite<u32, SCR::Register>,
-    // Slave Status Register
-    ssr: ReadWrite<u32, SSR::Register>,
-    // Slave Interrupt Enable Register
-    sier: ReadWrite<u32, SIER::Register>,
-    // Slave DMA Enable Register
-    sder: ReadWrite<u32, SDER::Register>,
-    _reserved8: [u8; 4],
-    // Slave Configuration Register 1
-    scfgr1: ReadWrite<u32, SCFGR1::Register>,
-    // Slave Configuration Register 2
-    scfgr2: ReadWrite<u32, SCFGR2::Register>,
-    _reserved9: [u8; 20],
-    // Slave Address Match Register
-    samr: ReadWrite<u32, SAMR::Register>,
-    _reserved10: [u8; 12],
-    // Slave Status Match Register
-    sasr: ReadOnly<u32, SAMR::Register>,
-    // Slave Transmit ACK Register
-    star: ReadWrite<u32, STAR::Register>,
-    _reserved11: [u8; 8],
-    // Slave Transmit Data Register
-    stdr: WriteOnly<u32, STDR::Register>,
-    _reserved12: [u8; 12],
-    // Slave Receive Data Register
-    srdr: ReadOnly<u32, SRDR::Register>,
+register_structs! {
+    /// Inter-integrated Circuit
+    Lpi2cRegisters {
+        (0x000 => verid: ReadOnly<u32, VERID::Register>),
+        (0x004 => param: ReadOnly<u32, PARAM::Register>),
+        (0x008 => _reserved1: [u8; 8]),
+        (0x010 => mcr: ReadWrite<u32, MCR::Register>),
+        (0x014 => msr: ReadWrite<u32, MSR::Register>),
+        (0x018 => mier: ReadWrite<u32, MIER::Register>),
+        (0x01C => mder: ReadWrite<u32, MDER::Register>),
+        (0x020 => mcfgr0: ReadWrite<u32, MCFGR0::Register>),
+        (0x024 => mcfgr1: ReadWrite<u32, MCFGR1::Register>),
+        (0x028 => mcfgr2: ReadWrite<u32, MCFGR2::Register>),
+        (0x02C => mcfgr3: ReadWrite<u32, MCFGR3::Register>),
+        (0x030 => _reserved2: [u8; 16]),
+        (0x040 => mdmr: ReadWrite<u32, MDMR::Register>),
+        (0x044 => _reserved3: [u8; 4]),
+        (0x048 => mccr0: ReadWrite<u32, MCCR0::Register>),
+        (0x04C => _reserved4: [u8; 4]),
+        (0x050 => mccr1: ReadWrite<u32, MCCR1::Register>),
+        (0x054 => _reserved5: [u8; 4]),
+        (0x058 => mfcr: ReadWrite<u32, MFCR::Register>),
+        (0x05C => mfsr: ReadOnly<u32, MFSR::Register>),
+        (0x060 => mtdr: WriteOnly<u32, MTDR::Register>),
+        (0x064 => _reserved6: [u8; 12]),
+        (0x070 => mrdr: ReadOnly<u32, MRDR::Register>),
+        (0x074 => _reserved7: [u8; 156]),
+        (0x110 => scr: ReadWrite<u32, SCR::Register>),
+        (0x114 => ssr: ReadWrite<u32, SSR::Register>),
+        (0x118 => sier: ReadWrite<u32, SIER::Register>),
+        (0x11C => sder: ReadWrite<u32, SDER::Register>),
+        (0x120 => _reserved8),
+        (0x124 => scfgr1: ReadWrite<u32, SCFGR1::Register>),
+        (0x128 => scfgr2: ReadWrite<u32, SCFGR2::Register>),
+        (0x12C => _reserved9),
+        (0x140 => samr: ReadWrite<u32, SAMR::Register>),
+        (0x144 => _reserved10),
+        (0x150 => sasr: ReadOnly<u32, SAMR::Register>),
+        (0x154 => star: ReadWrite<u32, STAR::Register>),
+        (0x158 => _reserved11),
+        (0x160 => stdr: WriteOnly<u32, STDR::Register>),
+        (0x164 => _reserved12),
+        (0x170 => srdr: ReadOnly<u32, SRDR::Register>),
+        (0x174 => @END),
+    }
 }
 
 register_bitfields![u32,
