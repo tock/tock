@@ -25,18 +25,18 @@ extern "C" {
 }
 
 #[repr(usize)]
+#[allow(dead_code)]
 enum ImageType {
     Normal = 0x0000,
     PlainSignedImage = 0x0001,
     PlainCRCImage = 0x0002,
     PlainSignedXIPImage = 0x0004,
     PlainCRCXIPImage = 0x0005,
-    SignedPlainImageWithKeyStoreIncluded = 0x8001
-
+    SignedPlainImageWithKeyStoreIncluded = 0x8001,
 }
 
 #[repr(C)]
-struct Lpc55ImageHeader {
+pub struct Lpc55ImageHeader {
     initial_sp: unsafe extern "C" fn(),
     initial_pc: unsafe extern "C" fn(),
     vector_table_0_5: [unsafe extern "C" fn(); 6],
@@ -72,18 +72,10 @@ pub static BASE_VECTORS: Lpc55ImageHeader = Lpc55ImageHeader {
     image_length: 0,
     image_type: ImageType::Normal,
     offset_to_specific_header: 0,
-    vector_table_6_7: [
-        CortexM33::SVC_HANDLER,
-        unhandled_interrupt,
-    ],
+    vector_table_6_7: [CortexM33::SVC_HANDLER, unhandled_interrupt],
     image_execution_address: Some(unhandled_interrupt),
-    vector_table_8: [
-        unhandled_interrupt,
-        CortexM33::SYSTICK_HANDLER,
-    ],
-
+    vector_table_8: [unhandled_interrupt, CortexM33::SYSTICK_HANDLER],
 };
-
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]

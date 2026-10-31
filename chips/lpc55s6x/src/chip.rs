@@ -55,8 +55,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
         unsafe {
             // Set the vector table offset, which requires casting from a BASE_VECTORS to a *const ()
             // pointer.
-            let vector_table: *const Lpc55ImageHeader =
-                core::ptr::addr_of!(crate::BASE_VECTORS);
+            let vector_table: *const Lpc55ImageHeader = core::ptr::addr_of!(crate::BASE_VECTORS);
             let vector_table: *const () = vector_table.cast();
             cortexm33::scb::set_vector_table_offset(vector_table);
         }
