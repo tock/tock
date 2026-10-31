@@ -335,11 +335,6 @@ unsafe fn start() -> (
 
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
 
-    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
-        .finalize(components::segger_rtt_memory_component_static!());
-
-    (*addr_of_mut!(io::WRITER)).set_rtt_memory(rtt_memory.rtt_memory);
-
     let uart_mux = components::console::UartMuxComponent::new(uart, 115200)
         .finalize(components::uart_mux_component_static!());
 

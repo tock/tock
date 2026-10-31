@@ -35,16 +35,11 @@ use lpc55s6x::uart::Uart;
 
 pub struct Writer {
     uart: OptionalCell<&'static Uart<'static>>,
-    rtt: OptionalCell<&'static segger::rtt::SeggerRttMemory<'static>>,
 }
 
 impl Writer {
     pub fn set_uart(&self, uart: &'static Uart) {
         self.uart.set(uart);
-    }
-
-    pub fn set_rtt_memory(&self, rtt: &'static segger::rtt::SeggerRttMemory<'static>) {
-        self.rtt.set(rtt);
     }
 
     fn configure_uart(&self, uart: &Uart) {
@@ -97,7 +92,6 @@ impl Writer {
 
 pub static mut WRITER: Writer = Writer {
     uart: OptionalCell::empty(),
-    rtt: OptionalCell::empty(),
 };
 
 impl Write for Writer {
@@ -123,9 +117,6 @@ impl IoWrite for Writer {
                 self.write_to_uart(uart, buf);
             },
         );
-        self.rtt.map(|rtt| {
-            rtt.write_sync(buf);
-        });
         buf.len()
     }
 }
