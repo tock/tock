@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2026.
 
 use std::io::{BufRead, BufReader, Write};
-use std::net::TcpStream;
+use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
@@ -20,21 +20,28 @@ mod boards;
 // Override with --libtock-c <dir>.
 const LIBTOCK_C_DIR_DEFAULT: &str = "../../../../libtock-c";
 
-const QMP_PORT: u16 = 44444;
-const SERIAL_PORT: u16 = 44445;
+// Names of the UNIX domain sockets QEMU listens on (inside a temporary per-test
+// directory).
+const QMP_SOCKET: &str = "qmp.sock";
+const SERIAL_SOCKET: &str = "serial.sock";
 
-// Extra QEMU flags for CI: expose QMP control socket, serial over TCP, start paused.
-const QEMU_CMDLINE_EXTRA: &str = concat!(
-    "-qmp tcp:localhost:44444,server ",
-    "-chardev socket,id=serial0,host=localhost,port=44445,server=on ",
-    "-serial chardev:serial0 ",
-    "-S"
-);
+// Extra QEMU flags for CI: expose QMP control socket, serial over a UNIX
+// socket, start paused.
+fn qemu_cmdline_extra(qmp_socket: &Path, serial_socket: &Path) -> String {
+    format!(
+        "-qmp unix:{},server=on \
+         -chardev socket,id=serial0,path={},server=on \
+         -serial chardev:serial0 \
+         -S",
+        qmp_socket.display(),
+        serial_socket.display(),
+    )
+}
 
 // Maximum time to wait for QEMU sockets to become available.
 const SOCKET_CONNECT_TIMEOUT: Duration = Duration::from_secs(120);
 
-// Default read timeout on raw TCP socket connections (used for QMP reads and
+// Default read timeout on raw socket connections (used for QMP reads and
 // as a polling interval inside expect_serial; the per-test serial timeout is
 // set independently on the serial socket inside expect_serial).
 const SOCKET_READ_TIMEOUT: Duration = Duration::from_secs(60);
@@ -55,23 +62,23 @@ impl QemuInstance {
 }
 
 struct QmpConnection {
-    stream: TcpStream,
-    reader: BufReader<TcpStream>,
+    stream: UnixStream,
+    reader: BufReader<UnixStream>,
 }
 
 impl QmpConnection {
-    /// Open the TCP connection to the QMP port and return an unhandshaked
-    /// connection.  The caller must ensure the serial TCP connection is also
+    /// Open the connection to the QMP socket and return an unhandshaked
+    /// connection.  The caller must ensure the serial connection is also
     /// established before calling `handshake()`, because QEMU will not send
     /// the QMP greeting until all chardev clients are connected.
-    fn connect() -> Result<Self, String> {
-        let stream = wait_for_tcp(QMP_PORT)?;
+    fn connect(path: &Path) -> Result<Self, String> {
+        let stream = wait_for_socket(path)?;
         let reader = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
         Ok(QmpConnection { stream, reader })
     }
 
     /// Read the QMP greeting and negotiate capabilities.  Must be called after
-    /// both the QMP *and* serial TCP sockets have been connected to QEMU, as
+    /// both the QMP *and* serial sockets have been connected to QEMU, as
     /// QEMU will not send the greeting until all chardev listeners have a
     /// client.
     fn handshake(&mut self) -> Result<(), String> {
@@ -149,12 +156,12 @@ impl QmpConnection {
     }
 }
 
-/// Wait until a TCP listener appears on `port`, then return a connected stream.
-fn wait_for_tcp(port: u16) -> Result<TcpStream, String> {
-    let addr = format!("127.0.0.1:{}", port);
+/// Wait until a listener appears on the UNIX socket at `path`, then return a
+/// connected stream.
+fn wait_for_socket(path: &Path) -> Result<UnixStream, String> {
     let deadline = Instant::now() + SOCKET_CONNECT_TIMEOUT;
     loop {
-        match TcpStream::connect(&addr) {
+        match UnixStream::connect(path) {
             Ok(s) => {
                 s.set_read_timeout(Some(SOCKET_READ_TIMEOUT))
                     .map_err(|e| e.to_string())?;
@@ -164,7 +171,7 @@ fn wait_for_tcp(port: u16) -> Result<TcpStream, String> {
                 std::thread::sleep(Duration::from_millis(200));
             }
             Err(e) => {
-                return Err(format!("timeout connecting to {}: {}", addr, e));
+                return Err(format!("timeout connecting to {}: {}", path.display(), e));
             }
         }
     }
@@ -178,7 +185,11 @@ fn run_with_apps<F>(
     test_fn: F,
 ) -> Result<(), String>
 where
-    F: FnOnce(&mut QmpConnection, &mut BufReader<TcpStream>, &mut TcpStream) -> Result<(), String>,
+    F: FnOnce(
+        &mut QmpConnection,
+        &mut BufReader<UnixStream>,
+        &mut UnixStream,
+    ) -> Result<(), String>,
 {
     println!("Uninstalling all apps (if any)");
 
@@ -214,33 +225,49 @@ where
         }
     }
 
+    // Fresh directory for this QEMU instance's control sockets. It must
+    // outlive QEMU, so keep it alive until the end of this function.
+    let socket_dir = tempfile::Builder::new()
+        .prefix("qemu-virt-ci-")
+        .tempdir()
+        .map_err(|e| format!("failed to create socket directory: {}", e))?;
+    let qmp_socket = socket_dir.path().join(QMP_SOCKET);
+    let serial_socket = socket_dir.path().join(SERIAL_SOCKET);
+
     // Spawn `make run` with the extra QEMU flags that expose control sockets.
     println!("Starting QEMU via `make run`...");
     let child = Command::new("make")
         .current_dir(board_dir)
         .arg("run")
-        .env("QEMU_CMDLINE_EXTRA", QEMU_CMDLINE_EXTRA)
+        .env(
+            "QEMU_CMDLINE_EXTRA",
+            qemu_cmdline_extra(&qmp_socket, &serial_socket),
+        )
         .process_group(0)
         .spawn()
         .map_err(|e| format!("failed to spawn make run: {}", e))?;
     let qemu = QemuInstance { child };
 
-    // Connect the raw TCP streams to both ports before doing any protocol
+    // Connect the raw streams to both sockets before doing any protocol
     // work.  QEMU will not send the QMP greeting until every chardev socket
     // (i.e. the serial port socket) also has a client connected, so we must
     // establish both connections first.
-    println!("Waiting for QMP socket on port {}...", QMP_PORT);
-    let mut qmp = QmpConnection::connect().map_err(|e| format!("QMP connect failed: {}", e))?;
+    println!("Waiting for QMP socket at {}...", qmp_socket.display());
+    let mut qmp =
+        QmpConnection::connect(&qmp_socket).map_err(|e| format!("QMP connect failed: {}", e))?;
 
-    println!("Waiting for serial socket on port {}...", SERIAL_PORT);
+    println!(
+        "Waiting for serial socket at {}...",
+        serial_socket.display()
+    );
     let serial_stream =
-        wait_for_tcp(SERIAL_PORT).map_err(|e| format!("serial connect failed: {}", e))?;
+        wait_for_socket(&serial_socket).map_err(|e| format!("serial connect failed: {}", e))?;
     let mut serial_write = serial_stream
         .try_clone()
         .map_err(|e| format!("failed to clone serial stream: {}", e))?;
     let mut serial = BufReader::new(serial_stream);
 
-    // Now both TCP connections exist; negotiate the QMP protocol.
+    // Now both connections exist; negotiate the QMP protocol.
     qmp.handshake()
         .map_err(|e| format!("QMP handshake failed: {}", e))?;
     println!("QMP handshake complete.");
@@ -260,7 +287,7 @@ where
 
 /// Read serial output until `done` returns `true` or `timeout` elapses.
 fn read_serial_until<F>(
-    serial: &mut BufReader<TcpStream>,
+    serial: &mut BufReader<UnixStream>,
     timeout: Duration,
     mut done: F,
 ) -> Result<(), String>
@@ -298,7 +325,7 @@ where
 
 /// Wait until every needle has appeared in the serial output, in any order.
 fn expect_serial_any_order(
-    serial: &mut BufReader<TcpStream>,
+    serial: &mut BufReader<UnixStream>,
     needles: &[&str],
     timeout: Duration,
 ) -> Result<(), String> {
@@ -322,7 +349,7 @@ fn expect_serial_any_order(
 /// Each needle must appear strictly after the end of the previous needle's
 /// match, so a single occurrence in the output cannot satisfy two needles.
 fn expect_serial_in_order(
-    serial: &mut BufReader<TcpStream>,
+    serial: &mut BufReader<UnixStream>,
     needles: &[&str],
     timeout: Duration,
 ) -> Result<(), String> {
@@ -426,8 +453,8 @@ pub(crate) struct TestCase {
 fn run_steps(
     steps: &[TestStep],
     qmp: &mut QmpConnection,
-    serial: &mut BufReader<TcpStream>,
-    serial_write: &mut TcpStream,
+    serial: &mut BufReader<UnixStream>,
+    serial_write: &mut UnixStream,
 ) -> Result<(), String> {
     for step in steps {
         match step {
