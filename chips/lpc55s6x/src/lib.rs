@@ -58,7 +58,7 @@ pub struct Lpc55ImageHeader {
 // plain image, imageLength, imageType and offsetToSpecificHeader must be 0;
 // otherwise the ROM may, e.g., apply TrustZone preset data that does not exist
 // and never start the kernel.
-pub static BASE_VECTORS: Lpc55ImageHeader = Lpc55ImageHeader {
+pub static LPC55_IMAGE_HEADER: Lpc55ImageHeader = Lpc55ImageHeader {
     initial_sp: _estack,
     initial_pc: initialize_ram_jump_to_main,
     exception_handlers_2_7: [
