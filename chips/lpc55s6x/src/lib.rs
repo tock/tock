@@ -39,13 +39,13 @@ enum ImageType {
 pub struct Lpc55ImageHeader {
     initial_sp: unsafe extern "C" fn(),
     initial_pc: unsafe extern "C" fn(),
-    vector_table_0_5: [unsafe extern "C" fn(); 6],
+    exception_handlers_0_5: [unsafe extern "C" fn(); 6],
     image_length: usize,
     image_type: ImageType,
     offset_to_specific_header: usize,
-    vector_table_6_7: [unsafe extern "C" fn(); 2],
+    exception_handlers_6_7: [unsafe extern "C" fn(); 2],
     image_execution_address: Option<unsafe extern "C" fn()>,
-    vector_table_8: [unsafe extern "C" fn(); 2],
+    exception_handlers_8: [unsafe extern "C" fn(); 2],
 }
 
 #[cfg_attr(
@@ -61,7 +61,7 @@ pub struct Lpc55ImageHeader {
 pub static BASE_VECTORS: Lpc55ImageHeader = Lpc55ImageHeader {
     initial_sp: _estack,
     initial_pc: initialize_ram_jump_to_main,
-    vector_table_0_5: [
+    exception_handlers_0_5: [
         unhandled_interrupt,
         CortexM33::HARD_FAULT_HANDLER,
         unhandled_interrupt,
@@ -72,9 +72,9 @@ pub static BASE_VECTORS: Lpc55ImageHeader = Lpc55ImageHeader {
     image_length: 0,
     image_type: ImageType::Normal,
     offset_to_specific_header: 0,
-    vector_table_6_7: [CortexM33::SVC_HANDLER, unhandled_interrupt],
+    exception_handlers_6_7: [CortexM33::SVC_HANDLER, unhandled_interrupt],
     image_execution_address: Some(unhandled_interrupt),
-    vector_table_8: [unhandled_interrupt, CortexM33::SYSTICK_HANDLER],
+    exception_handlers_8: [unhandled_interrupt, CortexM33::SYSTICK_HANDLER],
 };
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
