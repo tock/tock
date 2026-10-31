@@ -51,6 +51,14 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+/// Whether to send debug and panic output over UART or Segger RTT.
+///
+/// - Set to false to use UART.
+/// - Set to true to use Segger RTT. Note that RTT output blocks once its
+///   buffer is full, so a debugger must be attached and reading the RTT
+///   channel, otherwise the kernel will hang when printing (e.g. on panic).
+const RTT_DEBUGGING: bool = false;
+
 type ChipHw = Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>;
 
 /// Static variables used by io.rs.
@@ -335,10 +343,12 @@ unsafe fn start() -> (
 
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
 
-    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
-        .finalize(components::segger_rtt_memory_component_static!());
+    if RTT_DEBUGGING {
+        let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+            .finalize(components::segger_rtt_memory_component_static!());
 
-    (*addr_of_mut!(io::WRITER)).set_rtt_memory(rtt_memory.rtt_memory);
+        (*addr_of_mut!(io::WRITER)).set_rtt_memory(rtt_memory.rtt_memory);
+    }
 
     let uart_mux = components::console::UartMuxComponent::new(uart, 115200)
         .finalize(components::uart_mux_component_static!());
