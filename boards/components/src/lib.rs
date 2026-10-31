@@ -101,7 +101,7 @@ pub mod siphash;
 pub mod sk68xx;
 pub mod sound_pressure;
 pub mod spi;
-pub mod ssd1306;
+pub mod ssd13xx;
 pub mod st77xx;
 pub mod storage_permissions;
 pub mod syscall_return_test;
