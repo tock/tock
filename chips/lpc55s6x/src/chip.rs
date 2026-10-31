@@ -15,6 +15,7 @@ use crate::ctimer0::LPCTimer;
 use crate::flexcomm::Flexcomm;
 use crate::gpio::Pins;
 use crate::interrupts;
+use crate::rng::RNG;
 use crate::uart::Uart;
 
 #[repr(u8)]
@@ -108,6 +109,7 @@ pub struct Lpc55s69DefaultPeripheral<'a> {
     pub pins: Pins<'a>,
     pub ctimer0: LPCTimer<'a>,
     pub uart: Uart<'a>,
+    pub rng: RNG<'a>,
 }
 
 impl Lpc55s69DefaultPeripheral<'_> {
@@ -116,7 +118,12 @@ impl Lpc55s69DefaultPeripheral<'_> {
             pins: Pins::new(),
             ctimer0: LPCTimer::new(),
             uart: Uart::new_uart0(clocks, flexcomm),
+            rng: RNG::new(),
         }
+    }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.rng);
     }
 }
 

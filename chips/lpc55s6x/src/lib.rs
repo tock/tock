@@ -18,6 +18,8 @@ pub mod inputmux;
 pub mod interrupts;
 pub mod iocon;
 pub mod pint;
+pub mod pmc;
+pub mod rng;
 pub mod uart;
 
 extern "C" {
