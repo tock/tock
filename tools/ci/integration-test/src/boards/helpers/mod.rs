@@ -4,4 +4,6 @@
 
 pub mod command;
 pub mod console_buffer;
+pub mod openocd;
+pub mod serial;
 pub mod tockloader;
