@@ -60,7 +60,10 @@ impl<'a> Nrf52840DefaultPeripherals<'a> {
                 RADIO_BASE,
                 ieee802154_radio_ack_buf,
             ),
-            usbd: crate::usbd::Usbd::new(USBD_BASE, USBD_CHIPINFO_BASE, USBD_USBERRATA_BASE),
+            usbd: crate::usbd::Usbd::new(
+                USBD_BASE,
+                Some((USBD_CHIPINFO_BASE, USBD_USBERRATA_BASE)),
+            ),
             gpio_port: crate::gpio::nrf52840_gpio_create(),
         }
     }

@@ -367,3 +367,24 @@ impl<'a> Power<'a> {
         self.registers.gpregret.write(Byte::VALUE.val(val as u32));
     }
 }
+
+impl nrf5x::usbd::UsbPower for Power<'_> {
+    fn is_vbus_present(&self) -> bool {
+        Power::is_vbus_present(self)
+    }
+
+    fn is_usb_power_ready(&self) -> bool {
+        Power::is_usb_power_ready(self)
+    }
+}
+
+impl PowerClient for crate::usbd::Usbd<'_> {
+    fn handle_power_event(&self, event: PowerEvent) {
+        match event {
+            PowerEvent::UsbPluggedIn => self.enable(),
+            PowerEvent::UsbPluggedOut => self.disable(),
+            PowerEvent::UsbPowerReady => self.power_ready(),
+            _ => (),
+        }
+    }
+}

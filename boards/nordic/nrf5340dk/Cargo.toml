@@ -1,0 +1,33 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "nrf5340dk"
+version.workspace = true
+authors.workspace = true
+build = "../../build.rs"
+edition.workspace = true
+
+[lib]
+name = "nrf5340dk_lib"
+
+[[bin]]
+name = "nrf5340dk"
+path = "src/main.rs"
+
+[dependencies]
+components = { path = "../../components" }
+cortexm33 = { path = "../../../arch/cortex-m33" }
+kernel = { path = "../../../kernel" }
+nrf5340 = { path = "../../../chips/nrf5340" }
+
+capsules-core = { path = "../../../capsules/core" }
+capsules-extra = { path = "../../../capsules/extra" }
+capsules-system = { path = "../../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
+
+[lints]
+workspace = true

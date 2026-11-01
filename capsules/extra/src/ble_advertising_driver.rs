@@ -337,6 +337,7 @@ where
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
     kernel_tx: kernel::utilities::cells::TakeCell<'static, [u8]>,
+    kernel_rx: kernel::utilities::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
     sending_app: OptionalCell<kernel::ProcessId>,
     receiving_app: OptionalCell<kernel::ProcessId>,
@@ -356,6 +357,7 @@ where
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
         tx_buf: &'static mut [u8],
+        rx_buf: &'static mut [u8],
         alarm: &'a A,
     ) -> BLE<'a, B, A> {
         BLE {
@@ -363,6 +365,7 @@ where
             busy: Cell::new(false),
             app: container,
             kernel_tx: kernel::utilities::cells::TakeCell::new(tx_buf),
+            kernel_rx: kernel::utilities::cells::TakeCell::new(rx_buf),
             alarm,
             sending_app: OptionalCell::empty(),
             receiving_app: OptionalCell::empty(),
@@ -461,8 +464,10 @@ where
                                 Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37));
                             self.receiving_app.set(processid);
                             let _ = self.radio.set_tx_power(app.tx_power);
-                            self.radio
-                                .receive_advertisement(RadioChannel::AdvertisingChannel37);
+                            self.kernel_rx.take().map(|buf| {
+                                self.radio
+                                    .receive_advertisement(buf, RadioChannel::AdvertisingChannel37)
+                            });
                         }
                         _ => debug!(
                             "app: {:?} \t invalid state {:?}",
@@ -483,6 +488,7 @@ where
     A: kernel::hil::time::Alarm<'a>,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>) {
+        self.kernel_rx.replace(buf);
         self.receiving_app.map(|processid| {
             let _ = self.app.enter(processid, |app, kernel_data| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
@@ -501,9 +507,11 @@ where
                         .get_readwrite_processbuffer(rw_allow::SCAN_BUFFER)
                         .and_then(|scan_buffer| {
                             scan_buffer.mut_enter(|userland| {
-                                userland[0..len as usize]
-                                    .copy_from_slice_or_err(&buf[0..len as usize])
-                                    .is_ok()
+                                self.kernel_rx.map_or(false, |buf| {
+                                    userland[0..len as usize]
+                                        .copy_from_slice_or_err(&buf[0..len as usize])
+                                        .is_ok()
+                                })
                             })
                         })
                         .unwrap_or(false);
@@ -522,15 +530,19 @@ where
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
                         self.receiving_app.set(processid);
                         let _ = self.radio.set_tx_power(app.tx_power);
-                        self.radio
-                            .receive_advertisement(RadioChannel::AdvertisingChannel38);
+                        self.kernel_rx.take().map(|buf| {
+                            self.radio
+                                .receive_advertisement(buf, RadioChannel::AdvertisingChannel38)
+                        });
                     }
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39));
                         self.receiving_app.set(processid);
-                        self.radio
-                            .receive_advertisement(RadioChannel::AdvertisingChannel39);
+                        self.kernel_rx.take().map(|buf| {
+                            self.radio
+                                .receive_advertisement(buf, RadioChannel::AdvertisingChannel39)
+                        });
                     }
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39)) => {
                         self.busy.set(false);
