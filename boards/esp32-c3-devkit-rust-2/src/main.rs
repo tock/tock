@@ -186,6 +186,9 @@ unsafe fn setup() -> (
         .sysreg
         .use_pll_clock_source(PllFrequency::MHz320, CpuFrequency::MHz160);
 
+    let _ = hil::time::Counter::start(&peripherals.timg0);
+    let _ = hil::time::Counter::start(&peripherals.timg1);
+
     // The mask ROM leaves flash in single-bit mode at 20 MHz. Switch flash
     // reads to a faster mode (DIO or QIO at 80MHz).
     //
