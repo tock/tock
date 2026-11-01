@@ -29,15 +29,6 @@ impl time::Frequency for Freq20MHz {
     }
 }
 
-/// 80MHz `Frequency`
-#[derive(Debug)]
-pub struct Freq80MHz;
-impl time::Frequency for Freq80MHz {
-    fn frequency() -> u32 {
-        80_000_000
-    }
-}
-
 register_structs! {
     pub TimgRegisters {
         (0x000 => t0config: ReadWrite<u32, CONFIG::Register>),
@@ -124,10 +115,23 @@ register_bitfields![u32,
 /// zero.
 const COUNTER_MAX: u64 = (1 << 54) - 1;
 
+/// Clock source of a timer group counter.
 #[derive(Copy, Clone)]
 pub enum ClockSource {
+    /// The 80 MHz APB clock, derived from the PLL.
     Pll = 0,
+    /// The 40 MHz crystal oscillator clock.
     Xtal = 1,
+}
+
+impl ClockSource {
+    /// Frequency of this clock source in Hz.
+    const fn frequency(self) -> u32 {
+        match self {
+            ClockSource::Pll => 80_000_000,
+            ClockSource::Xtal => 40_000_000,
+        }
+    }
 }
 
 /// Timer group (TIMG) peripheral, exposing its timer `T0` as a [`Counter`] and
@@ -136,6 +140,11 @@ pub enum ClockSource {
 /// [`Counter::start`] configures the timer as a free-running up-counter. It
 /// must be called before using this driver as an [`Alarm`], as
 /// [`Alarm::set_alarm`] only arms the alarm and does not start the counter.
+///
+/// The counter runs at the frequency `F`, which is derived from the
+/// [`ClockSource`] by an integer divider. The clock source frequency divided by
+/// `F` must thus be an integer between 2 and 65536, or [`Counter::start`]
+/// fails.
 ///
 /// # Alarm Generation
 ///
@@ -257,22 +266,33 @@ impl<F: time::Frequency> time::Time for TimG<'_, F> {
 impl<'a, F: time::Frequency> Counter<'a> for TimG<'a, F> {
     /// Configure the counter as a free-running up-counter and start it.
     ///
-    /// This disarms the alarm and discards its pending interrupt.
+    /// This disarms the alarm and discards its pending interrupt. Returns
+    /// [`ErrorCode::INVAL`] if the counter cannot run at frequency `F`, see
+    /// [`TimG`].
     fn start(&self) -> Result<(), ErrorCode> {
+        // The prescaler divides the clock source by 2 to 65536 (TRM Section
+        // 11.2.1), and must produce exactly the frequency `F`.
+        let source = self.clocksource.frequency();
+        let divider = match source.checked_div(F::frequency()) {
+            Some(d) if (2..=65536).contains(&d) && d * F::frequency() == source => d,
+            _ => return Err(ErrorCode::INVAL),
+        };
+
         // The divider may only be changed while the counter is disabled.
         self.registers.t0config.modify(CONFIG::EN::CLEAR);
         let _ = self.disarm();
 
-        // Count upwards without reload, dividing the PLL clock by 4 or the XTAL
-        // clock by 2. We have to disable autoreload to make the timer
-        // monotonic; once it reaches its maximum value it will simply wrap
-        // around. This is compatible with Tock's Alarm trait, which also
-        // doesn't use auto-reload.
+        // Count upwards without reload, dividing the clock source down to the
+        // frequency `F`. A DIVIDER value of 0 selects a divider of 65536. We
+        // have to disable autoreload to make the timer monotonic; once it
+        // reaches its maximum value it will simply wrap around. This is
+        // compatible with Tock's Alarm trait, which also doesn't use
+        // auto-reload.
         self.registers.t0config.modify(
             CONFIG::USE_XTAL.val(self.clocksource as u32)
                 + CONFIG::AUTORELOAD::CLEAR
                 + CONFIG::INCREASE::SET
-                + CONFIG::DIVIDER.val(2 * (2 - self.clocksource as u32)),
+                + CONFIG::DIVIDER.val(divider % 65536),
         );
 
         // Reset the prescaler such that the new divider takes effect.
