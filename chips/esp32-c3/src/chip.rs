@@ -73,8 +73,8 @@ pub struct Esp32C3<'a, I: InterruptService + 'a> {
 pub struct Esp32C3DefaultPeripherals<'a> {
     pub uart0: esp32::uart::Uart<'a>,
     pub usb_serial_jtag: usb_serial_jtag::UsbSerialJtag<'a>,
-    pub timg0: timg::TimG<'a>,
-    pub timg1: timg::TimG<'a>,
+    pub timg0: timg::TimG<'a, timg::Freq20MHz>,
+    pub timg1: timg::TimG<'a, timg::Freq20MHz>,
     pub gpio: esp32::gpio::Port<'a>,
     pub rtc_cntl: esp32::rtc_cntl::RtcCntl,
     pub sysreg: sysreg::SysReg,
