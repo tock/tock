@@ -7,6 +7,9 @@
 
 #![no_std]
 #![no_main]
+// The ESP32-C3 `timg` driver uses a pre-release of tock-registers, while the
+// rest of the kernel uses its latest release.
+#![allow(clippy::multiple_crate_versions)]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use esp32_c3::chip::Esp32C3DefaultPeripherals;

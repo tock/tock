@@ -5,6 +5,9 @@
 //! Drivers and chip support for ESP32-C3.
 
 #![no_std]
+// The `timg` driver uses a pre-release of tock-registers, while the rest of
+// the kernel uses its latest release.
+#![allow(clippy::multiple_crate_versions)]
 
 pub mod chip;
 pub mod flash;
