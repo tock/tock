@@ -187,8 +187,29 @@ impl<F: time::Frequency> TimG<'_, F> {
         }
     }
 
-    pub fn handle_interrupt(&self) {
+    /// Check if the timer 0 alarm interrupt is pending.
+    fn alarm_interrupt_pending(&self) -> bool {
+        self.registers.int_st.is_set(INT::T0)
+    }
+
+    /// Clear a pending timer 0 alarm interrupt.
+    fn clear_alarm_interrupt(&self) {
         self.registers.int_clr.modify(INT::T0::SET);
+    }
+
+    /// Handle a timer group interrupt and notify the alarm client.
+    ///
+    /// The kernel services interrupts some time after the hardware raises them.
+    /// Disarming or setting the alarm in between clears the pending interrupt,
+    /// such that this returns without notifying the client.
+    pub fn handle_interrupt(&self) {
+        if !self.alarm_interrupt_pending() {
+            // If we reach this, another alarm has been set in the meantime, so
+            // the interrupt we're reacting to is stale. Avoid disarming a
+            // potentially new, pending alarm.
+            return;
+        }
+
         let _ = self.disarm();
         self.alarm_client.map(|client| {
             client.alarm();
@@ -235,11 +256,12 @@ impl<F: time::Frequency> time::Time for TimG<'_, F> {
 
 impl<'a, F: time::Frequency> Counter<'a> for TimG<'a, F> {
     /// Configure the counter as a free-running up-counter and start it.
+    ///
+    /// This disarms the alarm and discards its pending interrupt.
     fn start(&self) -> Result<(), ErrorCode> {
         // The divider may only be changed while the counter is disabled.
-        self.registers
-            .t0config
-            .modify(CONFIG::EN::CLEAR + CONFIG::ALARM_EN::CLEAR);
+        self.registers.t0config.modify(CONFIG::EN::CLEAR);
+        let _ = self.disarm();
 
         // Count upwards without reload, dividing the PLL clock by 4 or the XTAL
         // clock by 2. We have to disable autoreload to make the timer
@@ -307,7 +329,7 @@ impl<'a, F: time::Frequency> Alarm<'a> for TimG<'a, F> {
 
         // The alarm value only takes effect once the alarm is enabled (TRM
         // Section 11.2.3), such that we can write its two halves in any order.
-        self.registers.t0config.modify(CONFIG::ALARM_EN::CLEAR);
+        let _ = self.disarm();
         self.registers.t0alarmhi.set((alarm >> 32) as u32);
         self.registers.t0alarmlo.set(alarm as u32);
         self.registers.t0config.modify(CONFIG::ALARM_EN::SET);
@@ -320,6 +342,10 @@ impl<'a, F: time::Frequency> Alarm<'a> for TimG<'a, F> {
 
     fn disarm(&self) -> Result<(), ErrorCode> {
         self.registers.t0config.modify(CONFIG::ALARM_EN::CLEAR);
+
+        // The alarm may have fired already. Clearing its pending interrupt
+        // ensures that `handle_interrupt` does not notify the client.
+        self.clear_alarm_interrupt();
 
         Ok(())
     }
