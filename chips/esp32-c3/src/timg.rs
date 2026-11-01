@@ -7,7 +7,7 @@
 use core::marker::PhantomData;
 
 use kernel::ErrorCode;
-use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks64, Time};
+use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks64};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -117,6 +117,10 @@ register_bitfields![u32,
     ],
 ];
 
+/// Largest value of the 54-bit `T0` counter, after which it wraps around to
+/// zero.
+const COUNTER_MAX: u64 = (1 << 54) - 1;
+
 #[derive(Copy, Clone)]
 pub enum ClockSource {
     Pll = 0,
@@ -129,6 +133,29 @@ pub enum ClockSource {
 /// [`Counter::start`] configures the timer as a free-running up-counter. It
 /// must be called before using this driver as an [`Alarm`], as
 /// [`Alarm::set_alarm`] only arms the alarm and does not start the counter.
+///
+/// # Alarm Generation
+///
+/// The counter and the alarm value are 54 bits wide. Once the alarm is enabled,
+/// the hardware compares them as specified in the ESP32-C3 Technical Reference
+/// Manual (henceforth TRM, version 1.4), Section 11.2.3 "Alarm Generation",
+/// Table 11.2-1 "Alarm Generation When Up-Down Counter Increments". There,
+/// `TIMG_VALUE` is the counter value and `ALARM_VALUE` is the alarm value:
+///
+/// | Scenario | Range                                   | Alarm                                                                                                                                               |
+/// |----------|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+/// | 1        | `ALARM_VALUE - TIMG_VALUE > 2^53`       | Triggered                                                                                                                                           |
+/// | 2        | `0 < ALARM_VALUE - TIMG_VALUE <= 2^53`  | Triggered when the up-down counter counts `TIMG_VALUE` up to `ALARM_VALUE`                                                                          |
+/// | 3        | `0 <= TIMG_VALUE - ALARM_VALUE < 2^53`  | Triggered                                                                                                                                           |
+/// | 4        | `TIMG_VALUE - ALARM_VALUE >= 2^53`      | Triggered when the up-down counter restarts counting up from 0 after reaching the timer's maximum value and counts `TIMG_VALUE` up to `ALARM_VALUE` |
+///
+/// Taken together, these scenarios trigger the alarm immediately if
+/// `TIMG_VALUE.wrapping_sub(ALARM_VALUE) & COUNTER_MAX < 2^53`, i.e., if the
+/// 54-bit unsigned difference has bit 53 cleared, and otherwise once the
+/// counter reaches the alarm value. The hardware thus treats an alarm value up
+/// to 2^53 ticks behind the counter as already passed, including across the
+/// counter's wrap-around. The TRM introduces this behavior to avoid alarms
+/// which are enabled after the counter has passed their value.
 pub struct TimG<'a, F: time::Frequency> {
     registers: StaticRef<TimgRegisters>,
     clocksource: ClockSource,
@@ -244,23 +271,24 @@ impl<'a, F: time::Frequency> Alarm<'a> for TimG<'a, F> {
         self.alarm_client.set(client);
     }
 
+    /// Arm the alarm to fire at `reference + dt`.
+    ///
+    /// If that time has already passed, the hardware fires the alarm as soon
+    /// as it is enabled, see [`TimG`]. This requires the counter to be
+    /// running.
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let now = self.now();
-        let mut expire = reference.wrapping_add(dt);
-        if !now.within_range(reference, expire) {
-            expire = now;
-        }
+        // The hardware decides whether the alarm value has already passed. We
+        // thus do not compare it to the current time, and the counter may
+        // advance or wrap around while we arm the alarm. This matches the
+        // `Alarm` HIL as long as both `dt` and the time elapsed since
+        // `reference` are at most 2^53 ticks.
+        let alarm = reference.wrapping_add(dt).into_u64() & COUNTER_MAX;
 
+        // The alarm value only takes effect once the alarm is enabled (TRM
+        // Section 11.2.3), such that we can write its two halves in any order.
         self.registers.t0config.modify(CONFIG::ALARM_EN::CLEAR);
-
-        let val = expire.into_u64();
-        let high = (val >> 32) as u32;
-        let low = (val & 0xffffffff) as u32;
-
-        self.registers.t0alarmlo.set(0xFFFF_FFFF);
-        self.registers.t0alarmhi.set(high);
-        self.registers.t0alarmlo.set(low);
-
+        self.registers.t0alarmhi.set((alarm >> 32) as u32);
+        self.registers.t0alarmlo.set(alarm as u32);
         self.registers.t0config.modify(CONFIG::ALARM_EN::SET);
     }
 
