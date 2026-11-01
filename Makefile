@@ -331,7 +331,7 @@ ci-runner-github-flux:\
 
 
 # n.b. this runs from .github/workflows/docs.yml, which also uploads the
-#      resulting doc/rustdoc tree to Netlify when run on master.
+#      resulting doc/rustdoc tree to GitHub pages when run on master.
 .PHONY: ci-runner-docs
 ci-runner-docs:\
 	ci-job-rustdoc

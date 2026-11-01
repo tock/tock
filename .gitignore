@@ -66,9 +66,6 @@ __pycache__
 node_modules
 package-lock.json
 
-# Local Netlify folder
-.netlify
-
 # OpenTitan test build
 boards/opentitan/earlgrey-*/binary*
 boards/opentitan/earlgrey-*/verilator_build/
