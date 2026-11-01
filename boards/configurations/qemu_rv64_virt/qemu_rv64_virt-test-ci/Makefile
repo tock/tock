@@ -10,8 +10,8 @@ QEMU_CMDLINE_EXTRA ?= \
 	-serial stdio \
 
 # Command line for automatically interacting with QEMU:
-# 	-qmp tcp:localhost:44444,server \
-# 	-chardev socket,id=serial0,host=localhost,port=44445,server=on \
+# 	-qmp unix:/tmp/qmp.sock,server=on \
+# 	-chardev socket,id=serial0,path=/tmp/serial.sock,server=on \
 # 	-serial chardev:serial0 \
 # 	-S \
 
