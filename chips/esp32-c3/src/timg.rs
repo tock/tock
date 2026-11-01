@@ -7,7 +7,7 @@
 use core::marker::PhantomData;
 
 use kernel::ErrorCode;
-use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks64};
+use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks32};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -156,6 +156,12 @@ pub enum ClockSource {
 /// to 2^53 ticks behind the counter as already passed, including across the
 /// counter's wrap-around. The TRM introduces this behavior to avoid alarms
 /// which are enabled after the counter has passed their value.
+///
+/// The driver exposes the low 32 bits of the counter as [`Ticks32`]. These wrap
+/// around together with the full counter, as 2^54 is a multiple of 2^32. Every
+/// alarm thus lies less than 2^32 ticks from the counter, well within the 2^53
+/// ticks the hardware comparison requires to reliably fire the alarm even in
+/// the face of a wrapping counter.
 pub struct TimG<'a, F: time::Frequency> {
     registers: StaticRef<TimgRegisters>,
     clocksource: ClockSource,
@@ -200,21 +206,25 @@ impl<F: time::Frequency> TimG<'_, F> {
             panic!("Can't disable TIMG WDT");
         }
     }
-}
 
-impl<F: time::Frequency> time::Time for TimG<'_, F> {
-    type Frequency = F;
-    type Ticks = Ticks64;
-
-    fn now(&self) -> Self::Ticks {
+    /// Read the full 54-bit value of the `T0` counter.
+    fn counter(&self) -> u64 {
         // A write (of any value) to T0UPDATE stores the current counter value
         // to T0LO and T0HI. When T0UPDATE is cleared the value is ready.
         self.registers.t0update.set(0xABC);
         while self.registers.t0update.get() != 0 {}
 
-        Self::Ticks::from(
-            self.registers.t0lo.get() as u64 + ((self.registers.t0hi.get() as u64) << 32),
-        )
+        let value = ((self.registers.t0hi.get() as u64) << 32) | self.registers.t0lo.get() as u64;
+        value & COUNTER_MAX
+    }
+}
+
+impl<F: time::Frequency> time::Time for TimG<'_, F> {
+    type Frequency = F;
+    type Ticks = Ticks32;
+
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.counter() as u32)
     }
 }
 
@@ -277,12 +287,18 @@ impl<'a, F: time::Frequency> Alarm<'a> for TimG<'a, F> {
     /// as it is enabled, see [`TimG`]. This requires the counter to be
     /// running.
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        // We extend `reference` to the full counter width, assuming that it
+        // lies less than 2^32 ticks in the past.
+        let counter = self.counter();
+        let elapsed = Ticks32::from(counter as u32).wrapping_sub(reference);
+        let reference = counter.wrapping_sub(elapsed.into_u32() as u64);
+
         // The hardware decides whether the alarm value has already passed. We
         // thus do not compare it to the current time, and the counter may
         // advance or wrap around while we arm the alarm. This matches the
-        // `Alarm` HIL as long as both `dt` and the time elapsed since
-        // `reference` are at most 2^53 ticks.
-        let alarm = reference.wrapping_add(dt).into_u64() & COUNTER_MAX;
+        // `Alarm` HIL, as both `dt` and the time elapsed since `reference` are
+        // less than 2^32 ticks.
+        let alarm = reference.wrapping_add(dt.into_u32() as u64) & COUNTER_MAX;
 
         // The alarm value only takes effect once the alarm is enabled (TRM
         // Section 11.2.3), such that we can write its two halves in any order.
@@ -293,9 +309,8 @@ impl<'a, F: time::Frequency> Alarm<'a> for TimG<'a, F> {
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        Self::Ticks::from(
-            self.registers.t0alarmlo.get() as u64 + ((self.registers.t0alarmhi.get() as u64) << 32),
-        )
+        // The low 32 bits of the alarm value equal `reference + dt`.
+        Self::Ticks::from(self.registers.t0alarmlo.get())
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
@@ -309,6 +324,6 @@ impl<'a, F: time::Frequency> Alarm<'a> for TimG<'a, F> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(1_u64)
+        Self::Ticks::from(1)
     }
 }
