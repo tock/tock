@@ -123,6 +123,12 @@ pub enum ClockSource {
     Xtal = 1,
 }
 
+/// Timer group (TIMG) peripheral, exposing its timer `T0` as a [`Counter`] and
+/// [`Alarm`].
+///
+/// [`Counter::start`] configures the timer as a free-running up-counter. It
+/// must be called before using this driver as an [`Alarm`], as
+/// [`Alarm::set_alarm`] only arms the alarm and does not start the counter.
 pub struct TimG<'a, F: time::Frequency> {
     registers: StaticRef<TimgRegisters>,
     clocksource: ClockSource,
@@ -131,6 +137,11 @@ pub struct TimG<'a, F: time::Frequency> {
 }
 
 impl<F: time::Frequency> TimG<'_, F> {
+    /// Construct a new [`TimG`] driver for the peripheral at `base`, clocked
+    /// from `clocksource`.
+    ///
+    /// This does not access any registers. [`Counter::start`] must be called
+    /// before using the returned driver as an [`Alarm`].
     pub const fn new(base: StaticRef<TimgRegisters>, clocksource: ClockSource) -> Self {
         TimG {
             registers: base,
@@ -142,7 +153,7 @@ impl<F: time::Frequency> TimG<'_, F> {
 
     pub fn handle_interrupt(&self) {
         self.registers.int_clr.modify(INT::T0::SET);
-        let _ = self.stop();
+        let _ = self.disarm();
         self.alarm_client.map(|client| {
             client.alarm();
         });
@@ -181,8 +192,34 @@ impl<F: time::Frequency> time::Time for TimG<'_, F> {
 }
 
 impl<'a, F: time::Frequency> Counter<'a> for TimG<'a, F> {
+    /// Configure the counter as a free-running up-counter and start it.
     fn start(&self) -> Result<(), ErrorCode> {
-        self.registers.t0config.write(CONFIG::EN::SET);
+        // The divider may only be changed while the counter is disabled.
+        self.registers
+            .t0config
+            .modify(CONFIG::EN::CLEAR + CONFIG::ALARM_EN::CLEAR);
+
+        // Count upwards without reload, dividing the PLL clock by 4 or the XTAL
+        // clock by 2. We have to disable autoreload to make the timer
+        // monotonic; once it reaches its maximum value it will simply wrap
+        // around. This is compatible with Tock's Alarm trait, which also
+        // doesn't use auto-reload.
+        self.registers.t0config.modify(
+            CONFIG::USE_XTAL.val(self.clocksource as u32)
+                + CONFIG::AUTORELOAD::CLEAR
+                + CONFIG::INCREASE::SET
+                + CONFIG::DIVIDER.val(2 * (2 - self.clocksource as u32)),
+        );
+
+        // Reset the prescaler such that the new divider takes effect.
+        self.registers.t0config.modify(CONFIG::DIVCNT_RST::SET);
+
+        // Enable the alarm interrupt, which only fires once `set_alarm` arms
+        // the alarm.
+        self.registers.int_ena.modify(INT::T0::SET);
+
+        // Start the counter with the new configuration.
+        self.registers.t0config.modify(CONFIG::EN::SET);
 
         Ok(())
     }
@@ -214,18 +251,7 @@ impl<'a, F: time::Frequency> Alarm<'a> for TimG<'a, F> {
             expire = now;
         }
 
-        self.registers
-            .t0config
-            .modify(CONFIG::ALARM_EN::CLEAR + CONFIG::EN::CLEAR);
-
-        self.registers.t0config.modify(
-            CONFIG::USE_XTAL.val(self.clocksource as u32)
-                + CONFIG::AUTORELOAD::CLEAR
-                + CONFIG::INCREASE::SET
-                + CONFIG::DIVIDER.val(2 * (2 - self.clocksource as u32)),
-        );
-
-        self.registers.t0config.modify(CONFIG::DIVCNT_RST::SET);
+        self.registers.t0config.modify(CONFIG::ALARM_EN::CLEAR);
 
         let val = expire.into_u64();
         let high = (val >> 32) as u32;
@@ -235,11 +261,7 @@ impl<'a, F: time::Frequency> Alarm<'a> for TimG<'a, F> {
         self.registers.t0alarmhi.set(high);
         self.registers.t0alarmlo.set(low);
 
-        self.registers.int_ena.modify(INT::T0::SET);
-
-        self.registers
-            .t0config
-            .modify(CONFIG::ALARM_EN::SET + CONFIG::EN::SET);
+        self.registers.t0config.modify(CONFIG::ALARM_EN::SET);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
