@@ -373,6 +373,7 @@ dependencies = [
  "esp32",
  "kernel",
  "rv32i",
+ "tock-registers",
 ]
 
 [[package]]
@@ -430,7 +431,7 @@ source = "git+https://github.com/flux-rs/flux.git?rev=dab48f5c3dd50b7764db5bb5dd
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.110",
 ]
 
 [[package]]
@@ -1278,9 +1279,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.101"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
+checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
 ]
@@ -1487,9 +1488,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.41"
+version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce25767e7b499d1b604768e7cde645d14cc8584231ea6b295e9c9eb22c02e1d1"
+checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
@@ -1887,6 +1888,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d78c8dee4c7bf0e14673097256fed6142ce9d3b85a408189d07482442145823b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "teensy40"
 version = "0.2.4-dev"
 dependencies = [
@@ -1917,6 +1929,29 @@ name = "tock-registers"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "928f3adf9b9d80a5852412dcdd7be7a4bd762605fdefa3c413f9d9eba4c7c52d"
+dependencies = [
+ "tock-registers-macros",
+]
+
+[[package]]
+name = "tock-registers-codegen"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3365b9edee49d8d9be4e5c8879bb04b9b84e10b1d3ccd57b4d43a49a12d9101"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
+name = "tock-registers-macros"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3136dc98c59bfe0f674306357576c1e2962d98897486c47c88bdfae9220beaf2"
+dependencies = [
+ "tock-registers-codegen",
+]
 
 [[package]]
 name = "tock-tbf"
