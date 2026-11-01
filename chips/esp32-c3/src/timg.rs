@@ -43,7 +43,7 @@ register_structs! {
         (0x000 => t0config: ReadWrite<u32, CONFIG::Register>),
         (0x004 => t0lo: ReadWrite<u32>),
         (0x008 => t0hi: ReadWrite<u32>),
-        (0x00C => t0update: ReadWrite<u32>),
+        (0x00C => t0update: ReadWrite<u32, UPDATE::Register>),
         (0x010 => t0alarmlo: ReadWrite<u32>),
         (0x014 => t0alarmhi: ReadWrite<u32>),
         (0x018 => t0loadlo: ReadWrite<u32>),
@@ -81,6 +81,9 @@ register_bitfields![u32,
         AUTORELOAD OFFSET(29) NUMBITS(1) [],
         INCREASE OFFSET(30) NUMBITS(1) [],
         EN OFFSET(31) NUMBITS(1) [],
+    ],
+    UPDATE [
+        UPDATE OFFSET(31) NUMBITS(1) [],
     ],
     WDTCONFIG0 [
         APP_CPU_RESET_EN OFFSET(12) NUMBITS(1) [],
@@ -209,10 +212,12 @@ impl<F: time::Frequency> TimG<'_, F> {
 
     /// Read the full 54-bit value of the `T0` counter.
     fn counter(&self) -> u64 {
-        // A write (of any value) to T0UPDATE stores the current counter value
-        // to T0LO and T0HI. When T0UPDATE is cleared the value is ready.
-        self.registers.t0update.set(0xABC);
-        while self.registers.t0update.get() != 0 {}
+        // Writing to T0UPDATE latches the current counter value into T0LO and
+        // T0HI (TRM Register 11.4). We write its UPDATE field (bit 31) as 1,
+        // as the hardware clears this bit once the latched value is ready. We
+        // can thus wait for it to read back as 0.
+        self.registers.t0update.write(UPDATE::UPDATE::SET);
+        while self.registers.t0update.is_set(UPDATE::UPDATE) {}
 
         let value = ((self.registers.t0hi.get() as u64) << 32) | self.registers.t0lo.get() as u64;
         value & COUNTER_MAX
