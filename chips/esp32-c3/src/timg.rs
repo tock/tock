@@ -12,7 +12,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::register_bitfields;
-use kernel::utilities::registers::{ReadWrite, register_structs};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_structs};
 
 pub const TIMG0_BASE: StaticRef<TimgRegisters> =
     unsafe { StaticRef::new(0x6001_F000 as *const TimgRegisters) };
@@ -58,7 +58,7 @@ register_structs! {
         (0x070 => int_ena: ReadWrite<u32, INT::Register>),
         (0x074 => int_raw: ReadWrite<u32, INT::Register>),
         (0x078 => int_st: ReadWrite<u32, INT::Register>),
-        (0x07C => int_clr: ReadWrite<u32, INT::Register>),
+        (0x07C => int_clr: WriteOnly<u32, INT::Register>),
         (0x080 => @END),
     }
 }
@@ -203,7 +203,7 @@ impl<F: time::Frequency> TimG<'_, F> {
 
     /// Clear a pending timer 0 alarm interrupt.
     fn clear_alarm_interrupt(&self) {
-        self.registers.int_clr.modify(INT::T0::SET);
+        self.registers.int_clr.write(INT::T0::SET);
     }
 
     /// Handle a timer group interrupt and notify the alarm client.
