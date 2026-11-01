@@ -212,11 +212,23 @@ curl https://www.tockos.org/assets/img/icons/favicon-32x32.png --output "$OUT/fa
 curl https://www.tockos.org/assets/img/icons/favicon-16x16.png --output "$OUT/favicon-16x16.png"
 curl https://www.tockos.org/assets/img/icons/safari-pinned-tab.svg --output "$OUT/favicon.svg"
 
-# Temporary redirect rule
-# https://www.netlify.com/docs/redirects/
-cat > "$OUT/_redirects" << EOF
-# While we don't have a home page :/
-/            /kernel            302
+# index.html landing page for GitHub pages:
+cat > "$OUT/index.html" <<'EOF'
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url=kernel/index.html">
+    <link rel="canonical" href="kernel/index.html">
+    <title>Tock Kernel Documentation</title>
+  </head>
+  <body>
+    <p>
+      Redirecting to <a href="kernel/index.html">the kernel crate
+      documentation</a>.
+    </p>
+  </body>
+</html>
 EOF
 
 # Move the docs to doc/rustdoc.
