@@ -24,7 +24,7 @@ pub mod io;
 const NUM_PROCS: usize = 4;
 
 type ChipHw = esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<'static>>;
-type AlarmHw = esp32_c3::timg::TimG<'static>;
+type AlarmHw = esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>;
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerNoMuxComponentType<AlarmHw>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
@@ -52,7 +52,7 @@ type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 type I2cDeviceHw =
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, esp32_c3::i2c::I2c<'static>>;
 type Shtc3Hw = components::shtc3::Shtc3ComponentType<
-    VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static>>,
+    VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
     I2cDeviceHw,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<Shtc3Hw>;
@@ -305,20 +305,23 @@ unsafe fn setup() -> (
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, esp32_c3::timg::TimG>,
+        MuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
         MuxAlarm::new(&peripherals.timg0)
     );
     hil::time::Alarm::set_alarm_client(&peripherals.timg0, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, esp32_c3::timg::TimG>,
+        VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, esp32_c3::timg::TimG>>,
+        capsules_core::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
+        >,
         capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
@@ -336,7 +339,7 @@ unsafe fn setup() -> (
         mux_alarm,
     )
     .finalize(components::shtc3_component_static!(
-        esp32_c3::timg::TimG,
+        esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>,
         esp32_c3::i2c::I2c
     ));
 
@@ -362,7 +365,7 @@ unsafe fn setup() -> (
         mux_alarm,
     )
     .finalize(components::icm42670p_component_static!(
-        esp32_c3::timg::TimG,
+        esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>,
         esp32_c3::i2c::I2c
     ));
 
@@ -444,7 +447,7 @@ unsafe fn setup() -> (
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
-        esp32_c3::timg::TimG,
+        esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>,
         ProcessConsoleCap
     ));
     let _ = process_console.start();
