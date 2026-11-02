@@ -12,6 +12,7 @@ use core::cmp;
 use super::descriptors;
 use super::descriptors::Buffer64;
 use super::descriptors::CdcInterfaceDescriptor;
+use super::descriptors::Descriptor;
 use super::descriptors::EndpointAddress;
 use super::descriptors::EndpointDescriptor;
 use super::descriptors::InterfaceDescriptor;
@@ -88,6 +89,8 @@ enum CtrlState {
     Idle,
     /// Host has sent a SET_LINE_CODING configuration request.
     SetLineCoding,
+    /// Host has sent a GET_LINE_CODING configuration request.
+    GetLineCoding,
     /// Host has send a SET_CONTROL_LINE_STATE configuration request.
     SetControlLineState,
 }
@@ -96,6 +99,7 @@ enum CtrlState {
 enum CDCCntrlMessage {
     NotSupported,
     SetLineCoding = 0x20,
+    GetLineCoding = 0x21,
     SetControlLineState = 0x22,
     SendBreak = 0x23,
 }
@@ -104,6 +108,7 @@ impl From<u8> for CDCCntrlMessage {
     fn from(num: u8) -> Self {
         match num {
             0x20 => CDCCntrlMessage::SetLineCoding,
+            0x21 => CDCCntrlMessage::GetLineCoding,
             0x22 => CDCCntrlMessage::SetControlLineState,
             0x23 => CDCCntrlMessage::SendBreak,
             _ => CDCCntrlMessage::NotSupported,
@@ -414,6 +419,9 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                 CDCCntrlMessage::SetLineCoding => {
                     self.ctrl_state.set(CtrlState::SetLineCoding);
                 }
+                CDCCntrlMessage::GetLineCoding => {
+                    self.ctrl_state.set(CtrlState::GetLineCoding);
+                }
                 CDCCntrlMessage::SetControlLineState => {
                     // Bit 0 and 1 of the value (setup_data.value) can be set
                     // D0: Indicates to DCE if DTE is present or not.
@@ -422,10 +430,27 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                     // D1: Carrier control for half duplex modems.
                     //     - 0 -> Deactivate carrier
                     //     - 1 -> Activate carrier
+                    let _dtr = setup_data.value & 1 == 1;
+
+                    // DTR should tell us if a terminal is connected. However,
+                    // tockloader does not because on some boards the DTR pin is used as
+                    // a way to reset the MCU from a host using standard serial console
+                    // operations.
                     //
-                    // Currently we don't care about the value, just that this
-                    // event has occurred. If it has happened, update the flag
-                    // in `State::Connecting`.
+                    // Ignoring DTR can mean that serial data is sent via USB even if
+                    // nothing is listening. This matches the behavior of a "normal"
+                    // serial port without flow control, which just sends and doesn't
+                    // know if anything is receiving the bytes.
+                    //
+                    // The behavior of DTR is different on windows vs. linux and mac. On
+                    // windows, the SetControlLineState message that is sent when the
+                    // USB device is first enumerated has DTR set to false. On mac and
+                    // linux, that first message has DTR set to true. On all three platforms,
+                    // when tockloader opens the serial port, the SetControlLineState
+                    // message has DTR set to false.
+                    //
+                    // So, to be most compatible, we ignore DTR and just record that a
+                    // SetControlLineState message was sent.
                     self.set_connecting_state(false, true);
 
                     self.ctrl_state.set(CtrlState::SetControlLineState);
@@ -444,6 +469,13 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 
     /// Handle a Control In transaction
     fn ctrl_in(&'a self, endpoint: usize) -> hil::usb::CtrlInResult {
+        if self.ctrl_state.get() == CtrlState::GetLineCoding {
+            // Send back the default Line Coding descriptor.
+            self.client_ctrl.prepare_ctrl_in(endpoint, |buf| {
+                descriptors::CdcAcmSetLineCodingData::default().write_to(buf)
+            });
+        }
+
         self.client_ctrl.ctrl_in(endpoint)
     }
 
