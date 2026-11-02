@@ -13,6 +13,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use rv32i::csr::{self, CSR, mcause, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 use rv32i::syscall::SysCall;
+use tock_registers_next::Mmio32;
 
 use crate::i2c;
 use crate::intc::{Intc, IntcRegisters};
@@ -87,8 +88,20 @@ impl Esp32C3DefaultPeripherals<'_> {
         Self {
             uart0: esp32::uart::Uart::new(esp32::uart::UART0_BASE),
             usb_serial_jtag: usb_serial_jtag::UsbSerialJtag::new(USB_SERIAL_JTAG_BASE),
-            timg0: timg::TimG::new(timg::TIMG0_BASE, timg::ClockSource::Pll),
-            timg1: timg::TimG::new(timg::TIMG1_BASE, timg::ClockSource::Pll),
+            // ### Safety
+            //
+            // The timer groups are mapped at these addresses, and
+            // `timg::registers` describes their register blocks. Tock's kernel
+            // is single-threaded, such that accesses through these handles
+            // cannot race.
+            timg0: timg::TimG::new(
+                unsafe { timg::registers::Real::new(Mmio32::from_addr(timg::TIMG0_BASE)) },
+                timg::ClockSource::Pll,
+            ),
+            timg1: timg::TimG::new(
+                unsafe { timg::registers::Real::new(Mmio32::from_addr(timg::TIMG1_BASE)) },
+                timg::ClockSource::Pll,
+            ),
             gpio: esp32::gpio::Port::new(),
             rtc_cntl: esp32::rtc_cntl::RtcCntl::new(esp32::rtc_cntl::RTC_CNTL_BASE),
             sysreg: sysreg::SysReg::new(),

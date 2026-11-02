@@ -12,6 +12,7 @@ edition = "2024"
 esp32 = { path = "../esp32" }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
+tock-registers-next = { package = "tock-registers", git = "https://github.com/tock/tock-registers", rev = "87001e7bad912147f7bd819c69c624041e25b843" }
 
 
 [lints]
