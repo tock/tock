@@ -87,6 +87,8 @@ impl<'a> NineDof<'a> {
             .enter(processid, |app, _| {
                 if self.current_app.is_none() {
                     self.current_app.set(processid);
+                    app.command = command;
+                    app.arg1 = arg1;
                     let value = self.call_driver(command, arg1);
                     if value != Ok(()) {
                         self.current_app.clear();
