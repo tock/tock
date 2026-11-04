@@ -76,7 +76,11 @@ static TESTS: &[TestCase] = &[
         description: "Use the keyboard to send the character up arrow, and ensure that is translated to button 0 being pressed for userspace.",
         apps: &[App::LibtockC("tests/button_print")],
         steps: &[
-            TestStep::Sleep(Duration::from_millis(500)),
+            TestStep::WaitSerialInOrder {
+                needles: &["[TEST] Button Press"],
+                timeout: Duration::from_secs(30)
+            },
+            TestStep::Sleep(Duration::from_millis(100)),
             TestStep::SendKey("up"),
             TestStep::WaitSerialInOrder {
                 needles: &["Button Press! Button: 0 Status: 0"],
