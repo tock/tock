@@ -24,6 +24,16 @@ pub enum Requirement {
     Uart,
 }
 
+impl Requirement {
+    /// Return a short description of what this requirement requires of a
+    /// board.
+    pub fn describe(&self) -> String {
+        match *self {
+            Requirement::Uart => "console".to_string(),
+        }
+    }
+}
+
 /// A test, which is planned on every board that provides all of its
 /// requirements.
 pub struct TestCase {

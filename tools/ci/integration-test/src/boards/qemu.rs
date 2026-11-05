@@ -14,7 +14,7 @@
 
 use crate::boards::helpers::console_buffer::ConsoleBuffer;
 use crate::boards::helpers::{command, tockloader};
-use crate::boards::{BOARDS, Board, Dut, Timing, Uart};
+use crate::boards::{BOARDS, Board, Dut, Open, Timing, Uart};
 use anyhow::{Context, Result, anyhow, bail};
 use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
@@ -39,7 +39,7 @@ pub static RV64_VIRT: Board = Board {
     kernel: "target/riscv64imac-unknown-none-elf/release/qemu_rv64_virt-test-ci.bin",
     tock_targets: &["$(QEMU_RV64_VIRT_TOCK_TARGETS)"],
     timing: TIMING,
-    open: |tock| {
+    open: Open::Virtual(|tock| {
         Box::new(Qemu::new(
             &RV64_VIRT,
             tock,
@@ -49,7 +49,7 @@ pub static RV64_VIRT: Board = Board {
                 apps: "0x80100000",
             },
         ))
-    },
+    }),
 };
 
 /// HiFive1 Rev B, emulated by QEMU's `sifive_e` machine.
@@ -60,7 +60,7 @@ pub static HIFIVE1: Board = Board {
     kernel: "target/riscv32imac-unknown-none-elf/release/hifive1.bin",
     tock_targets: &["rv32imac|rv32imac.0x20040080.0x80002800|0x20040080|0x80002800"],
     timing: TIMING,
-    open: |tock| {
+    open: Open::Virtual(|tock| {
         Box::new(Qemu::new(
             &HIFIVE1,
             tock,
@@ -70,7 +70,7 @@ pub static HIFIVE1: Board = Board {
                 apps: "0x20040000",
             },
         ))
-    },
+    }),
 };
 
 /// Flash locations at which tockloader writes a board's kernel and apps.

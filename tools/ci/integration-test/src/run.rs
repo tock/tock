@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
-use crate::plan::{Plan, Selection};
+use crate::boards::{AttachedDut, Dut, Open};
+use crate::plan::{Plan, PlannedTest, Selection};
 use crate::prebuild::{self, BuildArgs};
-use crate::test_cases::TestOutcome;
-use anyhow::{Result, bail, ensure};
+use crate::test_cases::{Requirement, TestOutcome};
+use anyhow::{Context, Result, bail, ensure};
 use fs_err as fs;
 use log::{info, warn};
 use serde::Serialize;
@@ -19,8 +20,9 @@ pub struct Args {
     #[arg(long)]
     plan: Option<PathBuf>,
     /// Tock repository to build the kernels and run the virtual boards in
+    /// (required to build the artifacts or run a virtual board)
     #[arg(long)]
-    tock: PathBuf,
+    tock: Option<PathBuf>,
     /// Directory of prebuilt artifacts (built into the output directory if
     /// omitted)
     #[arg(long)]
@@ -29,6 +31,10 @@ pub struct Args {
     /// artifacts)
     #[arg(long, conflicts_with = "artifacts_dir")]
     libtock_c: Option<PathBuf>,
+    /// DUT attached to this host, as
+    /// `<board>[,probe=<serial>][,console=<device>]` (may be repeated)
+    #[arg(long, value_name = "DUT")]
+    dut: Vec<AttachedDut>,
     /// Run only part of the plan
     #[command(flatten)]
     selection: Selection,
@@ -75,7 +81,8 @@ impl Args {
         let artifacts = match (self.artifacts_dir, self.libtock_c) {
             (Some(dir), _) => dir,
             (None, Some(libtock_c)) => {
-                let tock = self.tock.clone();
+                let tock =
+                    (self.tock.clone()).context("--tock is required to build the artifacts")?;
                 let build = BuildArgs {
                     tock,
                     libtock_c,
@@ -87,20 +94,34 @@ impl Args {
             (None, None) => bail!("either --artifacts-dir or --libtock-c is required"),
         };
 
+        // Virtual boards run from their board directory in the Tock repository:
+        let tock = self.tock.as_deref();
+        let virtual_test = (plan.tests.iter()).find(|t| matches!(t.board.open, Open::Virtual(_)));
+        if let (None, Some(planned)) = (tock, virtual_test) {
+            bail!(
+                "--tock is required to run {}, which is virtual",
+                planned.board
+            );
+        }
+
         fs::create_dir_all(&logs)?;
 
         print_banner(&plan);
-        let reports = run_tests(&plan, &artifacts, &self.tock, &logs);
+        let reports = run_tests(&plan, &artifacts, tock, &self.dut, &logs);
         let json = serde_json::to_string_pretty(&reports).unwrap();
         fs::write(&results, json)?;
         println!("{}", summary_table(&reports));
 
-        Ok(
-            match reports.iter().all(|r| r.outcome == TestOutcome::Passed) {
-                true => ExitCode::SUCCESS,
-                false => ExitCode::FAILURE,
-            },
-        )
+        let failed = reports.iter().any(|r| {
+            matches!(
+                r.outcome,
+                TestOutcome::Failed { .. } | TestOutcome::InfraFailed { .. }
+            )
+        });
+        Ok(match failed {
+            true => ExitCode::FAILURE,
+            false => ExitCode::SUCCESS,
+        })
     }
 }
 
@@ -116,8 +137,8 @@ const SUMMARY_WIDTH: u16 = 80;
 /// Longer reasons are truncated with an ellipsis.
 const SUMMARY_REASON_CHARS: usize = 200;
 
-/// Build a table listing each test's status and the first line of its failure
-/// reason.
+/// Build a table listing each test's status and the first line of the reason
+/// for its outcome, if any.
 fn summary_table(reports: &[TestReport]) -> comfy_table::Table {
     let mut table = comfy_table::Table::new();
     table.load_style(comfy_table::presets::ASCII_BORDERS_ONLY_CONDENSED);
@@ -129,6 +150,7 @@ fn summary_table(reports: &[TestReport]) -> comfy_table::Table {
             TestOutcome::Passed => ("passed", ""),
             TestOutcome::Failed { reason } => ("FAILED", reason.as_str()),
             TestOutcome::InfraFailed { reason } => ("INFRA", reason.as_str()),
+            TestOutcome::Skipped { reason } => ("skipped", reason.as_str()),
         };
         let mut reason = reason.lines().next().unwrap_or("").to_string();
         if let Some((cut, _)) = reason.char_indices().nth(SUMMARY_REASON_CHARS) {
@@ -144,7 +166,13 @@ fn summary_table(reports: &[TestReport]) -> comfy_table::Table {
     table
 }
 
-fn run_tests(plan: &Plan, artifacts: &Path, tock: &Path, log_dir: &Path) -> Vec<TestReport> {
+fn run_tests(
+    plan: &Plan,
+    artifacts: &Path,
+    tock: Option<&Path>,
+    duts: &[AttachedDut],
+    log_dir: &Path,
+) -> Vec<TestReport> {
     let mut reports = Vec::new();
 
     for planned in &plan.tests {
@@ -156,23 +184,71 @@ fn run_tests(plan: &Plan, artifacts: &Path, tock: &Path, log_dir: &Path) -> Vec<
             .collect();
         let apps: Vec<&Path> = apps.iter().map(PathBuf::as_path).collect();
 
-        let mut dut = (planned.board.open)(tock);
-        let outcome = crate::test_cases::run(&mut *dut, planned.test, &kernel, &apps);
-        if let Some(uart) = dut.uart() {
-            write_log(log_dir, &id, uart.transcript());
-        }
-        if let Err(e) = dut.reset() {
-            warn!("failed to reset {}: {e}", planned.board);
-        }
+        let outcome = match open_dut(planned, tock, duts) {
+            Ok(mut dut) => {
+                let outcome = crate::test_cases::run(&mut *dut, planned.test, &kernel, &apps);
+                if let Some(uart) = dut.uart() {
+                    write_log(log_dir, &id, uart.transcript());
+                }
+                if let Err(e) = dut.reset() {
+                    warn!("failed to reset {}: {e:#}", planned.board);
+                }
+                outcome
+            }
+            Err(e) => TestOutcome::Skipped {
+                reason: format!("{e:#}"),
+            },
+        };
         match &outcome {
             TestOutcome::Passed => info!("  PASSED"),
             TestOutcome::Failed { reason } => info!("  FAILED: {reason}"),
             TestOutcome::InfraFailed { reason } => info!("  FAILED (infrastructure): {reason}"),
+            TestOutcome::Skipped { reason } => info!("  SKIPPED: {reason}"),
         }
         reports.push(TestReport { id, outcome });
     }
 
     reports
+}
+
+/// Open a board to run `planned` on.
+///
+/// A physical board is bound to the first of the `duts` which satisfies all
+/// requirements of the test, such that a test always runs on the same DUT. If
+/// there is no such DUT, this returns the reason, which lists the requirements
+/// that the first DUT lacking the fewest of them lacks, and the test is skipped.
+///
+/// A virtual board is opened from the Tock repository `tock`, which must be
+/// given.
+fn open_dut(
+    planned: &PlannedTest,
+    tock: Option<&Path>,
+    duts: &[AttachedDut],
+) -> Result<Box<dyn Dut>> {
+    let board = planned.board;
+    let open = match board.open {
+        Open::Virtual(open) => {
+            let tock = tock.with_context(|| format!("--tock is required to run {board}"))?;
+            return Ok(open(tock));
+        }
+        Open::Physical(open) => open,
+    };
+    let requires = planned.test.requires;
+    let closest = (duts.iter())
+        .filter(|dut| dut.board == board)
+        .map(|dut| (dut, dut.missing(requires)))
+        .min_by_key(|(_, missing)| missing.len());
+    let Some((dut, missing)) = closest else {
+        bail!("no {board} DUT given with --dut");
+    };
+    if !missing.is_empty() {
+        let missing: Vec<String> = missing.iter().map(Requirement::describe).collect();
+        bail!(
+            "no {board} DUT given provides all requirements, missing: {}",
+            missing.join(", ")
+        );
+    }
+    Ok(open(dut.config.clone()))
 }
 
 /// Write a test's console transcript to `<dir>/<id>.log`.

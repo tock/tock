@@ -60,6 +60,10 @@ pub enum TestOutcome {
     InfraFailed {
         reason: String,
     },
+    /// The test was skipped for `reason`.
+    Skipped {
+        reason: String,
+    },
 }
 
 /// Flash `kernel` and `apps` onto `dut` and run the steps of `case`.
