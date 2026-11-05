@@ -16,7 +16,7 @@ use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 #[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;
@@ -35,51 +35,50 @@ const GPIO_PER_PORT: usize = 32;
 pub const GPIO_BASE_ADDRESS: usize = 0x50000000;
 pub const GPIO_SIZE: usize = 0x300;
 
-/// nRF5x GPIOTE Registers
-///
-/// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
-/// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
-/// Event) channel, and bind the channel to the desired pin. There are 4
-/// channels for the nrf51 and 8 channels for the nrf52. This means that
-/// requesting an interrupt can fail, if they are all already allocated.
-#[repr(C)]
-pub struct GpioteRegisters {
-    /// Task for writing to pin specified in CONFIG\[n\].PSEL.
-    /// Action on pin is configured in CONFIG\[n\].POLARITY
+register_structs! {
+    /// nRF5x GPIOTE Registers
     ///
-    /// - Address: 0x000 - 0x010 (nRF51)
-    /// - Address: 0x000 - 0x020 (nRF52)
-    task_out: [ReadWrite<u32, TasksOut::Register>; NUM_GPIOTE],
-    /// Reserved
-    // task_set and task_clear are not used on nRF52
-    _reserved0: [u8; 0x100 - (0x0 + NUM_GPIOTE * 4)],
-    /// Event generated from pin specified in CONFIG\[n\].PSEL
-    ///
-    /// - Address: 0x100 - 0x110 (nRF51)
-    /// - Address: 0x100 - 0x120 (nRF52)
-    event_in: [ReadWrite<u32, EventsIn::Register>; NUM_GPIOTE],
-    /// Reserved
-    _reserved1: [u8; 0x17C - (0x100 + NUM_GPIOTE * 4)],
-    /// Event generated from multiple input GPIO pins
-    /// - Address: 0x17C - 0x180
-    event_port: ReadWrite<u32, EventsPort::Register>,
-    /// Reserved
-    // inten on nRF51 is ignored because intenset and intenclr provides the same functionality
-    _reserved2: [u8; 0x184],
-    /// Enable interrupt
-    /// - Address: 0x304 - 0x308
-    intenset: ReadWrite<u32, Intenset::Register>,
-    /// Disable interrupt
-    /// - Address: 0x308 - 0x30C
-    intenclr: ReadWrite<u32, Intenclr::Register>,
-    /// Reserved
-    _reserved3: [u8; 0x204],
-    /// Configuration for OUT\[n\], SET\[n\] and CLR\[n\] tasks and IN\[n\] event
-    ///
-    /// - Adress: 0x510 - 0x520 (nRF51)
-    /// - Adress: 0x510 - 0x530 (nRF52)
-    // Note, only IN\[n\] and OUT\[n\] are used in Tock
-    config: [ReadWrite<u32, Config::Register>; NUM_GPIOTE],
+    /// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
+    /// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
+    /// Event) channel, and bind the channel to the desired pin. There are 4
+    /// channels for the nrf51 and 8 channels for the nrf52. This means that
+    /// requesting an interrupt can fail, if they are all already allocated.
+    pub GpioteRegisters {
+        /// Task for writing to pin specified in CONFIG\[n\].PSEL.
+        /// Action on pin is configured in CONFIG\[n\].POLARITY
+        ///
+        /// - Address: 0x000 - 0x010 (nRF51)
+        /// - Address: 0x000 - 0x020 (nRF52)
+        (0x000 => task_out: [ReadWrite<u32, TasksOut::Register>; NUM_GPIOTE]),
+        /// Reserved
+        (4 * NUM_GPIOTE => _reserved0),
+        /// Event generated from pin specified in CONFIG\[n\].PSEL
+        ///
+        /// - Address: 0x100 - 0x110 (nRF51)
+        /// - Address: 0x100 - 0x120 (nRF52)
+        (4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) => event_in: [ReadWrite<u32, EventsIn::Register>; NUM_GPIOTE]),
+        /// Reserved
+        (4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE => _reserved1),
+        /// Event generated from multiple input GPIO pins
+        /// - Address: 0x17C - 0x180
+        (4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => event_port: ReadWrite<u32, EventsPort::Register>),
+        /// Reserved
+        (0x4 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => _reserved2),
+        /// Enable interrupt
+        /// - Address: 0x304 - 0x308
+        (0x188 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => intenset: ReadWrite<u32, Intenset::Register>),
+        /// Disable interrupt
+        /// - Address: 0x308 - 0x30C
+        (0x18C + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => intenclr: ReadWrite<u32, Intenclr::Register>),
+        /// Reserved
+        (0x190 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => _reserved3),
+        /// Configuration for OUT\[n\], SET\[n\] and CLR\[n\] tasks and IN\[n\] event
+        ///
+        /// - Adress: 0x510 - 0x520 (nRF51)
+        /// - Adress: 0x510 - 0x530 (nRF52)
+        (0x394 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => config: [ReadWrite<u32, Config::Register>; NUM_GPIOTE]),
+        (0x394 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE => @END),
+    }
 }
 
 #[repr(C)]
