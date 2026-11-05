@@ -18,18 +18,13 @@ use core::ptr::NonNull;
 use arm_gic::Trigger::{Edge, Level};
 use arm_gic::gicv3::registers::{Gicd, GicrSgi};
 use arm_gic::gicv3::{GicCpuInterface, GicV3, Group, SecureIntGroup};
-use arm_gic::{IntId, InterruptGroup, Trigger, UniqueMmioPointer};
+use arm_gic::{IntId, InterruptGroup, UniqueMmioPointer};
+
+use an536_inst::GicIrq;
 
 // Only one CPU used for the moment
 const CPU_IDX: Option<usize> = Some(0);
 const CPU_CNT: usize = 1;
-
-/// Representation of a GIC interrupt (IRQ) with its ID and trigger type
-/// to allow easy definition.
-pub struct GicIrq {
-    pub id: IntId,
-    pub trig: Trigger,
-}
 
 // Default PPI for Cortex-R52, need to substract 16 from the
 // Cortex R52 Tech RM Table 10-3.
@@ -61,13 +56,13 @@ pub struct Gic {
 impl Gic {
     /// Creates a new `Gic` driver for the GICv3 distributor and redistributor
     /// at the given base addresses, for a system with `cpu_count` cores.
-    pub unsafe fn new(gicd_base: u32, gicr_base: u32) -> Self {
-        let gicd = unsafe { UniqueMmioPointer::new(NonNull::new(gicd_base as *mut Gicd).unwrap()) };
+    pub unsafe fn new() -> Self {
+        let gicd = unsafe { UniqueMmioPointer::new(NonNull::new(an536_inst::BASE_GICD as *mut Gicd).unwrap()) };
 
         let mut gic = unsafe {
             GicV3::new(
                 gicd,
-                NonNull::new(gicr_base as *mut GicrSgi).unwrap(),
+                NonNull::new(an536_inst::BASE_GICR as *mut GicrSgi).unwrap(),
                 CPU_CNT,
             )
         }

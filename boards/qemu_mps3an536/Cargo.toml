@@ -19,15 +19,22 @@ sh = { path = "../../capsules/sh" }
 
 aarch32-cpu = { version = ">= 0.4.0" }
 
-components = { path = "../components" }
-cortexr52 = { path = "../../arch/cortex-r52" }
-xcku = { path = "../../chips/xcku115an536" }
 # kernel = { path = "../../kernel", features = ["debug_load_processes"] }
 kernel = { path = "../../kernel"}
-
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
+components = { path = "../components" }
+
+an536_inst = { path = "../../chips/xcku115an536/an536_inst" }
+cortexr52 = { path = "../../arch/cortex-r52" }
+xcku = { path = "../../chips/xcku115an536" }
+
+[features]
+# Check alarm_mux file for more details about this (useless) feature
+#default = ["mymux"]
+mymux = []
+
 
 [build-dependencies]
 tock_build_scripts = { path = "../build_scripts" }

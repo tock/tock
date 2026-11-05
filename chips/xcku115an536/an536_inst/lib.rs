@@ -5,12 +5,12 @@
 //! Specific device definition for the MPS3-AN536 instance pf the Cortex R52.
 //! All data come from the document "Example Cortex™-R52x2 Subsystem for MPS3
 //! Application Note AN536 / Issue B / DAI 0536"
+//! Implented as as separate crate to avoid cyclic package dependency
 
+#![no_std]
 use arm_gic::IntId;
-use arm_gic::Trigger::{Edge, Level};
+use arm_gic::Trigger::{self, Edge, Level};
 use kernel::hil::time::Frequency;
-
-use cortexr52::gic::GicIrq;
 
 //
 // CLOCKS
@@ -18,7 +18,7 @@ use cortexr52::gic::GicIrq;
 
 // Main clock
 pub const FREQ_ACLK: u32 = 50_000_000;
-// RTC and Timer clock
+// RTC and DualTimer clock
 pub const FREQ_TCLK: u32 = 24_000_000;
 
 /// Frequency struct for main clock
@@ -28,7 +28,6 @@ impl Frequency for FreqAclk {
         FREQ_ACLK
     }
 }
-pub type GenTimer<'a> = cortexr52::gentimer::GenTimer<'a, FreqAclk>;
 
 /// Frequency struct for timer clock
 pub struct FreqTclk;
@@ -37,7 +36,6 @@ impl Frequency for FreqTclk {
         FREQ_TCLK
     }
 }
-pub type DualTimer<'a> = crate::dualtimer::DualTimer<'a, FreqTclk>;
 
 //
 // PERIPHERALS ADDRESSES
@@ -65,6 +63,13 @@ pub const BASE_DUALTIMER2: u32 = 0xE010_1020;
 //
 // INTERRUPTS MAP
 //
+
+/// Representation of a GIC interrupt (IRQ) with its ID and trigger type
+/// to allow easy definition.
+pub struct GicIrq {
+    pub id: IntId,
+    pub trig: Trigger,
+}
 
 // Note: Internal PPI is Cortex 52 specific and defined in gic.rs; Also,
 // "External" PPI is different from "Extended". Extended PPI are not used with An536

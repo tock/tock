@@ -12,9 +12,10 @@ edition.workspace = true
 semihosting = { version = "0.1.18", features = ["stdio"] }
 sh = { path = "../../capsules/sh" }
 
-kernel = { path = "../../kernel" }
 aarch32-cpu = { version = ">= 0.4.0" }
 arm-gic  = { version = ">= 0.9.1" }
+kernel = { path = "../../kernel" }
+an536_inst = { path = "../../chips/xcku115an536/an536_inst" }
 
 [lints]
 workspace = true

@@ -7,45 +7,45 @@
 //! This module implements [`kernel::platform::chip::Chip`] for the
 //! Cortex-R52-based AN536 subsystem.
 
-use crate::{an536_inst, uart};
-use cortexr52::gic;
+use crate::{uart::ApbUart, dualtimer::DualTimer};
+use cortexr52::{gentimer::GenTimer, gic, mpu::MPU, support, syscall::SysCall};
 use kernel::platform::chip::Chip;
 
 /// The MPS3-AN536 chip.
 pub struct XckuChip {
-    mpu: cortexr52::mpu::MPU,
-    syscall: cortexr52::syscall::SysCall,
+    mpu: MPU,
+    syscall: SysCall,
     pub gic: gic::Gic,
-    pub uart2: uart::ApbUart<'static>,
-    pub gentimer: an536_inst::GenTimer<'static>,
-    pub dualtimer1: an536_inst::DualTimer<'static>, //unused for now
-                                                    //pub dualtimer2: dualtimer::DualTimer<'static>,
+    pub uart2: ApbUart<'static>,
+    pub gentimer: GenTimer<'static>,
+    pub dualtimer1: DualTimer<'static>, //unused for now
+    //pub dualtimer2: dualtimer::DualTimer<'static>,
 }
 
 impl XckuChip {
     /// Create a new `XckuChip`.
     pub unsafe fn new() -> Self {
         Self {
-            syscall: cortexr52::syscall::SysCall {},
-            mpu: cortexr52::mpu::MPU {},
-            gic: gic::Gic::new(an536_inst::BASE_GICD, an536_inst::BASE_GICR),
-            uart2: uart::ApbUart::new(an536_inst::BASE_UART2, an536_inst::FREQ_ACLK),
-            gentimer: cortexr52::gentimer::GenTimer::new(),
-            dualtimer1: an536_inst::DualTimer::new(an536_inst::BASE_DUALTIMER1),
-            //dualtimer2: dualtimer::DualTimer::new(an536_inst::BASE_DUALTIMER2),
+            syscall: SysCall {},
+            mpu: MPU {},
+            gic: gic::Gic::new(),
+            uart2: ApbUart::new(an536_inst::BASE_UART2),
+            gentimer: GenTimer::new(),
+            dualtimer1: DualTimer::new(an536_inst::BASE_DUALTIMER1),
+            //dualtimer2: DualTimer::new(an536_inst::BASE_DUALTIMER2),
         }
     }
 }
 
 impl Chip for XckuChip {
-    type MPU = cortexr52::mpu::MPU;
-    type UserspaceKernelBoundary = cortexr52::syscall::SysCall;
-    type ThreadIdProvider = cortexr52::support::CortexR52ThreadIdProvider;
+    type MPU = MPU;
+    type UserspaceKernelBoundary = SysCall;
+    type ThreadIdProvider = support::CortexR52ThreadIdProvider;
 
     fn init() {
         // Just enable FIQs once setup is done
         unsafe {
-            cortexr52::support::irq_enable();
+            support::irq_enable();
         }
     }
 
@@ -81,7 +81,7 @@ impl Chip for XckuChip {
 
         // FIQs were disabled in handler and must be re-enabled here
         unsafe {
-            cortexr52::support::irq_enable();
+            support::irq_enable();
         }
     }
 
@@ -90,21 +90,21 @@ impl Chip for XckuChip {
     }
 
     fn sleep(&self) {
-        cortexr52::support::wfi();
+        support::wfi();
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        cortexr52::support::with_interrupts_disabled(f)
+        support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn core::fmt::Write) {
+    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn core::fmt::Write) {
         // TODO
-        cortexr52::support::print_state(writer);
-        if let Some(_) = this {
-            //let _ = writer.write_fmt(format_args!("{}", t.pmp.pmp));
-        }
+        support::print_state(writer);
+        //if let Some(_) = this {
+        //    let _ = writer.write_fmt(format_args!("{}", t.pmp.pmp));
+        //}
     }
 }

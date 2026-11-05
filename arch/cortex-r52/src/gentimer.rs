@@ -7,78 +7,92 @@
 //! This uses the EL1 physical timer (`El1PhysicalTimer`) provided by the
 //! `aarch32-cpu` crate to implement Tock's Alarm interface.
 
+// From my understanding: EL0 timer is the same as EL1, Virtual is the
+// same than Physical with just an offset, and EL2 is not accessible,
+// so only 1 timer is available on R52.
+
 // Initial code was for the scheduler, and dualtimer for Alarm due to a
 // misunderstanding, but the  other way around is a bit simplier...
 
 use aarch32_cpu::generic_timer::{El1PhysicalTimer, GenericTimer};
 
-use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks64, Time};
+use kernel::hil::time::{Alarm, AlarmClient, Ticks64, Time};
+use an536_inst;
+use crate::support::isb;
 
-pub struct GenTimer<'a, F: Frequency> {
+pub struct GenTimer<'a> {
     timer: core::cell::RefCell<El1PhysicalTimer>,
     client: kernel::utilities::cells::OptionalCell<&'a dyn AlarmClient>,
-    _f: core::marker::PhantomData<F>, // Need by F generic
 }
 
-impl<'a, F: Frequency> GenTimer<'a, F> {
+impl GenTimer<'_> {
     /// Create a scheduler timer backed by the EL1 physical generic timer.
     ///
     /// Only one handle to the EL1 physical generic timer may be created at a
     /// time; see [`El1PhysicalTimer::new`].
-
-    // From my understanding: EL0 timer is the same as EL1, Virtual is the
-    // same than Physical with just an offset, and EL2 is not accessible,
-    // so only 1 timer is available on R52.
-
-    pub unsafe fn new() -> Self {
+    pub fn new() -> Self {
         let timer = core::cell::RefCell::new(unsafe { El1PhysicalTimer::new() });
         Self {
             timer,
             client: kernel::utilities::cells::OptionalCell::empty(),
-            _f: core::marker::PhantomData,
         }
     }
 
-    pub fn now(&self) -> u64 {
-        self.timer.borrow().counter()
+    pub fn now64(&self) -> u64 {
+        // As per ARM DDI 0487 G6.2.1
+        isb();
+        let cnt = self.timer.borrow().counter();
+        isb();
+        cnt
+    }
+
+    pub fn set_alarm_u64(&self, cnt: u64) {
+        let mut timer = self.timer.borrow_mut();
+        timer.counter_compare_set(cnt);
+        timer.interrupt_mask(false);
+        timer.enable(true);
+    }
+
+    pub fn get_alarm_u64(&self) -> u64 {
+        self.timer.borrow().counter_compare()
     }
 
     pub fn handle_interrupt(&self) {
-        // Nothing to do regarding the HW IRQ, as the trigger is edge
-        // and anyway to way to clear it in software.
+        // Clear the IRQ in HW by canceling condition cmp < cnt
+        self.timer.borrow_mut().counter_compare_set(u64::MAX);
         self.client.map(|client| client.alarm());
+    }
+
+    pub fn has_fired(&self) -> bool {
+        self.timer.borrow().interrupt_status()
     }
 }
 
-impl<'a, F: Frequency> Time for GenTimer<'a, F> {
-    type Frequency = F;
+impl Time for GenTimer<'_> {
+    type Frequency = an536_inst::FreqAclk;
     type Ticks = Ticks64;
 
     fn now(&self) -> Self::Ticks {
-        let ticks = self.timer.borrow().counter();
-        Self::Ticks::from(ticks)
+        Self::Ticks::from(self.now64())
     }
 }
 
-impl<'a, F: Frequency> Alarm<'a> for GenTimer<'a, F> {
+impl<'a> Alarm<'a> for GenTimer<'a> {
     fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
         self.client.set(client);
     }
 
     fn set_alarm(&self, rf: Self::Ticks, dt: Self::Ticks) {
-        let mut timer = self.timer.borrow_mut();
-        let abs = rf.into_u64() + dt.into_u64();
-        timer.counter_compare_set(abs);
-        timer.interrupt_mask(false);
-        timer.enable(true);
+        self.set_alarm_u64(rf.into_u64() + dt.into_u64());
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        self.timer.borrow().counter_compare().into()
+        self.get_alarm_u64().into()
     }
 
     fn disarm(&self) -> Result<(), kernel::ErrorCode> {
         self.timer.borrow_mut().enable(false);
+        //sh::s!("%");
         Ok(())
     }
 
@@ -87,7 +101,7 @@ impl<'a, F: Frequency> Alarm<'a> for GenTimer<'a, F> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(2_u64)
+        Self::Ticks::from(16_u64)
     }
 }
 

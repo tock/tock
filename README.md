@@ -16,7 +16,8 @@ It implements the main following parts:
  - chips/xcku115an536
  - boards/qemu_mps3an536
 
-This is a work in progress with very few testing. It can currently boot and run two basic apps.
+This is a work in progress with very few testing. It can currently boot and run 6 basic apps with uart 
+output and sleep without bugging while running for hours.
 
 Applications need the following forks:
 https://github.com/calandoa/libtock-rs/tree/dev/cortexr52_mps3an536
@@ -29,9 +30,12 @@ It also rely on the aarch32-cpu/aarch32-rt crates.
 To compile the OS:
 `make -C boards/qemu_mps3an536`
 
-To compile the test apps (from lib dir):
+To compile the test apps (lib dir linked in current dir):
 `make -C libtock-rs tab EXAMPLE=color_cyan`
 `make -C libtock-rs tab EXAMPLE=color_yellow`
+
+For all color apps with `zsh`:
+`for f in libtock-rs/examples/color_* ; { make -C libtock-rs tab EXAMPLE=$f:t:r }`
 
 To set the right board path (replace $TOCKOS_PATH; from loader dir):
 `python3 -m tockloader.main local-board set --binary-path $TOCKOS_PATH/target/armv8r-none-eabihf/release/qemu_mps3an536.bin qemu_mps3an536`
@@ -45,12 +49,13 @@ To run everything:
 
 TODO next
 ---------
-- need more detailed debug prints
+- need more detailed debug prints (partly done)
 - need MPU driver
 - need dual timer driver for scheduler timer
-- app crashing when many after a few minutes
-- ... a lot more ...
+- need uart rx
+- ... some more ...
 
+- DONE: app crashing when many after a few minutes
 - DONE: app crashing when adding a few more basic stuff
 - DONE: cannot load more than 2 apps (tockloader)
 

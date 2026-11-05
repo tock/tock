@@ -7,23 +7,31 @@
 //! Each `DualTimer` instance manages one timer. Pass the dual-timer base
 //! address for timer 1, and +0x20 for timer 2.
 
+//
+//
+// WORK IN PROGRESS !!!!!
+//
+//
+
 use core::cell::Cell;
 
 use kernel::ErrorCode;
 use kernel::hil::time::{
     Alarm,
     AlarmClient,
-    Frequency,
     Ticks,
     Ticks32,
     Time, //Counter, OverflowClient,
 };
+
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable}; //ReadWriteable,
 use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
+
+use an536_inst;
 
 register_structs! {
     DualTimerRegisters {
@@ -59,14 +67,13 @@ register_bitfields![u32,
 // rework as eveything here is broken or incomplete.
 
 /// One timer from an dual-timer peripheral.
-pub struct DualTimer<'a, F: Frequency> {
+pub struct DualTimer<'a> {
     registers: StaticRef<DualTimerRegisters>,
     client: OptionalCell<&'a dyn AlarmClient>,
     last_now: Cell<u32>,
-    _f: core::marker::PhantomData<F>, // Need by F generic
 }
 
-impl<'a, F: Frequency> DualTimer<'a, F> {
+impl DualTimer<'_> {
     /// Create a timer at `base`. Timer 2 starts at the dual-timer base plus `0x20`.
     pub const fn new(base: u32) -> Self {
         let registers = unsafe { StaticRef::new(base as *const DualTimerRegisters) };
@@ -78,7 +85,6 @@ impl<'a, F: Frequency> DualTimer<'a, F> {
             registers,
             client: OptionalCell::empty(),
             last_now: Cell::new(0),
-            _f: core::marker::PhantomData,
         }
     }
 
@@ -93,8 +99,8 @@ impl<'a, F: Frequency> DualTimer<'a, F> {
     }
 }
 
-impl<F: Frequency> Time for DualTimer<'_, F> {
-    type Frequency = F;
+impl Time for DualTimer<'_> {
+    type Frequency = an536_inst::FreqTclk;
     type Ticks = Ticks32;
 
     fn now(&self) -> Self::Ticks {
@@ -149,17 +155,13 @@ impl<'a> Counter<'a> for DualTimer<'a> {
     }
 }
 */
-impl<'a, F: Frequency> Alarm<'a> for DualTimer<'a, F> {
+impl<'a> Alarm<'a> for DualTimer<'a> {
     fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
-        //sh::p!("--- ALARM set client");
         self.client.set(client);
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        //sh::p!("--- ALARM set alarm {reference:?} {dt:?}");
-
         let delta = reference.wrapping_add(dt).into_u32();
-
         let a = -(self.registers.value.get() as i32) as u32;
 
         self.last_now.set(a);
@@ -173,8 +175,8 @@ impl<'a, F: Frequency> Alarm<'a> for DualTimer<'a, F> {
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        //sh::p!("--- ALARM get alarm");
-        123.into() // whatever
+        todo!();
+        //123.into() // whatever
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {

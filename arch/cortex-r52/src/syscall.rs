@@ -40,7 +40,7 @@ const SVC_FRAME_SIZE: usize = 16 * 4; // 16 words, 4 bytes each
 //     6     F / FIQ mask = 0
 //     5     T / T32 state = 1
 //     4--0  M / mode = 0b10000 (USR)
-const SPSR_USR_DEF: usize = 0b0000_0000_0001_0000; //  MODE_USR
+const SPSR_USR_DEF: usize = 0b0000_0000_1001_0000; //  I + MODE_USR
 
 impl core::convert::TryFrom<&[u8]> for CortexR52StoredState {
     type Error = ErrorCode;
@@ -76,8 +76,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) -> Result<(), ()> {
         state.sp_usr = app_brk as usize;
 
-        //sh::p!("--- INIT PROC {:?} {:?}", accessible_memory_start, app_brk);
-
         // just copied from Cortex-M (didn't check)
         if (app_brk as usize - accessible_memory_start as usize) < SVC_FRAME_SIZE {
             return Err(());
@@ -107,9 +105,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // Get register values from the right place in the user stack frame
         let sp = state.sp_usr as *mut u32;
-        let (r0, r1, r2, r3) = (sp.offset(3), sp.offset(4), sp.offset(5), sp.offset(6));
-
-        //sh::p!("--- syscall return sp:{:?} r0:{:x} r1:{:x} r2:{:x} r3:{:x}", sp, *r0, *r1, *r2, *r3);
+        let (r0, r1, r2, r3) = (sp.add(3), sp.add(4), sp.add(5), sp.add(6));
 
         kernel::utilities::arch_helpers::encode_syscall_return_trd104(
             //&kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value,),
@@ -130,7 +126,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state: &mut Self::StoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
-        //sh::p!("---set_process_function {callback:?}");
 
         // just copied from Cortex-M (didn't check)
         if state.sp_usr < accessible_memory_start as usize
@@ -141,13 +136,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // Set register values to the right place in the user stack frame
         let stack_bottom = state.sp_usr as *mut usize;
-        ptr::write(stack_bottom.offset(0), *stack_bottom.offset(2)); // Set LR with previous PC
-        ptr::write(stack_bottom.offset(1), SPSR_USR_DEF); // Default PSTATE
-        ptr::write(stack_bottom.offset(2), callback.pc.addr()); // Set PC withc callback
-        ptr::write(stack_bottom.offset(3), callback.argument0); // R0...
-        ptr::write(stack_bottom.offset(4), callback.argument1);
-        ptr::write(stack_bottom.offset(5), callback.argument2);
-        ptr::write(stack_bottom.offset(6), callback.argument3.as_usize()); // ...R3
+        ptr::write(stack_bottom.add(0), *stack_bottom.add(2)); // Set LR with previous PC
+        ptr::write(stack_bottom.add(1), SPSR_USR_DEF); // Default PSTATE
+        ptr::write(stack_bottom.add(2), callback.pc.addr()); // Set PC withc callback
+        ptr::write(stack_bottom.add(3), callback.argument0); // R0...
+        ptr::write(stack_bottom.add(4), callback.argument1);
+        ptr::write(stack_bottom.add(5), callback.argument2);
+        ptr::write(stack_bottom.add(6), callback.argument3.as_usize()); // ...R3
 
         Ok(())
     }
@@ -158,14 +153,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         app_brk: *const u8,
         state: &mut Self::StoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
-
-        //let stack_bottom = state.sp_usr as *mut usize;
-        //sh::p!("--- switch_to_process BEG sp:{:8x} lr:{:8x} pc:{:x}  r11:{:x} r12:{:x}",
-        //    state.sp_usr,
-        //    *stack_bottom.offset(0),
-        //    *stack_bottom.offset(2),
-        //    *stack_bottom.offset(14),
-        //    *stack_bottom.offset(15));
 
         // Big stuff occuring here: call the asm context switch and run user code
         let new_stack_pointer =
@@ -179,9 +166,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let invalid_stack_pointer = state.sp_usr < accessible_memory_start as usize
             || state.sp_usr.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
 
-        //sh::p!("--- STACK {:?} sp:{:x} {:x} {:?}", accessible_memory_start, state.sp_usr, SVC_FRAME_SIZE,app_brk);
-
         if invalid_stack_pointer {
+            // This should use a specific fault for quicker identification
             sh::v!("STACK OVERFLOW!");
             return (kernel::syscall::ContextSwitchReason::Fault, None);
         }
@@ -192,20 +178,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         let switch_reason = if syscall_fired == 1 {
             // Get the SVC arguments from user stack frame
-            let r0 = ptr::read(new_stack_pointer.offset(3));
-            let r1 = ptr::read(new_stack_pointer.offset(4));
-            let r2 = ptr::read(new_stack_pointer.offset(5));
-            let r3 = ptr::read(new_stack_pointer.offset(6));
+            let r0 = ptr::read(new_stack_pointer.add(3));
+            let r1 = ptr::read(new_stack_pointer.add(4));
+            let r2 = ptr::read(new_stack_pointer.add(5));
+            let r3 = ptr::read(new_stack_pointer.add(6));
 
             // Get the SVC num from the very instruction
-            let lr = ptr::read(new_stack_pointer.offset(2)) as *const u32;
-            let svc_instr = ptr::read(lr.offset(-1));
+            let lr = ptr::read(new_stack_pointer.add(2)) as *const u32;
+            let svc_instr = ptr::read(lr.sub(1));
             let svc_num = (svc_instr & 0xff) as u8;
-
-            // debug
-            //let a = ptr::read(new_stack_pointer.offset(1));
-            //let b = ptr::read(new_stack_pointer.offset(2));
-            //sh::p!("--- switch_to_process SC LR:{lr:?} 1:{a:x} 2:{b:x} R0:{r0:x} R1:{r1:x} R2:{r2:x} R3:{r3:x} SVC{svc_num}");
 
             let syscall = kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
                 svc_num,
@@ -218,12 +199,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             match syscall {
                 Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
                 None => {
-                    //sh::p!("--- NONE");
                     kernel::syscall::ContextSwitchReason::Fault
                 }
             }
         } else {
-            //sh::p!("--- switch_to_process IRQ");
             kernel::syscall::ContextSwitchReason::Interrupted
         };
 
@@ -251,14 +230,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                 0xBAD00BAD,
             )
         } else {
-            let r0 = ptr::read(stack_pointer.offset(0));
-            let r1 = ptr::read(stack_pointer.offset(1));
-            let r2 = ptr::read(stack_pointer.offset(2));
-            let r3 = ptr::read(stack_pointer.offset(3));
-            let r12 = ptr::read(stack_pointer.offset(4));
-            let lr = ptr::read(stack_pointer.offset(5));
-            let pc = ptr::read(stack_pointer.offset(6));
-            let xpsr = ptr::read(stack_pointer.offset(7));
+            let r0 = ptr::read(stack_pointer.add(0));
+            let r1 = ptr::read(stack_pointer.add(1));
+            let r2 = ptr::read(stack_pointer.add(2));
+            let r3 = ptr::read(stack_pointer.add(3));
+            let r12 = ptr::read(stack_pointer.add(4));
+            let lr = ptr::read(stack_pointer.add(5));
+            let pc = ptr::read(stack_pointer.add(6));
+            let xpsr = ptr::read(stack_pointer.add(7));
+
             (r0, r1, r2, r3, r12, lr, pc, xpsr)
         };
 

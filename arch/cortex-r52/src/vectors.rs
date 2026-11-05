@@ -106,14 +106,16 @@ cpu0:   // Here we do the minimum setup for EL2 then switch to EL1 forever
         mcr p15, 4, r0, c1, c1, 0   //write HCR
 
         // Go to SVC mode
-        mrs r0, CPSR
-        mov r1, #{MODE_SVC} | {NO_IRQ}
-        bfi r0, r1, #0, #9
+        // setup SPSR: no need for any other flags
+        mov r0, #{NO_IRQ} | {MODE_SVC}
         msr SPSR, r0
+        // setup link register
         ldr r0, =EL1_RST_Handler
         msr ELR_HYP, r0
         dsb
         isb
+        // Note: changing with cpsid is illegal as per ARM DDI 0487 G1.11.3
+        // cpsid I, #{MODE_SVC}
         eret
 
 EL1_RST_Handler:
@@ -200,11 +202,62 @@ EL1_RST_Handler:
     );
 }
 
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".atcm"
+)]
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn DEF_Handler() {
-    naked_asm!("bkpt");
+    // Prepare a fault frame for print_fault_frame()
+    // stack top (high address)
+    // -1       LR (R13)
+    // -2  -14  R12-R0
+
+    // -15      CPSR
+    // -16      SPSR
+
+    // -17      LR_SVC
+    // -18      SP_SVC
+    // -19      SPSR_SVC
+
+    // -20      LR_USR
+    // -21      SP_USR
+
+    // -22      LR_FIQ (R13)
+    // -23 -27  R12-R8 FIQ
+    // -28      SPSR_FIQ
+    // -29      SP_FIQ
+
+    naked_asm!("
+        cpsid af
+
+        push {{r0-r12, lr}}
+
+        mrs r12, cpsr
+        mrs r11, spsr
+
+        mrs r10, lr_svc
+        mrs r9, sp_svc
+        mrs r8, spsr_svc
+
+        mrs r7, lr_usr
+        mrs r6, sp_usr
+        push {{r6-r12}}
+
+        mrs lr, lr_fiq
+        mrs r12, r12_fiq
+        mrs r11, r11_fiq
+        mrs r10, r10_fiq
+        mrs r9, r9_fiq
+        mrs r8, r8_fiq
+        mrs r7, sp_fiq
+        mrs r6, spsr_fiq
+        push {{r6-r12, lr}}
+
+        b   print_fault_frame
+    ");
 }
 
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
@@ -267,45 +320,42 @@ pub unsafe extern "C" fn DAB_Handler() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn FIQ_Handler() {
     naked_asm!(
+        // We are in FIQ mode, remeber that FIQ is masked in
+        // CPSR and R8-R12 are HW banked, unlike any other modes
         "
-        // remeber that R8-R12 are save by the HW, unlike any other modes
-        // First we mask FIQ
-        mrs     r8, spsr
-        orr     r8, r8, #{NO_FIQ}
-        msr     spsr, r8
-        // then adjust LR to the correct return address
+        // First we adjust LR to the correct return address
         sub     lr, lr, 4
-
-        // if previous mode was SVC we just return
-        ands    r8, r8, #0xF    // USR is 0x10, SVC is 0x13
+        // Load previous CPSR
+        mrs     r8, spsr
+        // check if mode was USR
+        ands    r9, r8, #0xF    // USR is 0x10, SVC is 0x13
+        // if not, it was SVC so we just mask FIQ and return
+        orrne     r8, r8, #{NO_FIQ}
+        msrne     spsr, r8
         eretne
 
         // previous mode was USR, we save the context
         // check switch_to_user_arm_cr52() below for frame layout
 
-        // use lr as sp to save regs in user stack
-        push {{lr}}
+        // switch to SVC: R8-R12 restored to USR/SVC
+        cps #{MODE_SVC}
+        isb
+
+        // use lr_svc as sp to save USR regs in USR stack
         mrs lr, sp_usr
         stmdb lr!, {{r0-r12}}
+        // R0-R3 saved, use 1-3 to save special registers & 0 for stack + return
         mov r0, lr
         mrs r1, lr_usr
         mrs r2, spsr
-        // retrieve lr as return address
-        pop {{r3}}
+        mrs r3, lr_fiq
         stmdb r0!, {{r1-r3}}
-
-        // switch to SVC
-        mrs r1, CPSR
-        mov r2, #{MODE_SVC} | {NO_FIQ}
-        bfi r1, r2, #0, #9
-        msr CPSR, r1
-        isb
 
         // restore SVC context ; lr will hold return address from switch_to_user()
         pop {{r4-r12, lr}}
-        bx lr       // r0 is the user stack
+        // user stack (in r0) is the return value
+        bx lr
         ",
-        //MODE_MASK = const MODE_MASK,
         MODE_SVC = const MODE_SVC,
         NO_FIQ = const NO_FIQ,
     );
@@ -346,13 +396,13 @@ pub unsafe extern "C" fn switch_to_user_arm_cr52(user_stack: *const usize) -> *c
     naked_asm!(
         "
         // User stack with saved context
-        //  | LR          | <- r0 (user SP) before
+        //  | LR          | <- r0 (user SP) before (low address)
         //  | CPSR        |
         //  | ret addr    |
         //  | R0          |
         //  | R1 ... R11  |
         //  | R12         |
-        //  |             | <- SP_usr after
+        //  |             | <- SP_usr after  (high address)
 
         // save SVC context and return address
         push {{r4-r12, lr}}
