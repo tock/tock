@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
-//! PL011 UART driver for the MPS3-AN536.
+//! APB UART driver for the MPS3-AN536.
 //!
-//! The MPS3-AN536 exposes two PL011 PrimeCell UARTs. UART0 is used as the
-//! primary debug/console output.
+//! Documentation can be found in the "Arm Cortex-M System Design Kit
+//! Revision: r1p1 Technical Reference Manual" (ARM DDI 0479D)
+//!
+//! Only UART2 has been tested, but it should work for the five instances.
+//! Only Tx implemented
 
 use core::cell::Cell;
 use core::fmt::Write;
@@ -83,7 +86,6 @@ register_bitfields![u32,
 // It should never be instanced outside this module but because a static mutable reference to it
 // is exported outside this module it must be `pub`
 pub struct ApbUart<'a> {
-    clock: u32,
     reg: StaticRef<ApbUartReg>,
 
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
@@ -97,13 +99,12 @@ pub struct ApbUart<'a> {
 
 impl<'a> ApbUart<'a> {
     /// Constructor
-    // This should only be constructed once
-    pub const fn new(base: u32, clock: u32) -> ApbUart<'a> {
+    // base can be any of the 5 UART instances
+    pub const fn new(base: u32) -> ApbUart<'a> {
         let reg = unsafe { StaticRef::new(base as *const ApbUartReg) };
 
         ApbUart {
             reg,
-            clock,
             tx_client: OptionalCell::empty(),
             tx_buffer: kernel::utilities::cells::TakeCell::empty(),
             tx_len: Cell::new(0),
@@ -113,22 +114,22 @@ impl<'a> ApbUart<'a> {
         }
     }
 
-    pub fn enable(&mut self, baud_rate: u32, clock: u32) -> () {
-        let scaler: u32 = clock / baud_rate;
+    pub fn enable(&mut self, baud_rate: u32) {
+        let scaler: u32 = an536_inst::FREQ_ACLK / baud_rate;
 
         self.reg.bauddiv.write(BaudDiv::BAUDDIV.val(scaler));
         self.reg.ctrl.write(Ctrl::TX_EN.val(1) + Ctrl::RX_EN.val(1));
     }
 
     fn tx_int_set(&self, on: bool) {
-        let val = if on { 1 } else { 0 };
+        let val = on as u32;
         self.reg
             .ctrl
             .modify(Ctrl::TX_INTEN.val(val) + Ctrl::TXO_INTEN.val(val));
     }
 
     fn _rx_int_set(&self, on: bool) {
-        let val = if on { 1 } else { 0 };
+        let val = on as u32;
         self.reg
             .ctrl
             .modify(Ctrl::RX_INTEN.val(val) + Ctrl::RXO_INTEN.val(val));
@@ -161,7 +162,6 @@ impl<'a> ApbUart<'a> {
 
         if self.tx_position.get() < self.tx_len.get() {
             self.tx_buffer.map(|buf| {
-                //sh::v!("[{}]", buf[self.tx_position.get()]);
                 self.reg
                     .data
                     .write(Data::DATA.val(buf[self.tx_position.get()].into()));
@@ -177,7 +177,6 @@ impl<'a> ApbUart<'a> {
             });
             self.tx_len.set(0);
             self.tx_int_set(false);
-            //sh::s!("#/ ");
         }
     }
 
@@ -199,11 +198,11 @@ impl<'a> ApbUart<'a> {
     /// panic handlers only.
     pub fn transmit_sync(&mut self, bytes: &[u8]) {
         for &byte in bytes {
-            while self.tx_ready() == false {}
+            while !self.tx_ready() {}
             self.reg.data.write(Data::DATA.val(byte as u32));
         }
 
-        while self.tx_ready() == false {}
+        while !self.tx_ready() {}
     }
 
     pub fn ioprint(&mut self, s: &str) {
@@ -231,7 +230,7 @@ impl uart::Configure for ApbUart<'_> {
         }
 
         // TODO: Not good! this file should be generic and not rely on instance definition
-        let scaler: u32 = self.clock / params.baud_rate;
+        let scaler: u32 = an536_inst::FREQ_ACLK / params.baud_rate;
         self.reg.bauddiv.write(BaudDiv::BAUDDIV.val(scaler));
         self.reg.ctrl.write(Ctrl::TX_EN.val(1) + Ctrl::RX_EN.val(1));
 
@@ -251,7 +250,6 @@ impl<'a> uart::Transmit<'a> for ApbUart<'a> {
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         assert!(0 < tx_len);
         if self.tx_len.get() == 0 {
-            //sh::v!("TX<{}[{}]>", str::from_utf8(tx_data).unwrap(), tx_len);
             if tx_len <= tx_data.len() {
                 if false //tx_len == 1
                 {
@@ -266,7 +264,6 @@ impl<'a> uart::Transmit<'a> for ApbUart<'a> {
                     self.tx_int_get();
                     self.tx_int_set(true);
                     self.tx_buffer.map(|buf| {
-                        //sh::v!("({})", buf[0]);
                         self.reg.data.write(Data::DATA.val(buf[0].into()));
                         self.tx_position.set(1);
                     });
@@ -308,6 +305,9 @@ impl<'a> uart::Receive<'a> for ApbUart<'a> {
         rx_buffer: &'static mut [u8],
         _rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        
+        sh::v!("<TODO!>");
+
         //if self.rx_status.get() == USARTStateRX::Idle {
         //    if rx_len <= rx_buffer.len() {
         //        self.rx_buffer.put(Some(rx_buffer));

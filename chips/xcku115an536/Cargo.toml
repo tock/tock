@@ -12,7 +12,7 @@ edition.workspace = true
 semihosting = { version = "0.1.18", features = ["stdio"] }
 sh = { path = "../../capsules/sh" }
 
-
+an536_inst = { path = "an536_inst" }
 cortexr52 = { path = "../../arch/cortex-r52" }
 kernel = { path = "../../kernel" }
 arm-gic  = { version = ">= 0.9.1" }

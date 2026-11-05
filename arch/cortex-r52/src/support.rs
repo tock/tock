@@ -5,6 +5,7 @@
 //! Low-level support functions for Cortex-R52.
 
 use core::arch::asm;
+use core::ptr::self;
 use core::fmt::Write;
 use kernel::platform::chip::ThreadIdProvider;
 
@@ -15,15 +16,31 @@ pub fn nop() {
 }
 
 /// Wait-for-interrupt instruction to lower power consumption in idle loops.
+/// The PE will wake up REGARDLESS of A,I,F flags in PSTATE.
 #[inline(always)]
 pub fn wfi() {
     unsafe { asm!("wfi", options(nomem, nostack, preserves_flags)) }
 }
 
-/// Generic word irq is used but this is for FIQ!
+pub fn isb() {
+    unsafe { asm!("isb", options(nomem, nostack, preserves_flags)) }
+}
+
+// Generic word irq is used but this is for FIQ!
 pub unsafe fn irq_enable() {
     // Enable FIQ in PSTATE
     asm!("cpsie f", options(nomem, nostack));
+}
+
+// Generic word irq is used but this is for FIQ!
+pub unsafe fn is_irq_enabled() -> bool {
+    let mut cpsr: u32;
+    asm!(
+        "mrs {0}, cpsr",
+        out(reg) cpsr,
+        options(nomem, nostack, preserves_flags)
+    );
+    (cpsr & (1 << 6)) == 0
 }
 
 /// Generic word irq is used but this is for FIQ!
@@ -59,7 +76,8 @@ unsafe impl ThreadIdProvider for CortexR52ThreadIdProvider {
 /// it should do and I just adapted it from Cortex M; the PE runs in:
 ///  - USR mode for apps
 ///  - SVC mode for kernel
-///  - FIQ mode after an IRQ, but switch back very quickly to SVC
+///  - FIQ mode after an irq, but switch back very quickly to SVC
+///
 /// ...so it will always returns 0!
 pub fn is_interrupt_context() -> bool {
     use core::arch::asm;
@@ -88,4 +106,54 @@ pub unsafe fn print_state(_writer: &mut dyn Write) {
     //    ...
     //    p_mext
     //));
+}
+
+
+extern "C" {
+    static _estack: usize;
+}
+
+#[unsafe(no_mangle)]
+pub unsafe fn print_fault_frame() {
+
+    sh::p!("\n--- EXCEPTION ---");
+
+    let stack_top = core::ptr::addr_of!(_estack).cast::<u32>();
+    //sh::p!("estack: {:8X}  sp: {:8X}", stack_top as u32, sp);
+
+    for i in 0..7 {
+        let a : u32 = ptr::read(stack_top.sub(14 - i - 0));
+        let b : u32 = ptr::read(stack_top.sub(14 - i - 7));
+        sh::p!("      R{:2}: {:8X}      R{:2}: {:8X}", i, a, i + 7, b);
+    }
+
+    let cpsr: u32 = ptr::read(stack_top.sub(15));
+    let spsr: u32 = ptr::read(stack_top.sub(16));
+    sh::p!("     cpsr: {:8X}     spsr: {:8X}\n", cpsr, spsr);
+
+    let lr_svc: u32 = ptr::read(stack_top.sub(17));
+    let sp_svc: u32 = ptr::read(stack_top.sub(18));
+    let spsr_svc: u32 = ptr::read(stack_top.sub(19));
+    sh::p!("   lr_svc: {:8X}   sp_svc: {:8X}\n spsr_svc: {:8X}\n", lr_svc, sp_svc, spsr_svc);
+
+    let lr_usr: u32 = ptr::read(stack_top.sub(20));
+    let sp_usr: u32 = ptr::read(stack_top.sub(21));
+    sh::p!("   lr_usr: {:8X}   sp_usr: {:8X}\n", lr_usr, sp_usr);
+
+    for i in 8..11 {
+        let a : u32 = ptr::read(stack_top.sub(27 - i - 0));
+        let b : u32 = ptr::read(stack_top.sub(27 - i - 3));
+        sh::p!("  R{:2}_fiq: {:8X}  R{:2}_fiq: {:8X}", i, a, i + 3, b);
+    }
+
+    let sp_fiq: u32 = ptr::read(stack_top.sub(28));
+    let spsr_fiq: u32 = ptr::read(stack_top.sub(29));
+    sh::p!("   sp_fiq: {:8X} spsr_fiq: {:8X}", sp_fiq, spsr_fiq);
+
+    sh::p!("--- END ---\n");
+
+    asm!("bkpt");
+    loop {
+        asm!("wfe");
+    }
 }

@@ -12,9 +12,9 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
-//use kernel::debug;
+use kernel::debug;
 use kernel::utilities::io_write::IoWrite;
-use xcku::{an536_inst, uart};
+use xcku::uart;
 
 struct Writer {}
 
@@ -29,8 +29,8 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let mut uart = uart::ApbUart::new(an536_inst::BASE_UART2, an536_inst::FREQ_ACLK);
-        uart.enable(115_200, an536_inst::FREQ_ACLK);
+        let mut uart = uart::ApbUart::new(an536_inst::BASE_UART2);
+        uart.enable(115_200);
         uart.transmit_sync(buf);
         buf.len()
     }
@@ -42,22 +42,18 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    //use core::ptr::addr_of_mut;
+    use core::ptr::addr_of_mut;
 
-    //let writer = &mut *addr_of_mut!(WRITER);
+    let writer = &mut *addr_of_mut!(WRITER);
 
     sh::p!("##### Panic occurred: {:?} ####", pi);
-    /*
-        TODO need to adapt to new basee
 
-        debug::panic_print::<_, _, _>(
-            writer,
-            pi,
-            &cortexr52::support::nop,
-            // TODO: Pass PanicResources once the console stack is wired up.
-            crate::PANIC_RESOURCES.get(),
-        );
-    */
+    debug::panic_print_old(
+        writer,
+        pi,
+        &cortexr52::support::nop,
+        crate::PANIC_RESOURCES.get(),
+    );
 
     // Halt the core by looping with WFI to reduce power consumption.
     loop {

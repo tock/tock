@@ -6,7 +6,6 @@
 
 #![no_std]
 
-pub mod an536_inst;
 pub mod chip;
 pub mod dualtimer;
 pub mod uart;
