@@ -17,7 +17,9 @@ register_structs! {
         (0x008 => cpu_per_conf: ReadWrite<u32, CPU_PER_CONF::Register>),
         (0x00c => _reserved1),
         (0x010 => perip_clk_en0: ReadWrite<u32, PERIP_CLK_EN0::Register>),
-        (0x014 => _reserved3),
+        (0x014 => _reserved2),
+        (0x018 => perip_rst_en0: ReadWrite<u32, PERIP_CLK_EN0::Register>),
+        (0x01C => _reserved3),
         (0x058 => sysclk_config: ReadWrite<u32, SYSCLK_CONFIG::Register>),
         (0x05C => _reserved_unimplemented_yet),
         (0x1000 => @END),
@@ -25,7 +27,9 @@ register_structs! {
 }
 
 register_bitfields![u32,
+    /// Shared layout for `perip_clk_en0` and `perip_rst_en0`.
     PERIP_CLK_EN0 [
+        SPI2 OFFSET(6) NUMBITS(1) [],
         I2C_EXT0 OFFSET(7) NUMBITS(1) [],
         TIMERGROUP0 OFFSET(13) NUMBITS(1) []
     ],
@@ -128,5 +132,24 @@ impl SysReg {
 
     pub fn is_enabled_i2c0(&self) -> bool {
         self.registers.perip_clk_en0.is_set(PERIP_CLK_EN0::I2C_EXT0)
+    }
+
+    /// Enable the bus clock for the GP-SPI2 controller, and take it out of
+    /// reset.
+    ///
+    /// This must be called before [`crate::spi::Spi`] can be used.
+    pub fn enable_spi2(&self) {
+        self.registers
+            .perip_clk_en0
+            .modify(PERIP_CLK_EN0::SPI2::SET);
+        self.registers
+            .perip_rst_en0
+            .modify(PERIP_CLK_EN0::SPI2::CLEAR);
+    }
+
+    pub fn disable_spi2(&self) {
+        self.registers
+            .perip_clk_en0
+            .modify(PERIP_CLK_EN0::SPI2::CLEAR);
     }
 }

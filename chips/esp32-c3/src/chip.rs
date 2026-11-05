@@ -18,6 +18,7 @@ use crate::i2c;
 use crate::intc::{Intc, IntcRegisters};
 use crate::interrupts;
 use crate::rng;
+use crate::spi;
 use crate::sysreg;
 use crate::timg;
 use crate::usb_serial_jtag;
@@ -80,6 +81,7 @@ pub struct Esp32C3DefaultPeripherals<'a> {
     pub sysreg: sysreg::SysReg,
     pub rng: rng::Rng<'a>,
     pub i2c: i2c::I2c<'a>,
+    pub spi: spi::Spi<'a>,
 }
 
 impl Esp32C3DefaultPeripherals<'_> {
@@ -94,6 +96,7 @@ impl Esp32C3DefaultPeripherals<'_> {
             sysreg: sysreg::SysReg::new(),
             rng: rng::Rng::new(),
             i2c: i2c::I2c::new(I2C0_BASE),
+            spi: spi::Spi::new(spi::SPI2_BASE),
         }
     }
 
@@ -115,6 +118,7 @@ impl InterruptService for Esp32C3DefaultPeripherals<'_> {
             interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => self.gpio.handle_interrupt(),
 
             interrupts::IRQ_I2C_EXT0 => self.i2c.handle_interrupt(),
+            interrupts::IRQ_SPI2 => self.spi.handle_interrupt(),
 
             _ => return false,
         }
