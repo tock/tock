@@ -128,6 +128,27 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     }
 }
 
+impl<'a, T: Copy + Eq> RingBuffer<'a, T> {
+    /// Returns whether the specified value is contained in the ring buffer.
+    pub fn contains(&'a self, val: T) -> bool {
+        let (left, right) = self.as_slices();
+
+        if let Some(left) = left {
+            if left.contains(&val) {
+                return true;
+            }
+        }
+
+        if let Some(right) = right {
+            if right.contains(&val) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
 impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     fn has_elements(&self) -> bool {
         self.head != self.tail
