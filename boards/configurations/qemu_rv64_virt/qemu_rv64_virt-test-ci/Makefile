@@ -39,12 +39,15 @@ install: $(TARGET_PATH)/release/$(PLATFORM).bin
 
 qemu_rv64_virt_tutorial.bin: install
 
+# Flash image to boot. Overridden by the CI integration test harness.
+FLASH_FILE ?= qemu_rv64_virt_tutorial.bin
+
 # Run the kernel inside a qemu-riscv64-system "virt" machine type simulation
 .PHONY: run
-run: qemu_rv64_virt_tutorial.bin | install
+run: $(FLASH_FILE)
 	@echo
 	@echo -e "Running $$($(QEMU_CMD) --version | head -n1) with\n"\
-          " - kernel $(TARGET_PATH)/release/$(PLATFORM).elf"
+          " - flash image $(FLASH_FILE)"
 	@echo "To exit type C-a x"
 	@echo
-	$(QEMU_CMDLINE) -bios '$<'
+	$(QEMU_CMDLINE) -bios '$(FLASH_FILE)'

@@ -4,11 +4,12 @@
 
 [workspace]
 members = [
+    "build/sha256sum",
     "ci/board-runner",
+    "ci/integration-test",
     "ci/license-checker",
     "ci/litex-ci-runner",
     "ci/qemu-virt-ci-runner",
-    "build/sha256sum",
     "debugging-and-development/alert_codes",
     "debugging-and-development/usb/bulk-echo",
     "debugging-and-development/usb/bulk-test",
