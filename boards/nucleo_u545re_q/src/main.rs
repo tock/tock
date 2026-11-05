@@ -69,6 +69,11 @@ struct NucleoU545RE {
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
     crc: &'static capsules_extra::crc::CrcDriver<'static, stm32u545::crc::CRC<'static>>,
+    sha: &'static capsules_extra::sha256_driver::ShaDriver<
+        'static,
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        32,
+    >,
     hmac: &'static capsules_extra::hmac::HmacDriver<
         'static,
         stm32u545::hash::sha256::Sha256Adapter<'static>,
@@ -106,6 +111,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_extra::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
@@ -311,8 +317,7 @@ unsafe fn start() -> (
     // Board specific wiring
     set_pin_primary_functions(periphs);
 
-    // Create an adapter for the HASH peripheral
-    // In this way it is ensured that only one mode is used by the peripheral
+    // Create an adapter for the HASH peripheral.
     let sha256 = static_init!(
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         stm32u545::hash::sha256::Sha256Adapter::new(&periphs.hash)
@@ -328,6 +333,14 @@ unsafe fn start() -> (
 
     // Adapter receives callbacks from the peripheral
     let _ = periphs.hash.set_sha256_adapter(sha256);
+
+    // SHA and HMAC share the same HASH peripheral, so they must share one mutex.
+    let hash_mutex = components::driver_mutex::DriverMutexComponent::new(sha256).finalize(
+        components::driver_mutex_component_static!(
+            stm32u545::hash::sha256::Sha256Adapter<'static>,
+            2
+        ),
+    );
 
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -562,10 +575,21 @@ unsafe fn start() -> (
     )
     .finalize(components::gpio_component_static!(GpioHw));
 
+    let sha = components::sha::ShaDriverComponent::new(
+        board_kernel,
+        capsules_extra::sha256_driver::DRIVER_NUM,
+        hash_mutex,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::sha_driver_component_static!(
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        32
+    ));
+
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
-        sha256,
+        hash_mutex,
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(hmac_component_static!(
@@ -610,6 +634,7 @@ unsafe fn start() -> (
             dac,
             gpio,
             crc,
+            sha,
             hmac,
             aes: aes_driver,
             spi,

@@ -73,7 +73,7 @@ impl Md5Adapter<'_> {
 }
 
 impl<'a> digest::DigestData<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
-    fn set_data_client(&'a self, client: &'a dyn kernel::hil::digest::ClientData<MD5_DIGEST_LEN>) {
+    fn set_data_client(&self, client: &'a dyn kernel::hil::digest::ClientData<MD5_DIGEST_LEN>) {
         if let Some(HashClient::Split(_, hash, verify)) = self.client.get() {
             self.client
                 .set(HashClient::Split(Some(client), hash, verify));
@@ -114,7 +114,7 @@ impl<'a> digest::DigestData<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
 }
 
 impl<'a> digest::DigestHash<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
-    fn set_hash_client(&'a self, client: &'a dyn kernel::hil::digest::ClientHash<MD5_DIGEST_LEN>) {
+    fn set_hash_client(&self, client: &'a dyn kernel::hil::digest::ClientHash<MD5_DIGEST_LEN>) {
         if let Some(HashClient::Split(data, _, verify)) = self.client.get() {
             self.client
                 .set(HashClient::Split(data, Some(client), verify));
@@ -124,7 +124,7 @@ impl<'a> digest::DigestHash<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
     }
 
     fn run(
-        &'a self,
+        &self,
         digest: &'static mut [u8; MD5_DIGEST_LEN],
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8; MD5_DIGEST_LEN])> {
         self.hash.run(digest).map_err(|(e, buf)| {
@@ -138,10 +138,7 @@ impl<'a> digest::DigestHash<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
 }
 
 impl<'a> digest::DigestVerify<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
-    fn set_verify_client(
-        &'a self,
-        client: &'a dyn kernel::hil::digest::ClientVerify<MD5_DIGEST_LEN>,
-    ) {
+    fn set_verify_client(&self, client: &'a dyn kernel::hil::digest::ClientVerify<MD5_DIGEST_LEN>) {
         if let Some(HashClient::Split(data, hash, _)) = self.client.get() {
             self.client.set(HashClient::Split(data, hash, Some(client)));
         } else {
@@ -150,7 +147,7 @@ impl<'a> digest::DigestVerify<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
     }
 
     fn verify(
-        &'a self,
+        &self,
         compare: &'static mut [u8; MD5_DIGEST_LEN],
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8; MD5_DIGEST_LEN])> {
         self.hash.verify(compare).map_err(|(e, buf)| {
@@ -164,19 +161,19 @@ impl<'a> digest::DigestVerify<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
 }
 
 impl<'a> digest::Digest<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<MD5_DIGEST_LEN>) {
+    fn set_client(&self, client: &'a dyn digest::Client<MD5_DIGEST_LEN>) {
         self.client.set(HashClient::AllInOne(client));
     }
 }
 
 impl<'a> digest::DigestDataHash<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::ClientDataHash<MD5_DIGEST_LEN>) {
+    fn set_client(&self, client: &'a dyn digest::ClientDataHash<MD5_DIGEST_LEN>) {
         self.client.set(HashClient::DataHasher(client));
     }
 }
 
 impl<'a> digest::DigestDataVerify<'a, MD5_DIGEST_LEN> for Md5Adapter<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::ClientDataVerify<MD5_DIGEST_LEN>) {
+    fn set_client(&self, client: &'a dyn digest::ClientDataVerify<MD5_DIGEST_LEN>) {
         self.client.set(HashClient::DataVerifier(client));
     }
 }

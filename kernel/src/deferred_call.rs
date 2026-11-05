@@ -66,7 +66,7 @@
 //!     }
 //! }
 //! impl DeferredCallClient for SomeCapsule {
-//!     fn handle_deferred_call(&self) {
+//!     fn handle_deferred_call(&'static self) {
 //!         // Your action here
 //!     }
 //!
@@ -95,7 +95,7 @@ use core::marker::PhantomData;
 pub trait DeferredCallClient: Sized {
     /// Software interrupt function that is called when the deferred call is
     /// triggered.
-    fn handle_deferred_call(&self);
+    fn handle_deferred_call(&'static self);
 
     // This function should be implemented as
     // `self.deferred_call.register(&self);`.
@@ -115,8 +115,8 @@ struct DynDefCallRef<'a> {
     _lifetime: PhantomData<&'a ()>,
 }
 
-impl<'a> DynDefCallRef<'a> {
-    fn new<T: DeferredCallClient>(x: &'a T) -> Self {
+impl DynDefCallRef<'static> {
+    fn new<T: DeferredCallClient>(x: &'static T) -> Self {
         let data: *const () = core::ptr::from_ref(x).cast();
         Self {
             data,
