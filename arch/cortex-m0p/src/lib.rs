@@ -150,7 +150,7 @@ impl cortexm::CortexMVariant for CortexM0P {
     }
 
     #[inline]
-    unsafe fn print_cortexm_state(writer: &mut dyn Write) {
+    fn print_cortexm_state(writer: &mut dyn Write) {
         cortexm::print_cortexm_state(writer)
     }
 }

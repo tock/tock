@@ -59,6 +59,9 @@ unsafe fn semihost_command(operation: u32, parameter: u32) -> u32 {
     result
 }
 
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe fn semihost_command(_operation: u32, _parameter: u32) -> u32 {
     unimplemented!()
