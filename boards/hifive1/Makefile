@@ -45,3 +45,8 @@ init:
 
 run: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(QEMU_CMDLINE) -kernel $^ -device loader,file=hifive1-qemu.bin,addr=0x20040000
+
+# Same as `run`, but booting a full flash image from the `FLASH_FILE` variable
+.PHONY: run-flash-file
+run-flash-file:
+	$(QEMU_CMDLINE) -device loader,file='$(FLASH_FILE)',addr=0x20000000
