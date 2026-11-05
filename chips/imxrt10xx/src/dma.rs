@@ -44,15 +44,18 @@ use core::mem;
 use core::ops::Index;
 
 use crate::ccm;
+use kernel::utilities::registers::register_structs;
 
-/// DMA Multiplexer.
-///
-/// The multiplexer is used for routing between DMA channels and hardware
-/// peripherals. It's a detail of `DmaChannel`.
-#[repr(C)]
-struct DmaMultiplexerRegisters {
-    /// Channel configuration registers, one per channel.
-    chcfg: [ReadWrite<u32, ChannelConfiguration::Register>; 32],
+register_structs! {
+    /// DMA Multiplexer.
+    ///
+    /// The multiplexer is used for routing between DMA channels and hardware
+    /// peripherals. It's a detail of `DmaChannel`.
+    DmaMultiplexerRegisters {
+        /// Channel configuration registers, one per channel.
+        (0x000 => chcfg: [ReadWrite<u32, ChannelConfiguration::Register>; 32]),
+        (0x080 => @END),
+    }
 }
 
 const DMA_MUX_BASE: StaticRef<DmaMultiplexerRegisters> =
