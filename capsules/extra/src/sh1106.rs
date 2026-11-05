@@ -13,7 +13,7 @@
 
 use core::cell::Cell;
 
-use crate::ssd1306::Command;
+use crate::ssd13xx::Command;
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
