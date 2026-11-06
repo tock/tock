@@ -373,8 +373,54 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // is not set, hence the compiler has to assume the assembly
         // will issue arbitrary memory accesses (acting as a compiler
         // fence).
-        asm!(
-            "
+        //
+        // SAFETY: This complies with the asm safety requirements:
+        // - INPUTS:
+        //   - This uses `x10`, which is specified as an input from `state`.
+        // - CALLEE-SAVED registers:
+        //   - This uses `x3`, which is replaced before exiting asm.
+        //   - This uses `x4`, which is replaced before exiting asm.
+        //   - This uses `x8`, which is replaced before exiting asm.
+        //   - This uses `x9`, which is replaced before exiting asm.
+        // - OUTPUTS:
+        //   - This writes `x1` which is specified as an output.
+        //   - This writes `x5` which is specified as an output.
+        //   - This writes `x6` which is specified as an output.
+        //   - This writes `x7` which is specified as an output.
+        //   - This writes `x11` which is specified as an output.
+        //   - This writes `x12` which is specified as an output.
+        //   - This writes `x13` which is specified as an output.
+        //   - This writes `x14` which is specified as an output.
+        //   - This writes `x15` which is specified as an output.
+        //   - This writes `x16` which is specified as an output.
+        //   - This writes `x17` which is specified as an output.
+        //   - This writes `x18` which is specified as an output.
+        //   - This writes `x19` which is specified as an output.
+        //   - This writes `x20` which is specified as an output.
+        //   - This writes `x21` which is specified as an output.
+        //   - This writes `x22` which is specified as an output.
+        //   - This writes `x23` which is specified as an output.
+        //   - This writes `x24` which is specified as an output.
+        //   - This writes `x25` which is specified as an output.
+        //   - This writes `x26` which is specified as an output.
+        //   - This writes `x27` which is specified as an output.
+        //   - This writes `x28` which is specified as an output.
+        //   - This writes `x29` which is specified as an output.
+        //   - This writes `x30` which is specified as an output.
+        //   - This writes `x31` which is specified as an output.
+        // - Options set:
+        // - Options not set:
+        //   - nomem: We do read and write memory.
+        //   - nostack: We do use the stack.
+        //   - preserves_flags: no meaning on RISC-V
+        //   - pure: not required
+        //   - readonly: implied by nomem
+        //   - noreturn: we do fall-through
+        //   - att_syntax: not on riscv
+        //   - raw: not required
+        unsafe {
+            asm!(
+                "
     // Before switching to the app we need to save some kernel registers
     // to the kernel stack, specifically ones which we can't mark as
     // clobbered in the asm!() block. We then save the stack pointer in
@@ -748,27 +794,28 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     // Reset kernel stack pointer
     addi sp, sp, 8*({XLEN}/8)     // riscv32: sp = sp + (8*4), riscv64: sp = sp + (8*8)
-            ",
+                ",
 
-            // We pass the per-process state struct in a register we are allowed
-            // to clobber (not s0 or s1), but still fits into 3-bit register
-            // arguments of compressed load- & store-instructions.
-            in("x10") core::ptr::from_mut::<RiscvStoredState>(state),
+                // We pass the per-process state struct in a register we are allowed
+                // to clobber (not s0 or s1), but still fits into 3-bit register
+                // arguments of compressed load- & store-instructions.
+                in("x10") core::ptr::from_mut::<RiscvStoredState>(state),
 
-            // Clobber all registers which can be marked as clobbered, except
-            // for `a0` / `x10`. By making it retain the value of `&mut state`,
-            // which we need to stack manually anyway, we can avoid Rust/LLVM
-            // stacking it redundantly for us.
-            out("x1") _, out("x5") _, out("x6") _, out("x7") _, out("x11") _,
-            out("x12") _, out("x13") _, out("x14") _, out("x15") _, out("x16") _,
-            out("x17") _, out("x18") _, out("x19") _, out("x20") _, out("x21") _,
-            out("x22") _, out("x23") _, out("x24") _, out("x25") _, out("x26") _,
-            out("x27") _, out("x28") _, out("x29") _, out("x30") _, out("x31") _,
+                // Clobber all registers which can be marked as clobbered, except
+                // for `a0` / `x10`. By making it retain the value of `&mut state`,
+                // which we need to stack manually anyway, we can avoid Rust/LLVM
+                // stacking it redundantly for us.
+                out("x1") _, out("x5") _, out("x6") _, out("x7") _, out("x11") _,
+                out("x12") _, out("x13") _, out("x14") _, out("x15") _, out("x16") _,
+                out("x17") _, out("x18") _, out("x19") _, out("x20") _, out("x21") _,
+                out("x22") _, out("x23") _, out("x24") _, out("x25") _, out("x26") _,
+                out("x27") _, out("x28") _, out("x29") _, out("x30") _, out("x31") _,
 
-            // Constants for XLEN on rv32 and rv64 chips.
-            XLEN = const crate::XLEN,
-            XLEN_LOG2 = const crate::XLEN_LOG2,
-        );
+                // Constants for XLEN on rv32 and rv64 chips.
+                XLEN = const crate::XLEN,
+                XLEN_LOG2 = const crate::XLEN_LOG2,
+            );
+        }
 
         let ret = match mcause::Trap::from(state.mcause) {
             mcause::Trap::Interrupt(_intr) => {
