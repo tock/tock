@@ -1139,9 +1139,75 @@ dependencies = [
 ]
 
 [[package]]
+name = "nrf5340"
+version = "0.2.4-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "nrf5x",
+]
+
+[[package]]
+name = "nrf5340_net"
+version = "0.2.4-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "nrf5x",
+]
+
+[[package]]
+name = "nrf5340dk"
+version = "0.2.4-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "nrf5340",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "nrf5340dk-net"
+version = "0.2.4-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "nrf5340_net",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "nrf5340dk-ns"
+version = "0.2.4-dev"
+dependencies = [
+ "kernel",
+ "nrf5340",
+ "nrf5340dk",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "nrf5340dk-ns-secure"
+version = "0.2.4-dev"
+dependencies = [
+ "cortexm33",
+ "nrf5340",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "nrf5x"
 version = "0.2.4-dev"
 dependencies = [
+ "cortexm",
  "enum_primitive",
  "kernel",
  "nrf5x-unsafe",
@@ -1151,7 +1217,7 @@ dependencies = [
 name = "nrf5x-unsafe"
 version = "0.2.4-dev"
 dependencies = [
- "cortexm4f",
+ "cortexm",
  "kernel",
 ]
 

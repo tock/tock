@@ -113,8 +113,8 @@ impl AesEcbRegistersManager {
         //
         // # Safety
         //
-        // The architecture-provided version is correct for the nRF52.
-        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+        // The architecture-provided version is correct for nRF5x chips.
+        let fence = unsafe { cortexm::dma_fence::CortexMDmaFence::new() };
 
         // Create DmaSubSliceMut for the ECB data buffer. This ensures that we
         // can soundly share it with the DMA hardware.
@@ -147,8 +147,8 @@ impl AesEcbRegistersManager {
             //
             // # Safety
             //
-            // The architecture-provided version is correct for the nRF52.
-            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+            // The architecture-provided version is correct for nRF5x chips.
+            let fence = unsafe { cortexm::dma_fence::CortexMDmaFence::new() };
 
             // # Safety
             //

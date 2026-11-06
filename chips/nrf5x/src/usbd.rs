@@ -5,7 +5,7 @@
 //! Universal Serial Bus Device with EasyDMA (USBD)
 
 use core::cell::Cell;
-use cortexm4f::support::with_interrupts_disabled;
+use cortexm::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::StaticRef;
@@ -15,8 +15,6 @@ use kernel::utilities::registers::{
     Field, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
     register_structs,
 };
-
-use crate::power;
 
 // The following macros provide some diagnostics and panics(!)
 // while this module is experimental and should eventually be removed or
@@ -58,6 +56,12 @@ macro_rules! internal_err {
 }
 
 const NUM_ENDPOINTS: usize = 8;
+
+/// USB supply status, reported by POWER on nRF52 and USBREGULATOR on nRF5340.
+pub trait UsbPower {
+    fn is_vbus_present(&self) -> bool;
+    fn is_usb_power_ready(&self) -> bool;
+}
 
 register_structs! {
     pub ChipInfoRegisters {
@@ -704,25 +708,28 @@ impl Endpoint<'_> {
 
 pub struct Usbd<'a> {
     registers: StaticRef<UsbdRegisters<'a>>,
-    registers_chip_info: StaticRef<ChipInfoRegisters>,
-    registers_errata: StaticRef<UsbErrataRegisters>,
+    /// nRF52840 chip info and errata registers. `None` on nRF5340, where none
+    /// of the USBD errata handled here apply.
+    nrf52840: Option<(StaticRef<ChipInfoRegisters>, StaticRef<UsbErrataRegisters>)>,
     state: OptionalCell<UsbState>,
     dma_pending: Cell<bool>,
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
     descriptors: [Endpoint<'a>; NUM_ENDPOINTS],
-    power: OptionalCell<&'a power::Power<'a>>,
+    power: OptionalCell<&'a dyn UsbPower>,
+    /// The client asked to start and attach. Kept so that both happen when
+    /// VBUS appears after the request, or appears again after an unplug.
+    start_requested: Cell<bool>,
+    attach_requested: Cell<bool>,
 }
 
 impl<'a> Usbd<'a> {
     pub const fn new(
         registers: StaticRef<UsbdRegisters<'a>>,
-        registers_chip_info: StaticRef<ChipInfoRegisters>,
-        registers_errata: StaticRef<UsbErrataRegisters>,
+        nrf52840: Option<(StaticRef<ChipInfoRegisters>, StaticRef<UsbErrataRegisters>)>,
     ) -> Self {
         Usbd {
             registers,
-            registers_chip_info,
-            registers_errata,
+            nrf52840,
             client: OptionalCell::empty(),
             state: OptionalCell::new(UsbState::Disabled),
             dma_pending: Cell::new(false),
@@ -737,10 +744,12 @@ impl<'a> Usbd<'a> {
                 Endpoint::new(),
             ],
             power: OptionalCell::empty(),
+            start_requested: Cell::new(false),
+            attach_requested: Cell::new(false),
         }
     }
 
-    pub fn set_power_ref(&self, power: &'a power::Power<'a>) {
+    pub fn set_power_ref(&self, power: &'a dyn UsbPower) {
         self.power.set(power);
     }
 
@@ -754,33 +763,29 @@ impl<'a> Usbd<'a> {
     // for how the different errata apply.
 
     fn has_errata_166(&self) -> bool {
-        true
+        self.nrf52840.is_some()
     }
 
     fn has_errata_171(&self) -> bool {
-        true
+        self.nrf52840.is_some()
     }
 
     fn has_errata_187(&self) -> bool {
-        self.registers_chip_info
-            .chip_model
-            .matches_all(ChipModel::MODEL::NRF52840)
-            && match self
-                .registers_chip_info
-                .chip_revision
-                .read_as_enum(ChipRevision::REV)
-            {
-                Some(ChipRevision::REV::Value::REVB)
-                | Some(ChipRevision::REV::Value::REVC)
-                | Some(ChipRevision::REV::Value::REVD)
-                | Some(ChipRevision::REV::Value::REVE)
-                | Some(ChipRevision::REV::Value::REVF) => true,
-                Some(ChipRevision::REV::Value::REVA) | None => false,
-            }
+        self.nrf52840.is_some_and(|(chip_info, _)| {
+            chip_info.chip_model.matches_all(ChipModel::MODEL::NRF52840)
+                && match chip_info.chip_revision.read_as_enum(ChipRevision::REV) {
+                    Some(ChipRevision::REV::Value::REVB)
+                    | Some(ChipRevision::REV::Value::REVC)
+                    | Some(ChipRevision::REV::Value::REVD)
+                    | Some(ChipRevision::REV::Value::REVE)
+                    | Some(ChipRevision::REV::Value::REVF) => true,
+                    Some(ChipRevision::REV::Value::REVA) | None => false,
+                }
+        })
     }
 
     fn has_errata_199(&self) -> bool {
-        true
+        self.nrf52840.is_some()
     }
 
     /// ISO double buffering not functional
@@ -793,14 +798,14 @@ impl<'a> Usbd<'a> {
 
     /// USBD might not reach its active state.
     fn apply_errata_171(&self, val: u32) {
-        if self.has_errata_171() {
+        if let Some((_, errata)) = self.nrf52840.filter(|_| self.has_errata_171()) {
             with_interrupts_disabled(|| {
-                if self.registers_errata.reg_c00.get() == 0 {
-                    self.registers_errata.reg_c00.set(0x9375);
-                    self.registers_errata.reg_c14.set(val);
-                    self.registers_errata.reg_c00.set(0x9375);
+                if errata.reg_c00.get() == 0 {
+                    errata.reg_c00.set(0x9375);
+                    errata.reg_c14.set(val);
+                    errata.reg_c00.set(0x9375);
                 } else {
-                    self.registers_errata.reg_c14.set(val);
+                    errata.reg_c14.set(val);
                 }
             });
         }
@@ -808,14 +813,14 @@ impl<'a> Usbd<'a> {
 
     /// USB cannot be enabled
     fn apply_errata_187(&self, val: u32) {
-        if self.has_errata_187() {
+        if let Some((_, errata)) = self.nrf52840.filter(|_| self.has_errata_187()) {
             with_interrupts_disabled(|| {
-                if self.registers_errata.reg_c00.get() == 0 {
-                    self.registers_errata.reg_c00.set(0x9375);
-                    self.registers_errata.reg_d14.set(val);
-                    self.registers_errata.reg_c00.set(0x9375);
+                if errata.reg_c00.get() == 0 {
+                    errata.reg_c00.set(0x9375);
+                    errata.reg_d14.set(val);
+                    errata.reg_c00.set(0x9375);
                 } else {
-                    self.registers_errata.reg_d14.set(val);
+                    errata.reg_d14.set(val);
                 }
             });
         }
@@ -832,7 +837,7 @@ impl<'a> Usbd<'a> {
     }
 
     // Powers the USB PHY on
-    fn enable(&self) {
+    pub fn enable(&self) {
         if self.get_state() != UsbState::Disabled {
             internal_warn!("USBC is already enabled");
             return;
@@ -874,7 +879,7 @@ impl<'a> Usbd<'a> {
         self.registers.inten.set(inter);
     }
 
-    fn power_ready(&self) {
+    pub fn power_ready(&self) {
         match self.get_state() {
             UsbState::Disabled => {
                 self.enable();
@@ -883,20 +888,30 @@ impl<'a> Usbd<'a> {
             UsbState::Initialized => self.state.set(UsbState::PoweredOn),
             _ => (),
         }
+        // Finish a start and attach that had to wait for VBUS.
+        if self.start_requested.get() && self.get_state() == UsbState::PoweredOn {
+            self.start();
+            self.restore_endpoints();
+            if self.attach_requested.get() {
+                self.enable_pullup();
+            }
+        }
     }
 
     fn enable_pullup(&self) {
         debug_info!("enable_pullup() - State={:?}", self.get_state());
+        self.attach_requested.set(true);
         if self.get_state() == UsbState::Started {
             debug_info!("Enabling USB pullups");
             self.registers.usbpullup.write(UsbPullup::CONNECT::Enabled);
+            self.state.set(UsbState::Attached);
         }
-        self.state.set(UsbState::Attached);
         debug_info!("New state is {:?}", self.get_state());
     }
 
     fn disable_pullup(&self) {
         debug_info!("Disabling USB pullup - State={:?}", self.get_state());
+        self.attach_requested.set(false);
         self.registers.usbpullup.write(UsbPullup::CONNECT::Disabled);
         self.state.set(UsbState::Started);
         debug_info!("New state is {:?}", self.get_state());
@@ -913,37 +928,40 @@ impl<'a> Usbd<'a> {
         // If your chip isn't one of these, you will be alerted by these panics. You can disable
         // them but will likely need to add the relevant errata to this implementation (errata 104,
         // 154, 200).
-        let chip_model = self.registers_chip_info.chip_model.get();
-        if chip_model != u32::from(ChipModel::MODEL::NRF52840) {
-            panic!(
-                "USB was only tested on NRF52840. Your chip model is {}.",
-                chip_model
-            );
-        }
-        let chip_revision = self.registers_chip_info.chip_revision.extract();
-        match chip_revision.read_as_enum(ChipRevision::REV) {
-            Some(ChipRevision::REV::Value::REVA) | Some(ChipRevision::REV::Value::REVB) => {
+        if let Some((chip_info, _)) = self.nrf52840 {
+            let chip_model = chip_info.chip_model.get();
+            if chip_model != u32::from(ChipModel::MODEL::NRF52840) {
                 panic!(
-                    "Errata for USB on NRF52840 chips revisions A and B are not implemented. Your chip revision is {}.",
-                    chip_revision.get()
+                    "USB was only tested on NRF52840. Your chip model is {}.",
+                    chip_model
                 );
             }
-            Some(ChipRevision::REV::Value::REVC)
-            | Some(ChipRevision::REV::Value::REVD)
-            | Some(ChipRevision::REV::Value::REVE)
-            | Some(ChipRevision::REV::Value::REVF) => {
-                debug_info!(
-                    "Your chip is NRF52840 revision {}. The USB stack was tested on your chip :)",
-                    chip_revision.get()
-                );
-            }
-            None => {
-                internal_warn!(
-                    "Your chip is NRF52840 revision {} (unknown revision). Although this USB implementation should be compatible, your chip hasn't been tested.",
-                    chip_revision.get()
-                );
+            let chip_revision = chip_info.chip_revision.extract();
+            match chip_revision.read_as_enum(ChipRevision::REV) {
+                Some(ChipRevision::REV::Value::REVA) | Some(ChipRevision::REV::Value::REVB) => {
+                    panic!(
+                        "Errata for USB on NRF52840 chips revisions A and B are not implemented. Your chip revision is {}.",
+                        chip_revision.get()
+                    );
+                }
+                Some(ChipRevision::REV::Value::REVC)
+                | Some(ChipRevision::REV::Value::REVD)
+                | Some(ChipRevision::REV::Value::REVE)
+                | Some(ChipRevision::REV::Value::REVF) => {
+                    debug_info!(
+                        "Your chip is NRF52840 revision {}. The USB stack was tested on your chip :)",
+                        chip_revision.get()
+                    );
+                }
+                None => {
+                    internal_warn!(
+                        "Your chip is NRF52840 revision {} (unknown revision). Although this USB implementation should be compatible, your chip hasn't been tested.",
+                        chip_revision.get()
+                    );
+                }
             }
         }
+        self.start_requested.set(true);
         let power = self.power.unwrap_or_panic(); // Unwrap fail = failed to initialize power reference for USB
         if !power.is_vbus_present() {
             debug_info!("[!] VBUS power is not detected.");
@@ -954,7 +972,7 @@ impl<'a> Usbd<'a> {
         }
         if self.get_state() != UsbState::PoweredOn {
             debug_info!("Waiting for power regulators...");
-            while power.is_vbus_present() && power.is_usb_power_ready() {}
+            while power.is_vbus_present() && !power.is_usb_power_ready() {}
         }
         debug_info!("usbc::start() - subscribing to interrupts.");
         self.registers.intenset.write(
@@ -972,7 +990,10 @@ impl<'a> Usbd<'a> {
 
     fn stop(&self) {
         debug_info!("usbc::stop() - State={:?}", self.get_state());
-        if self.get_state() != UsbState::Started {
+        if !matches!(
+            self.get_state(),
+            UsbState::Started | UsbState::Attached | UsbState::Configured
+        ) {
             return;
         }
         self.ep_abort_all();
@@ -981,11 +1002,11 @@ impl<'a> Usbd<'a> {
         self.state.set(UsbState::PoweredOn);
     }
 
-    fn disable(&self) {
+    pub fn disable(&self) {
         debug_info!("usbc::disable() - State={:?}", self.get_state());
         self.stop();
         self.registers.enable.write(Usb::ENABLE::OFF);
-        self.state.set(UsbState::Initialized);
+        self.state.set(UsbState::Disabled);
         self.clear_pending_dma();
     }
 
@@ -1132,6 +1153,25 @@ impl<'a> Usbd<'a> {
             8 => unimplemented!("isochronous endpoint"),
             _ => unreachable!("unexisting endpoint"),
         });
+    }
+
+    /// Enable again the endpoints a client enabled while the USBD was off,
+    /// which did not reach the hardware.
+    fn restore_endpoints(&self) {
+        for endpoint in 1..NUM_ENDPOINTS {
+            match self.descriptors[endpoint].state.get() {
+                EndpointState::Bulk(transfer_type, Some(_), Some(_)) => {
+                    self.enable_in_out_endpoint_(transfer_type, endpoint)
+                }
+                EndpointState::Bulk(transfer_type, Some(_), None) => {
+                    self.enable_in_endpoint_(transfer_type, endpoint)
+                }
+                EndpointState::Bulk(transfer_type, None, Some(_)) => {
+                    self.enable_out_endpoint_(transfer_type, endpoint)
+                }
+                _ => (),
+            }
+        }
     }
 
     fn ep_abort_all(&self) {
@@ -1334,7 +1374,7 @@ impl<'a> Usbd<'a> {
         // ms), but then the EPDATA event on the very first IN transfer
         // immediately after the `client.bus_reset()` call below never occurs.
         for _ in 0..800000 {
-            cortexm4f::support::nop();
+            cortexm::support::nop();
         }
 
         // TODO: reset controller stack
@@ -1919,17 +1959,6 @@ impl<'a> Usbd<'a> {
             "out={}",
             core::str::from_utf8(&packet_hex[..(2 * size)]).unwrap()
         );
-    }
-}
-
-impl power::PowerClient for Usbd<'_> {
-    fn handle_power_event(&self, event: power::PowerEvent) {
-        match event {
-            power::PowerEvent::UsbPluggedIn => self.enable(),
-            power::PowerEvent::UsbPluggedOut => self.disable(),
-            power::PowerEvent::UsbPowerReady => self.power_ready(),
-            _ => internal_warn!("usbc::handle_power_event: unknown power event"),
-        }
     }
 }
 

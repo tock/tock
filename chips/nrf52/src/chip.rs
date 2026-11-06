@@ -70,6 +70,9 @@ const TWI1_BASE: StaticRef<crate::i2c::TwiRegisters> =
 const UICR_BASE: StaticRef<crate::uicr::UicrRegisters> =
     unsafe { StaticRef::new(0x10001200 as *const crate::uicr::UicrRegisters) };
 
+pub const UARTE0_BASE: StaticRef<crate::uarte::UarteRegisters> =
+    unsafe { StaticRef::new(0x40002000 as *const crate::uarte::UarteRegisters) };
+
 const RNG_BASE: StaticRef<crate::trng::RngRegisters> =
     unsafe { StaticRef::new(0x4000D000 as *const crate::trng::RngRegisters) };
 
@@ -139,13 +142,16 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
         // SAFETY: See function-level doc.
-        let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new_uarte0() };
+        let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new(UARTE0_BASE) };
+
+        // SAFETY: See function-level doc.
+        let radio_registers = unsafe { crate::ble_radio::RadioRegistersManager::new(RADIO_BASE) };
 
         Self {
             acomp: crate::acomp::Comparator::new(COMP_BASE),
             ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
             pwr_clk: crate::power::Power::new(POWER_BASE),
-            ble_radio: crate::ble_radio::Radio::new(RADIO_BASE),
+            ble_radio: crate::ble_radio::Radio::new(radio_registers, None),
             trng: crate::trng::Trng::new(RNG_BASE),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             temp: crate::temperature::Temp::new(TEMP_BASE),
@@ -157,7 +163,8 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             spim2: crate::spi::SPIM::new(SPIM2_BASE),
             twi1: crate::i2c::TWI::new(TWI1_BASE),
             // Default to 3.3 V VDD reference.
-            adc: crate::adc::Adc::new(SAADC_BASE, 3300),
+            // SAFETY: See function-level doc.
+            adc: crate::adc::Adc::new(SAADC_BASE, 3300, unsafe { crate::adc::AdcSample::new() }),
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
             clock: crate::clock::Clock::new(CLOCK_BASE),
             pwm0: crate::pwm::Pwm::new(PWM0_BASE),

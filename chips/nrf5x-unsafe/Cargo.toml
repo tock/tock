@@ -9,7 +9,7 @@ authors.workspace = true
 edition = "2024"
 
 [dependencies]
-cortexm4f = { path = "../../arch/cortex-m4f" }
+cortexm = { path = "../../arch/cortex-m" }
 kernel = { path = "../../kernel" }
 
 [lints]

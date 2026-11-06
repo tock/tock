@@ -30,6 +30,7 @@
 //! * Author: Jay Kickliter
 //! * Date: Sep 10, 2017
 
+use crate::pinmux::Pinmux;
 use core::cell::Cell;
 use core::cmp;
 use kernel::ErrorCode;
@@ -41,7 +42,6 @@ use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
-use nrf5x::pinmux::Pinmux;
 
 #[repr(C)]
 pub struct SpimRegisters {
