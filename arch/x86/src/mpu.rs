@@ -12,7 +12,7 @@ use crate::registers::tlb;
 use core::{cmp, fmt, mem};
 use kernel::platform::mpu::{MPU, Permissions, Region};
 use kernel::utilities::cells::MapCell;
-use tock_registers::LocalRegisterCopy;
+use tock_registers_v0::LocalRegisterCopy;
 
 use core::cell::RefCell;
 

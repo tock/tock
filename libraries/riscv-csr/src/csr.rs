@@ -6,9 +6,9 @@
 
 use core::marker::PhantomData;
 
-use tock_registers::fields::Field;
-use tock_registers::interfaces::{Readable, Writeable};
-use tock_registers::{RegisterLongName, UIntLike};
+use tock_registers_v0::fields::Field;
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::{RegisterLongName, UIntLike};
 
 pub const MINSTRETH: usize = 0xB82;
 pub const MINSTRET: usize = 0xB02;
