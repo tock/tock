@@ -42,6 +42,8 @@ Currently, capsules are divided into the following crates:
   This crate stricly prohibits use of any external (non-vendored and unvetted)
   dependencies.
 
+- [**`crypto`**](./crypto): capsules providing cryptographic functionality.
+
 - [**`extra`**](./extra): this crate contains all remaining capsules;
   specifically capsules which does not fit into any the above categories and
   which does not require any external dependencies.
