@@ -132,7 +132,6 @@ use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_send::MuxUdpSender;
 use capsules_extra::test::udp::MockUdp;
 use core::cell::Cell;
-use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
@@ -143,12 +142,9 @@ use kernel::static_init;
 
 pub const TEST_DELAY_MS: u32 = 2000;
 pub const TEST_LOOP: bool = false;
-static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN]; //Becomes payload of UDP packet
 
 const UDP_HDR_SIZE: usize = 8;
 const PAYLOAD_LEN: usize = components::udp_mux::MAX_PAYLOAD_LEN;
-static mut UDP_PAYLOAD1: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
-static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
 #[derive(Copy, Clone)]
 enum TestMode {
@@ -193,7 +189,10 @@ pub unsafe fn initialize_all(
         udp_recv_mux,
         port_table,
         mux_alarm,
-        &mut *addr_of_mut!(UDP_PAYLOAD1),
+        static_init!(
+            [u8; PAYLOAD_LEN - UDP_HDR_SIZE],
+            [0; PAYLOAD_LEN - UDP_HDR_SIZE]
+        ),
         1, //id
         3, //dst_port
         net_cap,
@@ -206,7 +205,10 @@ pub unsafe fn initialize_all(
         udp_recv_mux,
         port_table,
         mux_alarm,
-        &mut *addr_of_mut!(UDP_PAYLOAD2),
+        static_init!(
+            [u8; PAYLOAD_LEN - UDP_HDR_SIZE],
+            [0; PAYLOAD_LEN - UDP_HDR_SIZE]
+        ),
         2, //id
         4, //dst_port
         net_cap,

@@ -32,7 +32,6 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
-use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::flash;
@@ -71,9 +70,11 @@ pub unsafe fn run(
     alarm.setup();
 
     // Create and run test for log storage.
+    let buffer = static_init!([u8; 8], [0; 8]);
+    let dummy_buffer = static_init!([u8; 520], [0; 520]);
     let test = static_init!(
         LogTest<VirtualMuxAlarm<'static, Ast>>,
-        LogTest::new(log, &mut *addr_of_mut!(BUFFER), alarm, &TEST_OPS)
+        LogTest::new(log, buffer, dummy_buffer, alarm, &TEST_OPS)
     );
     log.set_read_client(test);
     log.set_append_client(test);
@@ -124,14 +125,10 @@ static TEST_OPS: [TestOp; 24] = [
     TestOp::Sync,
 ];
 
-// Buffer for reading from and writing to in the log tests.
-static mut BUFFER: [u8; 8] = [0; 8];
 // Length of buffer to actually use.
 const BUFFER_LEN: usize = 8;
 // Amount to shift value before adding to magic in order to fit in buffer.
 const VALUE_SHIFT: usize = 8 * (8 - BUFFER_LEN);
-// Dummy buffer for testing bad writes.
-static mut DUMMY_BUFFER: [u8; 520] = [0; 520];
 // Time to wait in between log operations.
 const WAIT_MS: u32 = 2;
 // Magic number to write to log storage (+ offset).
@@ -163,6 +160,8 @@ type Log = log::Log<'static, flashcalw::FLASHCALW>;
 struct LogTest<A: 'static + Alarm<'static>> {
     log: &'static Log,
     buffer: TakeCell<'static, [u8]>,
+    // Dummy buffer for testing bad writes.
+    dummy_buffer: TakeCell<'static, [u8]>,
     alarm: &'static A,
     state: Cell<TestState>,
     ops: &'static [TestOp],
@@ -176,6 +175,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
     fn new(
         log: &'static Log,
         buffer: &'static mut [u8],
+        dummy_buffer: &'static mut [u8],
         alarm: &'static A,
         ops: &'static [TestOp],
     ) -> LogTest<A> {
@@ -194,6 +194,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
         LogTest {
             log,
             buffer: TakeCell::new(buffer),
+            dummy_buffer: TakeCell::new(dummy_buffer),
             alarm,
             state: Cell::new(TestState::Operate),
             ops,
@@ -379,14 +380,19 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
             .unwrap();
 
         // Ensure failure if entry is too large to fit within a single flash page.
-        unsafe {
-            let dummy_buffer = &mut *addr_of_mut!(DUMMY_BUFFER);
-            let len = dummy_buffer.len();
-            match self.log.append(dummy_buffer, len) {
-                Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
-                Err((ecode, _original_buffer)) => assert_eq!(ecode, ErrorCode::SIZE),
-            }
-        }
+        self.dummy_buffer
+            .take()
+            .map(|dummy_buffer| {
+                let len = dummy_buffer.len();
+                match self.log.append(dummy_buffer, len) {
+                    Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
+                    Err((ecode, original_buffer)) => {
+                        self.dummy_buffer.replace(original_buffer);
+                        assert_eq!(ecode, ErrorCode::SIZE);
+                    }
+                }
+            })
+            .unwrap();
 
         // Make sure that append offset was not changed by failed writes.
         assert_eq!(original_offset, self.log.log_end());
