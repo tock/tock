@@ -16,7 +16,7 @@ check_overflow = "lazy"
 include = [ "src/collections{*.rs}" ]
 
 [dependencies]
-tock-registers = { features = ["register_types"], workspace = true }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
 flux-rs = { git  = "https://github.com/flux-rs/flux.git", rev = "dab48f5c3dd50b7764db5bb5dd139607bbb59d4e", optional = true }
