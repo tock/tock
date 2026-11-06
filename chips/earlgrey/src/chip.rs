@@ -8,10 +8,10 @@ use core::fmt::{Display, Write};
 use core::marker::PhantomData;
 use core::ptr::addr_of;
 use kernel::platform::chip::{Chip, InterruptService};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{CSR, mcause, mie::mie, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, TORUserPMP};
 use rv32i::syscall::SysCall;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 
 use crate::chip_config::EarlGreyConfig;
 use crate::interrupts;

@@ -6,8 +6,8 @@
 
 use kernel::ErrorCode;
 use kernel::hil::time::{Ticks, Ticks64};
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::ReadWrite;
 
 /// A RISC-V machine timer, read/written as a single 64-bit MMIO access.
 ///

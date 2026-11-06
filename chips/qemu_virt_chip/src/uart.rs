@@ -10,10 +10,10 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    Aliased, Field, LocalRegisterCopy, ReadOnly, ReadWrite, register_bitfields,
-};
+use tock_registers_v0::fields::Field;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{Aliased, ReadOnly, ReadWrite};
+use tock_registers_v0::{LocalRegisterCopy, register_bitfields};
 
 pub const UART_16550_BAUD_BASE: usize = 399193;
 

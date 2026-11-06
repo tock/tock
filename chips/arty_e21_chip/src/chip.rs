@@ -6,7 +6,7 @@ use core::fmt::Write;
 use kernel::debug;
 use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
-use kernel::utilities::registers::interfaces::Readable;
+use tock_registers_v0::interfaces::Readable;
 
 use crate::clint;
 use crate::interrupts;

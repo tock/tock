@@ -12,8 +12,9 @@ use enum_primitive::cast::FromPrimitive;
 use kernel::debug;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
 #[repr(C)]

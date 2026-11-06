@@ -22,10 +22,9 @@ use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::clocks;
 use crate::gpio::RPGpio;

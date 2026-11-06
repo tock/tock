@@ -17,8 +17,8 @@ use core::cell::Cell;
 use kernel::debug;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::utilities::cells::{MapCell, OptionalCell};
-use kernel::utilities::registers::register_bitfields;
 use tock_registers_v0::LocalRegisterCopy;
+use tock_registers_v0::register_bitfields;
 use x86::registers::io;
 
 /// PS/2 controller ports

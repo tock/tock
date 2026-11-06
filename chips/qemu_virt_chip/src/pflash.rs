@@ -15,8 +15,8 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::ReadWrite;
 
 /// Intel/Sharp command set command values understood by QEMU's `pflash-cfi01`
 /// model.

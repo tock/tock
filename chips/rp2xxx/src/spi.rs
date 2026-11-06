@@ -22,8 +22,9 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 // It is assumed that the state values are represented uniquely by a single bit
 const SPI_READ_IN_PROGRESS: u8 = 0b001;

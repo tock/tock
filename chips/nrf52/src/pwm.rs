@@ -7,8 +7,9 @@
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use tock_registers_v0::interfaces::Writeable;
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
 
 #[repr(C)]
 pub struct PwmRegisters {

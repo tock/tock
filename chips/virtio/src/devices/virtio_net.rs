@@ -9,7 +9,7 @@ use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClie
 use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
-use kernel::utilities::registers::{LocalRegisterCopy, register_bitfields};
+use tock_registers_v0::{LocalRegisterCopy, register_bitfields};
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::super::queues::split_queue::{

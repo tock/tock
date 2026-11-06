@@ -8,8 +8,9 @@
 //! crate is exposed.
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, WriteOnly, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// PMC

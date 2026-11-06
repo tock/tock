@@ -16,8 +16,8 @@
 
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::ReadWrite;
 
 /// Number of LEDs QEMU wires up to `LED0` for the an385/an386 machines
 /// (the `mps2-fpgaio` device's `num-leds` property default).

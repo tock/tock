@@ -32,8 +32,9 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
 #[repr(C)]

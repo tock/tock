@@ -5,9 +5,10 @@
 use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::hil;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 use kernel::utilities::{StaticRef, cells::OptionalCell};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// Control and data interface to SAR ADC

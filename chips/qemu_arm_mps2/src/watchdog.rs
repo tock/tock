@@ -29,8 +29,9 @@
 
 use kernel::platform::watchdog::WatchDog;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::{ReadWriteable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::SYSCLK_FRQ;
 

@@ -30,8 +30,9 @@ use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::math;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 /// Representation of an ADC channel on the SAM4L.
 #[derive(PartialEq)]

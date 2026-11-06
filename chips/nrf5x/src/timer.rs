@@ -31,8 +31,9 @@ use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Time};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
 
 #[repr(C)]
 pub struct TimerRegisters {

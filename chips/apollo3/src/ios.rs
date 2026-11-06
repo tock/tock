@@ -39,8 +39,9 @@ use kernel::hil::i2c::{self, Error, I2CHwSlaveClient, I2CSlave};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 const SRAM_ROBASE_OFFSET: u32 = 0x78;
 

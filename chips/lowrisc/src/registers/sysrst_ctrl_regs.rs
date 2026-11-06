@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/sysrst_ctrl/data/sysrst_ctrl.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of keyboard combos
 pub const SYSRST_CTRL_PARAM_NUM_COMBO: u32 = 4;
 /// Number of timer bits

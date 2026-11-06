@@ -17,6 +17,7 @@ name = "qemu_rv64_virt"
 path = "src/main.rs"
 
 [dependencies]
+tock-registers-v0.workspace = true
 components = { path = "../components" }
 rv64i = { path = "../../arch/rv64i" }
 kernel = { path = "../../kernel" }

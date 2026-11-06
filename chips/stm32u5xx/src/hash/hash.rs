@@ -24,7 +24,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::dma_slice::{DmaSubSlice, DmaSubSliceMut, DmaSubSliceMutImmut};
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut, SubSliceMutImmut};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 
 const LONG_HMAC_KEY_LEN: usize = 64;
 

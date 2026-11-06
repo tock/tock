@@ -9,11 +9,9 @@ use core::num::NonZeroUsize;
 use kernel::errorcode::ErrorCode;
 use kernel::hil::uart::{self, Configure, Receive, ReceiveClient, Transmit, TransmitClient};
 use kernel::utilities::StaticRef;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::io_write::IoWrite;
-use kernel::utilities::{
-    cells::{OptionalCell, TakeCell},
-    registers::interfaces::{ReadWriteable, Readable, Writeable},
-};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 
 pub struct Scb<'a> {
     registers: StaticRef<regs::ScbRegisters>,

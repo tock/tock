@@ -29,8 +29,8 @@
 
 use core::cell::Cell;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::ReadWrite;
 
 /// Write an 8-bit value to an I/O Port.
 /// Read an 8-bit value from an I/O port.

@@ -14,10 +14,10 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, hil, static_init};
 use rv32i::csr;
+use tock_registers_v0::interfaces::ReadWriteable;
 
 pub mod io;
 

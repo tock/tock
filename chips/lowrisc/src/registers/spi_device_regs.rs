@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/spi_device/data/spi_device.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of alerts
 pub const SPI_DEVICE_PARAM_NUM_ALERTS: u32 = 1;
 /// Register width

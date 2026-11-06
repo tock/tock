@@ -19,8 +19,9 @@
 
 use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::ReadWriteable;
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// Input multiplexing (INPUT MUX)

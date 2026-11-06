@@ -24,8 +24,9 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::peripheral_management::PeripheralManagement;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 /// Enum for enabling or disabling spurious event filtering (i.e. de-bouncing control).
 pub enum FilterMode {

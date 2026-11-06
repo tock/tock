@@ -8,7 +8,7 @@
 
 use core::fmt::Write;
 
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
 
 pub mod clic;
 pub mod csr;

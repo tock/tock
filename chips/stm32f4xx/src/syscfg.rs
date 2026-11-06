@@ -6,8 +6,9 @@ use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use tock_registers_v0::interfaces::ReadWriteable;
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
 
 use crate::clocks::{Stm32f4Clocks, phclk};
 use crate::gpio;

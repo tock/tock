@@ -21,10 +21,10 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
-};
+use tock_registers_v0::fields::FieldValue;
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet

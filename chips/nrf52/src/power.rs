@@ -6,10 +6,9 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 // Note: only the nrf52833+ have 9 banks, but we create all of them to avoid
 // gating this code by a feature.

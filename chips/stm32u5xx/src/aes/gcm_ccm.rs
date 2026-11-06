@@ -8,8 +8,8 @@ use crate::dma::Dma;
 use crate::dma::DmaPeripheral;
 use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AESKeySize, GCMClient};
-use kernel::utilities::registers::interfaces::Writeable;
 use stm32u5xx_unsafe::aes::{AesDmaBuffers, Interrupt};
+use tock_registers_v0::interfaces::Writeable;
 
 impl<K: AESKeySize> Aes<'_, K> {
     /// Configures and initiates a DMA-backed transfer for GCM or CCM modes.
