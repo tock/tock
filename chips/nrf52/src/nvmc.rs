@@ -15,45 +15,35 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct NvmcRegisters {
-    /// Ready flag
-    /// Address 0x400 - 0x404
-    pub ready: ReadOnly<u32, Ready::Register>,
-    _reserved0: [u32; 4],
-    /// Ready flag
-    /// Address 0x408 - 0x40C
-    pub ready_next: ReadOnly<u32, Ready::Register>,
-    /// Reserved
-    _reserved1: [u32; 59],
-    /// Configuration register
-    /// Address: 0x504 - 0x508
-    pub config: ReadWrite<u32, Configuration::Register>,
-    /// Register for erasing a page in Code area
-    /// Address: 0x508 - 0x50C
-    pub erasepage: ReadWrite<u32, ErasePage::Register>,
-    /// Register for erasing all non-volatile user memory
-    /// Address: 0x50C - 0x510
-    pub eraseall: ReadWrite<u32, EraseAll::Register>,
-    _reserved2: u32,
-    /// Register for erasing User Information Configuration Registers
-    /// Address: 0x514 - 0x518
-    pub eraseuicr: ReadWrite<u32, EraseUicr::Register>,
-    /// Reserved
-    _reserved3: [u32; 10],
-    /// Configuration register
-    /// Address: 0x540 - 0x544
-    pub icachecnf: ReadWrite<u32, CacheConfiguration::Register>,
-    /// Reserved
-    _reserved4: u32,
-    /// Configuration register
-    /// Address: 0x548 - 0x54c
-    pub ihit: ReadWrite<u32, CacheHit::Register>,
-    /// Configuration register
-    /// Address: 0x54C - 0x550
-    pub imiss: ReadWrite<u32, CacheMiss::Register>,
+register_structs! {
+    pub NvmcRegisters {
+        /// Ready flag
+        (0x000 => ready: ReadOnly<u32, Ready::Register>),
+        (0x004 => _reserved0),
+        /// Ready flag
+        (0x014 => ready_next: ReadOnly<u32, Ready::Register>),
+        (0x018 => _reserved1),
+        /// Configuration register
+        (0x104 => config: ReadWrite<u32, Configuration::Register>),
+        /// Register for erasing a page in Code area
+        (0x108 => erasepage: ReadWrite<u32, ErasePage::Register>),
+        /// Register for erasing all non-volatile user memory
+        (0x10C => eraseall: ReadWrite<u32, EraseAll::Register>),
+        (0x110 => _reserved2),
+        /// Register for erasing User Information Configuration Registers
+        (0x114 => eraseuicr: ReadWrite<u32, EraseUicr::Register>),
+        (0x118 => _reserved3),
+        /// Configuration register
+        (0x140 => icachecnf: ReadWrite<u32, CacheConfiguration::Register>),
+        (0x144 => _reserved4),
+        /// Configuration register
+        (0x148 => ihit: ReadWrite<u32, CacheHit::Register>),
+        /// Configuration register
+        (0x14C => imiss: ReadWrite<u32, CacheMiss::Register>),
+        (0x150 => @END),
+    }
 }
 
 register_bitfields! [u32,
