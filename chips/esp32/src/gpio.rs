@@ -171,6 +171,11 @@ impl<'a> GpioPin<'a> {
         }
     }
 
+    /// This pin's bit in the one-bit-per-pin GPIO registers (e.g. `OUT_W1TS`).
+    pub fn mask(&self) -> u32 {
+        self.pin.mask << self.pin.shift
+    }
+
     fn handle_interrupt(&self) {
         // Clear the interrupt
         self.registers.status_w1tc.set(1 << self.pin.shift);
