@@ -20,8 +20,9 @@ use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
-use lpc55s6x::chip::{Lpc55s69, Lpc55s69DefaultPeripheral};
+use lpc55s6x::chip::{Lpc55s69, Lpc55s69DefaultPeripherals};
 use lpc55s6x::clocks::{self, Clock, FrgClockSource, FrgId};
+use lpc55s6x::dma::{DMA0_CHANNELS, DMA1_CHANNELS, DmaDescriptorTable};
 use lpc55s6x::flexcomm::{self};
 use lpc55s6x::gpio::{GpioPin, LPCPin};
 use lpc55s6x::iocon::{Config, Function, Pull, Slew};
@@ -34,6 +35,7 @@ fn system_init() {
     let clocks = Clock::new();
     clocks.start_gpio_clocks();
     clocks.start_timer_clocks();
+    clocks.start_dma_clocks();
     Pmc::new().power_up_rng();
     clocks.start_rng_clock();
 }
@@ -41,10 +43,14 @@ fn system_init() {
 unsafe fn get_peripherals(
     clocks: &'static Clock,
     flexcomm: &'static flexcomm::Flexcomm,
-) -> &'static Lpc55s69DefaultPeripheral<'static> {
+) -> &'static Lpc55s69DefaultPeripherals<'static> {
+    let dma0_descriptors =
+        static_init!(DmaDescriptorTable<DMA0_CHANNELS>, DmaDescriptorTable::new());
+    let dma1_descriptors =
+        static_init!(DmaDescriptorTable<DMA1_CHANNELS>, DmaDescriptorTable::new());
     static_init!(
-        Lpc55s69DefaultPeripheral,
-        Lpc55s69DefaultPeripheral::new(clocks, flexcomm)
+        Lpc55s69DefaultPeripherals,
+        Lpc55s69DefaultPeripherals::new(clocks, flexcomm, dma0_descriptors, dma1_descriptors)
     )
 }
 
@@ -62,7 +68,7 @@ const NUM_PROCS: usize = 4;
 ///   channel, otherwise the kernel will hang when printing (e.g. on panic).
 const RTT_DEBUGGING: bool = false;
 
-type ChipHw = Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>;
+type ChipHw = Lpc55s69<'static, Lpc55s69DefaultPeripherals<'static>>;
 
 /// Static variables used by io.rs.
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
@@ -101,7 +107,7 @@ impl SyscallDriverLookup for Lpc55s69evk {
     }
 }
 
-impl KernelResources<Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>> for Lpc55s69evk {
+impl KernelResources<Lpc55s69<'static, Lpc55s69DefaultPeripherals<'static>>> for Lpc55s69evk {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -137,7 +143,7 @@ impl KernelResources<Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>> for 
 unsafe fn start() -> (
     &'static kernel::Kernel,
     Lpc55s69evk,
-    &'static Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>,
+    &'static Lpc55s69<'static, Lpc55s69DefaultPeripherals<'static>>,
 ) {
     ChipHw::init();
 
@@ -159,10 +165,12 @@ unsafe fn start() -> (
     let peripherals = get_peripherals(clock, flexcomm0);
 
     peripherals.pins.init();
+    peripherals.dma0.init();
+    peripherals.dma1.init();
     peripherals.init();
 
     let chip = static_init!(
-        Lpc55s69<Lpc55s69DefaultPeripheral>,
+        Lpc55s69<Lpc55s69DefaultPeripherals>,
         Lpc55s69::new(peripherals)
     );
 
