@@ -43,7 +43,7 @@ register_structs! {
         /// Peripheral reset control 1
         (0x104 => presetctrl1: ReadWrite<u32, PRESETCTRL1::Register>),
         /// Peripheral reset control 2
-        (0x108 => presetctrl2: ReadWrite<u32, PRESETCTRL2::Register>),
+        (0x108 => pub presetctrl2: ReadWrite<u32, PRESETCTRL2::Register>),
         (0x10C => _reserved4),
         /// Peripheral reset control set register
         (0x120 => presetctrlset_0: ReadWrite<u32, PRESETCTRLSET0::Register>),
@@ -67,7 +67,7 @@ register_structs! {
         /// AHB Clock control 1
         (0x204 => pub ahbclkctrl1: ReadWrite<u32, AHBCLKCTRL1::Register>),
         /// AHB Clock control 2
-        (0x208 => ahbclkctrl2: ReadWrite<u32, AHBCLKCTRL2::Register>),
+        (0x208 => pub ahbclkctrl2: ReadWrite<u32, AHBCLKCTRL2::Register>),
         (0x20C => _reserved8),
         /// Peripheral reset control register
         (0x220 => pub ahbclkctrlset_0: ReadWrite<u32, AHBCLKCTRLSET0::Register>),
@@ -356,7 +356,7 @@ NMISRC [
     /// Write a 1 to this bit to enable the Non-Maskable Interrupt (NMI) source selected
     NMIENCPU0 OFFSET(31) NUMBITS(1) []
 ],
-PRESETCTRL0 [
+pub PRESETCTRL0 [
     /// ROM reset control.
     ROM_RST OFFSET(1) NUMBITS(1) [
         /// Bloc is not reset.
@@ -634,7 +634,7 @@ PRESETCTRLX1 [
     /// Data array value
     DATA OFFSET(0) NUMBITS(32) []
 ],
-PRESETCTRL2 [
+pub PRESETCTRL2 [
     /// DMA1 reset control.
     DMA1_RST OFFSET(1) NUMBITS(1) [
         /// Bloc is not reset.
@@ -1081,7 +1081,7 @@ AHBCLKCTRLX1 [
     /// Data array value
     DATA OFFSET(0) NUMBITS(32) []
 ],
-AHBCLKCTRL2 [
+pub AHBCLKCTRL2 [
     /// Enables the clock for the DMA1.
     DMA1 OFFSET(1) NUMBITS(1) [
         /// Disable Clock.

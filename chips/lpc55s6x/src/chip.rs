@@ -13,6 +13,7 @@ use kernel::platform::chip::InterruptService;
 use crate::Lpc55ImageHeader;
 use crate::clocks::Clock;
 use crate::ctimer0::LPCTimer;
+use crate::dma::{DMA0_CHANNELS, DMA1_CHANNELS, Dma0, Dma1, DmaDescriptorTable};
 use crate::flexcomm::Flexcomm;
 use crate::gpio::Pins;
 use crate::interrupts;
@@ -112,14 +113,23 @@ pub struct Lpc55s69DefaultPeripheral<'a> {
     pub pins: Pins<'a>,
     pub ctimer0: LPCTimer<'a>,
     pub uart: Uart<'a>,
+    pub dma0: Dma0<'a>,
+    pub dma1: Dma1<'a>,
 }
 
 impl Lpc55s69DefaultPeripheral<'_> {
-    pub fn new(clocks: &'static Clock, flexcomm: &'static Flexcomm) -> Self {
+    pub fn new(
+        clocks: &'static Clock,
+        flexcomm: &'static Flexcomm,
+        dma0_descriptors: &'static DmaDescriptorTable<DMA0_CHANNELS>,
+        dma1_descriptors: &'static DmaDescriptorTable<DMA1_CHANNELS>,
+    ) -> Self {
         Self {
             pins: Pins::new(),
             ctimer0: LPCTimer::new(),
             uart: Uart::new_uart0(clocks, flexcomm),
+            dma0: Dma0::new_dma0(dma0_descriptors),
+            dma1: Dma1::new_dma1(dma1_descriptors),
         }
     }
 }
@@ -168,6 +178,15 @@ impl InterruptService for Lpc55s69DefaultPeripheral<'_> {
 
             interrupts::FLEXCOMM0 => {
                 self.uart.handle_interrupt();
+                true
+            }
+
+            interrupts::SDMA0 => {
+                self.dma0.handle_interrupt();
+                true
+            }
+            interrupts::SDMA1 => {
+                self.dma1.handle_interrupt();
                 true
             }
 
