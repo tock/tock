@@ -149,11 +149,8 @@ impl Lpc55s69DefaultPeripherals<'_> {
         }
     }
 
-    pub fn setup_circular_deps(&'static self) {
-        kernel::deferred_call::DeferredCallClient::register(&self.uart);
-    }
-
     pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.uart);
         kernel::deferred_call::DeferredCallClient::register(&self.rng);
     }
 }
