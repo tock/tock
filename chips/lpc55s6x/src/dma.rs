@@ -486,9 +486,12 @@ impl<'a> DmaChannel<'a> {
     /// - Every peripheral side is the Flexcomm FIFO register wired to the
     ///   request line of this channel, which the controller may access at any
     ///   time during the transfer.
-    /// - `items` is from 1 to [`MAX_TRANSFERS`]. `XFERCOUNT` holds
-    ///   `items - 1` in 10 bits, so any other value programs a different count
-    ///   than the one the buffers were checked against.
+    /// - `items` is from 1 to [`MAX_TRANSFERS`]. The hardware stores `items - 1`
+    ///   in the 10-bit `XFERCOUNT` field (UM11126, Section 22.6.18), and the
+    ///   value is masked to fit: `items == 0` wraps to 1024 transfers and
+    ///   `items > 1024` truncates. Either way the controller would move a
+    ///   different number of items than the buffer bounds were checked for, and
+    ///   could read or write outside the buffers.
     /// - Both addresses are aligned to `width`, as the controller requires
     ///   (UM11126, Section 22.5.7).
     /// - `self.len` is already non-zero, so that no other transfer can be
