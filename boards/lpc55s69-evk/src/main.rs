@@ -27,6 +27,7 @@ use lpc55s6x::flexcomm::{self};
 use lpc55s6x::gpio::{GpioPin, LPCPin};
 use lpc55s6x::iocon::{Config, Function, Pull, Slew};
 use lpc55s6x::pint::Edge;
+use lpc55s6x::pmc::Pmc;
 
 kernel::stack_size! {0x4000}
 
@@ -35,6 +36,8 @@ fn system_init() {
     clocks.start_gpio_clocks();
     clocks.start_timer_clocks();
     clocks.start_dma_clocks();
+    Pmc::new().power_up_rng();
+    clocks.start_rng_clock();
 }
 
 unsafe fn get_peripherals(
@@ -57,6 +60,14 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+/// Whether to send debug and panic output over UART or Segger RTT.
+///
+/// - Set to false to use UART.
+/// - Set to true to use Segger RTT. Note that RTT output blocks once its
+///   buffer is full, so a debugger must be attached and reading the RTT
+///   channel, otherwise the kernel will hang when printing (e.g. on panic).
+const RTT_DEBUGGING: bool = false;
+
 type ChipHw = Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>;
 
 /// Static variables used by io.rs.
@@ -74,6 +85,7 @@ pub struct Lpc55s69evk {
     gpio: &'static capsules_core::gpio::GPIO<'static, lpc55s6x::gpio::GpioPin<'static>>,
     led: &'static capsules_core::led::LedDriver<'static, LedLow<'static, GpioPin<'static>>, 1>,
     button: &'static capsules_core::button::Button<'static, lpc55s6x::gpio::GpioPin<'static>>,
+    rng: &'static components::rng::RngComponentType<lpc55s6x::rng::RNG<'static>>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
 }
@@ -89,6 +101,7 @@ impl SyscallDriverLookup for Lpc55s69evk {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
     }
@@ -154,6 +167,7 @@ unsafe fn start() -> (
     peripherals.pins.init();
     peripherals.dma0.init();
     peripherals.dma1.init();
+    peripherals.init();
 
     let chip = static_init!(
         Lpc55s69<Lpc55s69DefaultPeripheral>,
@@ -293,6 +307,14 @@ unsafe fn start() -> (
         LedLow::new(led_pin)
     ));
 
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        &peripherals.rng,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::rng_component_static!(lpc55s6x::rng::RNG));
+
     const INPUTMUX_SRC: u8 = 41;
 
     peripherals
@@ -343,10 +365,12 @@ unsafe fn start() -> (
 
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
 
-    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
-        .finalize(components::segger_rtt_memory_component_static!());
+    if RTT_DEBUGGING {
+        let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+            .finalize(components::segger_rtt_memory_component_static!());
 
-    (*addr_of_mut!(io::WRITER)).set_rtt_memory(rtt_memory.rtt_memory);
+        (*addr_of_mut!(io::WRITER)).set_rtt_memory(rtt_memory.rtt_memory);
+    }
 
     let uart_mux = components::console::UartMuxComponent::new(uart, 115200)
         .finalize(components::uart_mux_component_static!());
@@ -402,6 +426,7 @@ unsafe fn start() -> (
         gpio,
         button,
         led,
+        rng,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(12_000_000),
     };
@@ -440,6 +465,13 @@ unsafe fn start() -> (
         kernel::debug!("{:?}", err);
     });
     kernel::debug!("LPC55S69-EVK Booting (Fixed Version)");
+
+    // Initialize the RNG after the console is up, so that a failure is
+    // reported instead of silently stalling boot.
+    if let Err(e) = peripherals.rng.init() {
+        kernel::debug!("RNG initialization failed: {:?}", e);
+    }
+
     (board_kernel, lpc55, chip)
 }
 

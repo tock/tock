@@ -74,7 +74,7 @@ register_structs! {
         /// Peripheral reset control register
         (0x224 => ahbclkctrlset_1: ReadWrite<u32, AHBCLKCTRLSET1::Register>),
         /// Peripheral reset control register
-        (0x228 => ahbclkctrlset_2: ReadWrite<u32, AHBCLKCTRLSET2::Register>),
+        (0x228 => pub ahbclkctrlset_2: ReadWrite<u32, AHBCLKCTRLSET2::Register>),
         (0x22C => _reserved9),
         /// Peripheral reset control register
         (0x240 => ahbclkctrlclr_0: ReadWrite<u32, AHBCLKCTRLCLR0::Register>),

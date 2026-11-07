@@ -17,6 +17,7 @@ use crate::dma::{DMA0_CHANNELS, DMA1_CHANNELS, Dma0, Dma1, DmaDescriptorTable};
 use crate::flexcomm::Flexcomm;
 use crate::gpio::Pins;
 use crate::interrupts;
+use crate::rng::RNG;
 use crate::uart::Uart;
 
 #[repr(u8)]
@@ -115,6 +116,7 @@ pub struct Lpc55s69DefaultPeripheral<'a> {
     pub uart: Uart<'a>,
     pub dma0: Dma0<'a>,
     pub dma1: Dma1<'a>,
+    pub rng: RNG<'a>,
 }
 
 impl Lpc55s69DefaultPeripheral<'_> {
@@ -130,7 +132,12 @@ impl Lpc55s69DefaultPeripheral<'_> {
             uart: Uart::new_uart0(clocks, flexcomm),
             dma0: Dma0::new_dma0(dma0_descriptors),
             dma1: Dma1::new_dma1(dma1_descriptors),
+            rng: RNG::new(),
         }
+    }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.rng);
     }
 }
 

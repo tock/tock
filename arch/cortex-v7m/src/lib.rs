@@ -666,16 +666,17 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     ldr r1, =0xE000ED14       // SCB CCR register address
     ldr r2, [r1, #0]          // CCR
     str r2, [r0, #0]
+    // Read MMFAR and BFAR first: the CFSR clear resets MMARVALID and BFARVALID.
+    ldr r2, [r1, #32]         // MMFAR
+    str r2, [r0, #12]
+    ldr r2, [r1, #36]         // BFAR
+    str r2, [r0, #16]
     ldr r2, [r1, #20]         // CFSR
     str r2, [r0, #4]
     str r2, [r1, #20]         // Clear saved bits of CFSR (write 1 to clear)
     ldr r2, [r1, #24]         // HFSR
     str r2, [r0, #8]
     str r2, [r1, #24]         // Clear saved bits of HFSR (write 1 to clear)
-    ldr r2, [r1, #32]         // MMFAR
-    str r2, [r0, #12]
-    ldr r2, [r1, #36]         // BFAR
-    str r2, [r0, #16]
 
     ldr r0, ={app_hard_fault}// Global variable address
     mov r1, #1               // r1 = 1

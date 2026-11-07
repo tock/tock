@@ -119,22 +119,24 @@ The runner passes the following extra flags to QEMU via the `QEMU_CMDLINE_EXTRA`
 make variable:
 
 ```
--qmp tcp:localhost:44444,server
--chardev socket,id=serial0,host=localhost,port=44445,server=on
+-qmp unix:<dir>/qmp.sock,server=on
+-chardev socket,id=serial0,path=<dir>/serial.sock,server=on
 -serial chardev:serial0
 -S
 ```
 
-| Flag                                 | Purpose                                                       |
-|--------------------------------------|---------------------------------------------------------------|
-| `-qmp tcp:localhost:44444,server`    | Opens a [QMP] JSON control socket                             |
-| `-chardev socket,...,port=44445,...` | Exposes the UART as a TCP socket for both reading and writing |
-| `-serial chardev:serial0`            | Routes the first serial port to that socket                   |
-| `-S`                                 | Starts the CPU paused; the runner sends `cont` when ready     |
+where `<dir>` is a fresh temporary directory created for each QEMU instance.
+
+| Flag                                      | Purpose                                                        |
+|-------------------------------------------|----------------------------------------------------------------|
+| `-qmp unix:<dir>/qmp.sock,server=on`      | Opens a [QMP] JSON control socket                              |
+| `-chardev socket,...,path=<dir>/serial...`| Exposes the UART as a UNIX socket for both reading and writing |
+| `-serial chardev:serial0`                 | Routes the first serial port to that socket                    |
+| `-S`                                      | Starts the CPU paused; the runner sends `cont` when ready      |
 
 **Important:** QEMU will not send the QMP greeting until *all* chardev
-clients are connected.  The runner therefore connects to both port 44444 and
-port 44445 before attempting the QMP handshake.
+clients are connected.  The runner therefore connects to both the QMP and the
+serial socket before attempting the QMP handshake.
 
 [libtock-c]: https://github.com/tock/libtock-c
 [tockloader]: https://github.com/tock/tockloader
