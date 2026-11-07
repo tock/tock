@@ -13,6 +13,7 @@ edition = "2024"
 [dependencies]
 cortexm33 = { path = "../../arch/cortex-m33" }
 kernel = { path = "../../kernel" }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 
 [features]
 

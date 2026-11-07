@@ -30,14 +30,11 @@
 //! - Channel priorities may come into play when preferring DMA channels. See the reference manual for more
 //!   information on channel priorities, and how the DMA controller use priorities for scheduling.
 
-use kernel::utilities::{
-    StaticRef,
-    cells::OptionalCell,
-    registers::{
-        self, ReadOnly, ReadWrite, WriteOnly,
-        interfaces::{ReadWriteable, Readable, Writeable},
-    },
-};
+use kernel::utilities::StaticRef;
+use kernel::utilities::cells::OptionalCell;
+use tock_registers_v0 as registers;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 use core::cell::Cell;
 use core::mem;

@@ -12,9 +12,9 @@ use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::hil::time::ConvertTicks;
 use kernel::hil::{gpio, time};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::utilities::registers::register_bitfields;
 use kernel::{ErrorCode, utilities::cells::OptionalCell};
 use task::GspiTask;
+use tock_registers_v0::register_bitfields;
 
 /// Max packet size is max payload size + 1 command/status word
 pub const MAX_PACKET_SIZE: usize = MAX_PAYLOAD_SIZE + CMD_SIZE;

@@ -22,9 +22,10 @@ use kernel::ErrorCode;
 use kernel::hil::uart;
 use kernel::utilities::StaticRef;
 use kernel::utilities::io_write::IoWrite;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use nrf5x::gpio::Pin;
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 pub const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40002000 as *const UartRegisters) };

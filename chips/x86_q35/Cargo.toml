@@ -11,7 +11,7 @@ edition.workspace = true
 [dependencies]
 kernel = { path = "../../kernel" }
 x86 = { path = "../../arch/x86" }
-tock-registers-v0.workspace = true
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 tock-cells = { path = "../../libraries/tock-cells" }
 
 [lints]

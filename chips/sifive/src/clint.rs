@@ -11,9 +11,10 @@ use kernel::ErrorCode;
 use kernel::hil::time::{self, Alarm, ConvertTicks, Frequency, Ticks, Ticks64, Time};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, register_structs};
 use rv32i::machine_timer::MachineTimer;
+use tock_registers_v0::interfaces::Writeable;
+use tock_registers_v0::register_structs;
+use tock_registers_v0::registers::ReadWrite;
 
 register_structs! {
     pub ClintRegisters {

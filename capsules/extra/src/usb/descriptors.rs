@@ -11,8 +11,8 @@ use core::cmp::min;
 use core::fmt;
 
 use kernel::hil::usb::TransferType;
-use kernel::utilities::registers::InMemoryRegister;
-use kernel::utilities::registers::interfaces::Readable;
+use tock_registers_v0::interfaces::Readable;
+use tock_registers_v0::registers::InMemoryRegister;
 
 // On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For
 // now we apply these constraints on all platforms.

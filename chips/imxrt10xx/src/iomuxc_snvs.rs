@@ -4,8 +4,9 @@
 
 use crate::iomuxc::{DriveStrength, MuxMode, OpenDrainEn, PullKeepEn, PullUpDown, Sion, Speed};
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::ReadWrite;
 
 /// IOMUX SNVS Controller Module
 #[repr(C)]

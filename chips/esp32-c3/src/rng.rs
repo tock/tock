@@ -7,8 +7,9 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::{self, Client32, Continue, Entropy32};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::{ReadOnly, register_structs};
+use tock_registers_v0::interfaces::Readable;
+use tock_registers_v0::register_structs;
+use tock_registers_v0::registers::ReadOnly;
 
 const RNG_DATA_REG: StaticRef<RngRegister> =
     unsafe { StaticRef::new(0x6002_60B0 as *const RngRegister) };

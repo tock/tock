@@ -28,8 +28,8 @@ use kernel::hil::i2c;
 use kernel::hil::sensors;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::register_bitfields;
 use kernel::{ErrorCode, ProcessId};
+use tock_registers_v0::register_bitfields;
 
 use capsules_core::driver;
 

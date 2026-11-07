@@ -15,10 +15,9 @@ use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES_BLOCK_SIZE, AES128, AES128_KEY_SIZE};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 const MAX_LENGTH: usize = 128;
 

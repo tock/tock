@@ -13,7 +13,7 @@ use kernel::hil::i2c;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 
 pub use crate::registers::i2c_regs::I2cRegisters;
 

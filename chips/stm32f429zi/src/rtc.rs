@@ -23,9 +23,10 @@ use kernel::hil::date_time::{DateTimeClient, DateTimeValues, DayOfWeek, Month};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
 use stm32f4xx::clocks::{Stm32f4Clocks, phclk};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::ReadWrite;
 
 /// Register block to control RTC
 #[repr(C)]

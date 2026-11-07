@@ -14,7 +14,7 @@ use crate::clocks::syscon::{AHBCLKCTRL2, PRESETCTRL2, SYSCON_BASE};
 
 use self::syscon::SysconRegisters;
 use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
-use kernel::utilities::registers::interfaces::ReadWriteable;
+use tock_registers_v0::interfaces::ReadWriteable;
 
 pub enum Peripheral {
     Flexcomm0,

@@ -10,7 +10,7 @@ use core::ops::{Range, RangeFrom};
 
 use crate::ErrorCode;
 use crate::processbuffer::WriteableProcessSlice;
-use crate::utilities::registers::{LocalRegisterCopy, register_bitfields};
+use tock_registers_v0::{LocalRegisterCopy, register_bitfields};
 
 /// A wrapper around a [`WriteableProcessSlice`] for streaming data from the
 /// kernel to a userspace process.

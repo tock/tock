@@ -33,8 +33,9 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::{ReadOnly, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::Readable;
+use tock_registers_v0::registers::ReadOnly;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 /// Size of a [`SpiFlash`] page, which is one erasable sector of the flash.
 pub const PAGE_SIZE: usize = 4096;

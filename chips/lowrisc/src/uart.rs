@@ -13,7 +13,7 @@ use kernel::hil::uart;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 
 use crate::registers::uart_regs::UartRegisters;
 use crate::registers::uart_regs::{CTRL, FIFO_CTRL, INTR, STATUS, TIMEOUT_CTRL, WDATA};

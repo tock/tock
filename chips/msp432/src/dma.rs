@@ -7,10 +7,9 @@
 use core::cell::Cell;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    InMemoryRegister, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{InMemoryRegister, ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 const DMA_BASE: StaticRef<DmaRegisters> =
     unsafe { StaticRef::new(0x4000_E000 as *const DmaRegisters) };

@@ -13,8 +13,8 @@ use kernel::hil::i2c;
 use kernel::hil::sensors::{NineDof, NineDofClient};
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::LocalRegisterCopy;
-use kernel::utilities::registers::register_bitfields;
+use tock_registers_v0::LocalRegisterCopy;
+use tock_registers_v0::register_bitfields;
 
 /// The ICM-42670-P's I2C address depends on the level its `AP_AD0` pin is
 /// wired to: `0x68` when low (the common/default wiring), `0x69` when

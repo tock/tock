@@ -27,12 +27,12 @@ use kernel::hil::sensors;
 use kernel::hil::sensors::{NineDof, NineDofClient};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::LocalRegisterCopy;
 use kernel::{ErrorCode, ProcessId};
+use tock_registers_v0::LocalRegisterCopy;
 
 pub const DRIVER_NUM: usize = driver::NUM::Lsm6dsoxtr as usize;
 
-use kernel::utilities::registers::register_bitfields;
+use tock_registers_v0::register_bitfields;
 
 pub const CHIP_ID: u8 = 0x6C;
 pub const ACCELEROMETER_BASE_ADDRESS: u8 = 0x6A;
