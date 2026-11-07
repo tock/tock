@@ -132,16 +132,12 @@ impl Lpc55s69DefaultPeripheral<'_> {
             uart: Uart::new_uart0(clocks, flexcomm),
             dma0: Dma0::new_dma0(dma0_descriptors),
             dma1: Dma1::new_dma1(dma1_descriptors),
-        }
-    }
-
-    pub fn setup_circular_deps(&'static self) {
-        kernel::deferred_call::DeferredCallClient::register(&self.uart);
             rng: RNG::new(),
         }
     }
 
     pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.uart);
         kernel::deferred_call::DeferredCallClient::register(&self.rng);
     }
 }
