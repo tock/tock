@@ -12,9 +12,10 @@
 //!
 //! Peripheral request lines are hardwired to channels (UM11126, Tables 428 and
 //! 429), so a peripheral transfer must use the channel listed in
-//! [`DmaRequest`]. Memory-to-memory transfers work on any channel because they
-//! do not use the request line; channels 1 and 20 of DMA0 and channel 1 of DMA1
-//! have no request connected.
+//! [`DmaRequest`]. Memory-to-memory transfers do not use the request line, so
+//! they can use a channel that has one; channel 1 of each controller has no
+//! request connected. Channel 20 of DMA0 has no request either, but its
+//! registers are listed as reserved (UM11126, Table 436), so do not use it.
 //!
 //! ## Usage
 //!
@@ -221,9 +222,11 @@ struct DmaDescriptor {
     /// Transfer configuration. Reserved on the head descriptor of a channel,
     /// which takes it from the `XFERCFG` register instead.
     xfercfg: InMemoryRegister<u32, XFERCFG::Register>,
-    /// Address of the last source item.
+    /// Address of the last source item, or the data register of a fixed
+    /// peripheral source (UM11126, Section 22.5.2).
     src_end: InMemoryRegister<u32>,
-    /// Address of the last destination item.
+    /// Address of the last destination item, or the data register of a fixed
+    /// peripheral destination.
     dst_end: InMemoryRegister<u32>,
     /// Link to the next descriptor. Unused without `XFERCFG::RELOAD`.
     next: InMemoryRegister<u32>,
@@ -468,7 +471,35 @@ impl<'a> DmaChannel<'a> {
     /// The descriptor holds the address of the *last* item on each incrementing
     /// side (UM11126, Section 22.5.2). On a fixed peripheral side the address
     /// is the data register itself.
-    fn start(&self, setup: TransferSetup) {
+    ///
+    /// ### Safety
+    ///
+    /// Once started, the controller reads and writes the addresses in `setup`
+    /// as another bus master, outside the control of the compiler. The caller
+    /// must ensure that:
+    ///
+    /// - Every memory side covers a buffer owned by this channel: the
+    ///   `items * width` bytes ending at `src_end` (or `dst_end`) lie inside the
+    ///   buffer held in `self.source` (or `self.destination`). The channel holds
+    ///   the buffers until [`DmaChannel::halt`] or the transfer interrupt hands
+    ///   them back, so no other code can access them while the controller does.
+    /// - Every peripheral side is the Flexcomm FIFO register wired to the
+    ///   request line of this channel, which the controller may access at any
+    ///   time during the transfer.
+    /// - `items` is from 1 to [`MAX_TRANSFERS`]. `XFERCOUNT` holds
+    ///   `items - 1` in 10 bits, so any other value programs a different count
+    ///   than the one the buffers were checked against.
+    /// - Both addresses are aligned to `width`, as the controller requires
+    ///   (UM11126, Section 22.5.7).
+    /// - `self.len` is already non-zero, so that no other transfer can be
+    ///   started on this channel and rewrite the descriptor while the
+    ///   controller uses it.
+    /// - The controller is enabled with `SRAMBASE` pointing at the descriptor
+    ///   table that holds `self.descriptor`, as done by [`Dma::init`].
+    ///
+    /// [`DmaChannel::validate`] checks the size, alignment, busy and enable
+    /// conditions.
+    unsafe fn start(&self, setup: TransferSetup) {
         let width = match setup.width {
             DmaWidth::Bits8 => XFERCFG::WIDTH::Bit8,
             DmaWidth::Bits16 => XFERCFG::WIDTH::Bit16,
@@ -555,13 +586,20 @@ impl<'a> DmaChannel<'a> {
         self.len.set(len);
         self.source.replace(source);
         self.destination.replace(destination);
-        self.start(TransferSetup {
-            path: TransferPath::MemToMem,
-            width,
-            items,
-            src_end: src + last_item,
-            dst_end: dst + last_item,
-        });
+        // SAFETY: `validate` checked that `len` fits in both buffers, is
+        // `items` items of `width`, and that both buffers are aligned to
+        // `width`. Each range ends `last_item` bytes into a buffer that is now
+        // held by this channel, and `self.len` is set. `validate` also checked
+        // that the controller is enabled.
+        unsafe {
+            self.start(TransferSetup {
+                path: TransferPath::MemToMem,
+                width,
+                items,
+                src_end: src + last_item,
+                dst_end: dst + last_item,
+            })
+        };
         Ok(())
     }
 
@@ -571,7 +609,21 @@ impl<'a> DmaChannel<'a> {
     /// The channel must be a TX channel of [`DmaRequest`], otherwise this
     /// returns `NOSUPPORT`. See [`DmaChannel::transfer_mem_to_mem`] for the
     /// other errors.
-    pub fn transfer_mem_to_periph(
+    ///
+    /// ### Safety
+    ///
+    /// The controller writes `FIFOWR` of the Flexcomm wired to this channel
+    /// directly, outside of any driver for that Flexcomm. This is a second path
+    /// to registers that the Flexcomm driver otherwise owns. The caller must
+    /// ensure that, until the transfer ends or is aborted:
+    ///
+    /// - The caller owns the TX FIFO of that Flexcomm, and no other code
+    ///   writes `FIFOWR` or reconfigures, resets or disables the TX FIFO.
+    /// - The Flexcomm is powered, clocked, set to the function the data is
+    ///   meant for, and has its TX FIFO and DMA TX request (`FIFOCFG.ENABLETX`
+    ///   and `FIFOCFG.DMATX`) enabled. Without the request the transfer never
+    ///   ends, and the channel keeps `buffer`.
+    pub unsafe fn transfer_mem_to_periph(
         &self,
         width: DmaWidth,
         buffer: &'static mut [u8],
@@ -590,13 +642,22 @@ impl<'a> DmaChannel<'a> {
         let last_item = (len - width.bytes()) as u32;
         self.len.set(len);
         self.source.replace(buffer);
-        self.start(TransferSetup {
-            path: TransferPath::MemToPeriph,
-            width,
-            items,
-            src_end: src + last_item,
-            dst_end: fifo,
-        });
+        // SAFETY: `validate` checked that `len` fits in `buffer`, is `items`
+        // items of `width`, and that `buffer` is aligned to `width`. The source
+        // range ends `last_item` bytes into `buffer`, which is now held by this
+        // channel, and `self.len` is set. `fifo` is the `FIFOWR` register of
+        // the Flexcomm wired to this TX channel, and the caller guarantees
+        // that it owns that FIFO for the transfer. `validate` also checked that
+        // the controller is enabled.
+        unsafe {
+            self.start(TransferSetup {
+                path: TransferPath::MemToPeriph,
+                width,
+                items,
+                src_end: src + last_item,
+                dst_end: fifo,
+            })
+        };
         Ok(())
     }
 
@@ -606,7 +667,22 @@ impl<'a> DmaChannel<'a> {
     /// The channel must be an RX channel of [`DmaRequest`], otherwise this
     /// returns `NOSUPPORT`. See [`DmaChannel::transfer_mem_to_mem`] for the
     /// other errors.
-    pub fn transfer_periph_to_mem(
+    ///
+    /// ### Safety
+    ///
+    /// The controller reads `FIFORD` of the Flexcomm wired to this channel
+    /// directly, outside of any driver for that Flexcomm. This is a second path
+    /// to registers that the Flexcomm driver otherwise owns, and each read pops
+    /// an entry from the RX FIFO. The caller must ensure that, until the
+    /// transfer ends or is aborted:
+    ///
+    /// - The caller owns the RX FIFO of that Flexcomm, and no other code reads
+    ///   `FIFORD` or reconfigures, resets or disables the RX FIFO.
+    /// - The Flexcomm is powered, clocked, set to the function the data comes
+    ///   from, and has its RX FIFO and DMA RX request (`FIFOCFG.ENABLERX` and
+    ///   `FIFOCFG.DMARX`) enabled. Without the request the transfer never
+    ///   ends, and the channel keeps `buffer`.
+    pub unsafe fn transfer_periph_to_mem(
         &self,
         width: DmaWidth,
         buffer: &'static mut [u8],
@@ -625,13 +701,22 @@ impl<'a> DmaChannel<'a> {
         let last_item = (len - width.bytes()) as u32;
         self.len.set(len);
         self.destination.replace(buffer);
-        self.start(TransferSetup {
-            path: TransferPath::PeriphToMem,
-            width,
-            items,
-            src_end: fifo,
-            dst_end: dst + last_item,
-        });
+        // SAFETY: `validate` checked that `len` fits in `buffer`, is `items`
+        // items of `width`, and that `buffer` is aligned to `width`. The
+        // destination range ends `last_item` bytes into `buffer`, which is now
+        // held by this channel, and `self.len` is set. `fifo` is the `FIFORD`
+        // register of the Flexcomm wired to this RX channel, and the caller
+        // guarantees that it owns that FIFO for the transfer. `validate` also
+        // checked that the controller is enabled.
+        unsafe {
+            self.start(TransferSetup {
+                path: TransferPath::PeriphToMem,
+                width,
+                items,
+                src_end: fifo,
+                dst_end: dst + last_item,
+            })
+        };
         Ok(())
     }
 
@@ -700,7 +785,20 @@ impl<'a> DmaChannel<'a> {
     }
 
     /// Finish the transfer in progress and return the buffers to the client.
-    fn complete(&self, error: bool) {
+    ///
+    /// ### Safety
+    ///
+    /// This hands the buffers of the transfer back as `&'static mut`, so the
+    /// controller must no longer access them. With `error` set, [`halt`] stops
+    /// the channel and waits for it. Without `error` nothing is waited for, so
+    /// the caller must ensure that the controller has finished the transfer:
+    /// `INTA0` of this channel was set by the transfer that is in progress, and
+    /// not left over from an earlier one.
+    ///
+    /// `INTA0` is set when the descriptor is exhausted (UM11126, Section
+    /// 22.6.11), while `ACTIVE0` stays set until the pipeline is empty
+    /// (Section 22.6.6).
+    unsafe fn complete(&self, error: bool) {
         let len = self.len.get();
         if len == 0 {
             return;
@@ -809,7 +907,13 @@ impl<'a, const N: usize> Dma<'a, N> {
         for channel in &self.channels {
             let mask = channel.mask();
             if (done | errors) & mask != 0 {
-                channel.complete(errors & mask != 0);
+                // SAFETY: If the error flag of the channel is set, `complete`
+                // halts the channel before returning the buffers. Otherwise
+                // `INTA0` of the channel is set, and it belongs to the transfer
+                // in progress: `start` is only called on an idle channel, and
+                // `abort` clears both flags when it stops a transfer, so no
+                // flag of an earlier transfer is left.
+                unsafe { channel.complete(errors & mask != 0) };
             }
         }
     }
