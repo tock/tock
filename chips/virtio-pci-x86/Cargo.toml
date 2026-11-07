@@ -9,9 +9,9 @@ authors.workspace = true
 edition = "2024"
 
 [dependencies]
-tock-registers-v0 = { features = ["register_types"], workspace = true }
 kernel = { path = "../../kernel" }
 pci-x86 = { path = "../pci-x86" }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 virtio = { path = "../virtio" }
 
 [lints]

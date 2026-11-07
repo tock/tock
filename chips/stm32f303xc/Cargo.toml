@@ -9,10 +9,10 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-tock-registers-v0 = { features = ["register_types"], workspace = true }
 cortexm4f = { path = "../../arch/cortex-m4f" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 
 [lints]
 workspace = true

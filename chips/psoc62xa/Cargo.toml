@@ -9,9 +9,9 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-tock-registers-v0 = { features = ["register_types"], workspace = true }
 cortexm0p = { path="../../arch/cortex-m0p" }
 kernel = { path = "../../kernel" }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 
 [lints]
 workspace = true

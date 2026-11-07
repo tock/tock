@@ -9,8 +9,8 @@ authors.workspace = true
 edition = "2024"
 
 [dependencies]
-tock-registers-v0 = { features = ["register_types"], workspace = true }
 kernel = { path = "../../kernel" }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 
 [lints]
 workspace = true
