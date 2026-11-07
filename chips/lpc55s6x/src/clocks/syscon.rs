@@ -356,7 +356,7 @@ NMISRC [
     /// Write a 1 to this bit to enable the Non-Maskable Interrupt (NMI) source selected
     NMIENCPU0 OFFSET(31) NUMBITS(1) []
 ],
-PRESETCTRL0 [
+pub PRESETCTRL0 [
     /// ROM reset control.
     ROM_RST OFFSET(1) NUMBITS(1) [
         /// Bloc is not reset.

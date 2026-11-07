@@ -22,6 +22,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
 use lpc55s6x::chip::{Lpc55s69, Lpc55s69DefaultPeripheral};
 use lpc55s6x::clocks::{self, Clock, FrgClockSource, FrgId};
+use lpc55s6x::dma::{DMA0_CHANNELS, DMA1_CHANNELS, DmaDescriptorTable};
 use lpc55s6x::flexcomm::{self};
 use lpc55s6x::gpio::{GpioPin, LPCPin};
 use lpc55s6x::iocon::{Config, Function, Pull, Slew};
@@ -34,6 +35,7 @@ fn system_init() {
     let clocks = Clock::new();
     clocks.start_gpio_clocks();
     clocks.start_timer_clocks();
+    clocks.start_dma_clocks();
     Pmc::new().power_up_rng();
     clocks.start_rng_clock();
 }
@@ -42,9 +44,13 @@ unsafe fn get_peripherals(
     clocks: &'static Clock,
     flexcomm: &'static flexcomm::Flexcomm,
 ) -> &'static Lpc55s69DefaultPeripheral<'static> {
+    let dma0_descriptors =
+        static_init!(DmaDescriptorTable<DMA0_CHANNELS>, DmaDescriptorTable::new());
+    let dma1_descriptors =
+        static_init!(DmaDescriptorTable<DMA1_CHANNELS>, DmaDescriptorTable::new());
     static_init!(
         Lpc55s69DefaultPeripheral,
-        Lpc55s69DefaultPeripheral::new(clocks, flexcomm)
+        Lpc55s69DefaultPeripheral::new(clocks, flexcomm, dma0_descriptors, dma1_descriptors)
     )
 }
 
@@ -159,6 +165,8 @@ unsafe fn start() -> (
     let peripherals = get_peripherals(clock, flexcomm0);
 
     peripherals.pins.init();
+    peripherals.dma0.init();
+    peripherals.dma1.init();
     peripherals.init();
 
     let chip = static_init!(
@@ -354,6 +362,7 @@ unsafe fn start() -> (
         hw_flow_control: false,
     };
     uart.configure(params).unwrap();
+    uart.enable_dma(&peripherals.dma0);
 
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
 
