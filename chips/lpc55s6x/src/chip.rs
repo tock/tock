@@ -110,7 +110,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
     }
 }
 
-pub struct Lpc55s69DefaultPeripheral<'a> {
+pub struct Lpc55s69DefaultPeripherals<'a> {
     pub pins: Pins<'a>,
     pub ctimer0: LPCTimer<'a>,
     pub uart: Uart<'a>,
@@ -119,7 +119,7 @@ pub struct Lpc55s69DefaultPeripheral<'a> {
     pub rng: RNG<'a>,
 }
 
-impl Lpc55s69DefaultPeripheral<'_> {
+impl Lpc55s69DefaultPeripherals<'_> {
     pub fn new(
         clocks: &'static Clock,
         flexcomm: &'static Flexcomm,
@@ -141,7 +141,7 @@ impl Lpc55s69DefaultPeripheral<'_> {
     }
 }
 
-impl InterruptService for Lpc55s69DefaultPeripheral<'_> {
+impl InterruptService for Lpc55s69DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::GPIO_INT0_IRQ0 => {
