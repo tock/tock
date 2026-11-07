@@ -132,6 +132,10 @@ impl Lpc55s69DefaultPeripheral<'_> {
             dma1: Dma1::new_dma1(dma1_descriptors),
         }
     }
+
+    pub fn setup_circular_deps(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.uart);
+    }
 }
 
 impl InterruptService for Lpc55s69DefaultPeripheral<'_> {

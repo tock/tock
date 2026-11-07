@@ -150,6 +150,7 @@ unsafe fn start() -> (
     let clock = static_init!(clocks::Clock, clocks::Clock::new());
     let flexcomm0 = static_init!(flexcomm::Flexcomm, flexcomm::Flexcomm::new_id(0).unwrap());
     let peripherals = get_peripherals(clock, flexcomm0);
+    peripherals.setup_circular_deps();
 
     peripherals.pins.init();
     peripherals.dma0.init();
@@ -340,6 +341,7 @@ unsafe fn start() -> (
         hw_flow_control: false,
     };
     uart.configure(params).unwrap();
+    uart.enable_dma(&peripherals.dma0);
 
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
 
