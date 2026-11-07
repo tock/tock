@@ -789,7 +789,7 @@ impl<'a> DmaChannel<'a> {
     /// ### Safety
     ///
     /// This hands the buffers of the transfer back as `&'static mut`, so the
-    /// controller must no longer access them. With `error` set, [`halt`] stops
+    /// controller must no longer access them. With `error` set, [`halt`](Self::halt) stops
     /// the channel and waits for it. Without `error` nothing is waited for, so
     /// the caller must ensure that the controller has finished the transfer:
     /// `INTA0` of this channel was set by the transfer that is in progress, and
