@@ -751,8 +751,9 @@ impl<'a> DmaChannel<'a> {
     ///
     /// ### Safety
     ///
-    /// The controller must no longer access the buffers: the transfer has
-    /// finished, or [`halt`](Self::halt) has stopped the channel.
+    /// The controller must no longer access the buffers: the channel has been
+    /// stopped with [`disable`](Self::disable), which waits until its pipeline
+    /// has drained.
     unsafe fn take_buffers(&self) -> (Option<Buffer>, Option<Buffer>) {
         // SAFETY: The caller guarantees that the controller no longer accesses
         // either buffer.
@@ -765,21 +766,27 @@ impl<'a> DmaChannel<'a> {
         (source, destination)
     }
 
-    /// Disable the channel and its interrupt.
+    /// Disable the channel and its interrupt, and wait until the controller
+    /// no longer accesses the buffers.
+    ///
+    /// Clearing `ENABLE0` stops the channel from starting new operations, but
+    /// operations already in the controller's pipeline still complete.
+    /// `BUSY0` stays set until they have (UM11126, Section 22.6.15). The wait
+    /// is unbounded for that reason, but it only covers operations already in
+    /// the pipeline.
     fn disable(&self) {
         self.registers.intenclr0.set(self.mask());
         self.registers.enableclr0.set(self.mask());
+        while self.registers.busy0.get() & self.mask() != 0 {}
     }
 
     /// Stop the channel (UM11126, Section 22.6.15), returning the number of
     /// bytes it moved.
     ///
-    /// When this returns, the controller no longer accesses the buffers, so
-    /// they can be handed back. The wait is unbounded for that reason, but
-    /// `BUSY0` only covers operations already in the controller's pipeline.
+    /// When this returns, the controller no longer accesses the buffers, as
+    /// [`disable`](Self::disable) has waited for it.
     fn halt(&self) -> usize {
         self.disable();
-        while self.registers.busy0.get() & self.mask() != 0 {}
 
         let xfercfg = self.channel_registers().xfercfg.extract();
         let count = xfercfg.read(XFERCFG::XFERCOUNT);
@@ -821,7 +828,7 @@ impl<'a> DmaChannel<'a> {
         self.registers.inta0.set(self.mask());
         self.registers.errint0.set(self.mask());
         self.len.set(0);
-        // SAFETY: `halt` disabled the channel and waited until `BUSY0` cleared,
+        // SAFETY: `halt` called `disable`, which waited until `BUSY0` cleared,
         // so the controller no longer accesses the buffers.
         let (source, destination) = unsafe { self.take_buffers() };
         AbortedTransfer {
@@ -836,11 +843,13 @@ impl<'a> DmaChannel<'a> {
     /// ### Safety
     ///
     /// This hands the buffers of the transfer back to the client, so the
-    /// controller must no longer access them. With `error` set, [`halt`](Self::halt) stops
-    /// the channel and waits for it. Without `error` nothing is waited for, so
-    /// the caller must ensure that the controller has finished the transfer:
-    /// `INTA0` of this channel was set by the transfer that is in progress, and
-    /// not left over from an earlier one.
+    /// controller must no longer access them. Both paths go through
+    /// [`disable`](Self::disable), which waits until the controller's pipeline
+    /// has drained. With `error` set, [`halt`](Self::halt) also aborts the
+    /// channel. Without `error`, the transfer is reported as complete, so the
+    /// caller must ensure that the controller has finished it: `INTA0` of this
+    /// channel was set by the transfer that is in progress, and not left over
+    /// from an earlier one.
     ///
     /// `INTA0` is set when the descriptor is exhausted (UM11126, Section
     /// 22.6.11), while `ACTIVE0` stays set until the pipeline is empty
@@ -855,14 +864,16 @@ impl<'a> DmaChannel<'a> {
             (self.halt(), Err(ErrorCode::FAIL))
         } else {
             // `halt` cannot report this: `ACTIVE0` may still be set while the
-            // pipeline drains, which reads as 1024 items left.
+            // pipeline drains, which reads as 1024 items left. `disable` still
+            // waits for the pipeline to drain before the buffers are taken.
             self.disable();
             (len, Ok(()))
         };
 
         self.len.set(0);
-        // SAFETY: With `error` set, `halt` stopped the channel and waited for
-        // it. Otherwise the caller guarantees that the transfer has finished.
+        // SAFETY: Both paths called `disable`, which waited until `BUSY0`
+        // cleared, so the controller no longer accesses the buffers. Without
+        // `error`, the caller also guarantees that the transfer has finished.
         let (source, destination) = unsafe { self.take_buffers() };
         self.client
             .map(|client| client.transfer_done(source, destination, transferred, result));
@@ -971,26 +982,35 @@ impl<'a, const N: usize> Dma<'a, N> {
     }
 
     pub fn handle_interrupt(&self) {
-        let done = self.registers.inta0.get();
-        let errors = self.registers.errint0.get();
-
-        // Clear only the flags read above, so that a transfer ending now keeps
-        // its flag and raises the interrupt again. Clearing before the callbacks
-        // also preserves the flags of transfers they start.
-        self.registers.inta0.set(done);
-        self.registers.errint0.set(errors);
-
         for channel in &self.channels {
             let mask = channel.mask();
-            if (done | errors) & mask != 0 {
-                // SAFETY: If the error flag of the channel is set, `complete`
-                // halts the channel before returning the buffers. Otherwise
-                // `INTA0` of the channel is set, and it belongs to the transfer
-                // in progress: `start` is only called on an idle channel, and
-                // `abort` clears both flags when it stops a transfer, so no
-                // flag of an earlier transfer is left.
-                unsafe { channel.complete(errors & mask != 0) };
+
+            // Read the flags of this channel only now, not once for all
+            // channels: the client callback of an earlier channel may have
+            // aborted this channel and started a new transfer on it. `abort`
+            // clears the flags of the stopped transfer, so reading them here
+            // never takes a flag of an earlier transfer for the one in
+            // progress.
+            let done = self.registers.inta0.get() & mask;
+            let error = self.registers.errint0.get() & mask;
+            if (done | error) == 0 {
+                continue;
             }
+
+            // Clear only the flags read above, and before the callback, so
+            // that a flag raised in between, or by a transfer the callback
+            // starts, is kept and raises the interrupt again.
+            self.registers.inta0.set(done);
+            self.registers.errint0.set(error);
+
+            // SAFETY: If the error flag of the channel is set, `complete`
+            // halts the channel before returning the buffers. Otherwise
+            // `INTA0` of the channel is set, and it belongs to the transfer in
+            // progress: it was read just above, after any callback that could
+            // have restarted the channel. `start` is only called on an idle
+            // channel, and `abort` clears both flags when it stops a transfer,
+            // so no flag of an earlier transfer is left.
+            unsafe { channel.complete(error != 0) };
         }
     }
 }
