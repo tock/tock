@@ -24,18 +24,25 @@
 //! [`Clock::start_dma_clocks`](crate::clocks::Clock::start_dma_clocks), and
 //! calls [`Dma::init`]. A driver then selects a channel with
 //! [`Dma::channel_for`] or [`Dma::channel`], registers a [`DmaClient`], and
-//! starts a transfer. The buffers stay with the channel until
-//! [`DmaClient::transfer_done`] returns them.
+//! starts a transfer. The buffers are passed as [`SubSliceMut`]s, and the
+//! active range of each one is the memory the controller accesses. The
+//! channel holds them as [`DmaSubSliceMut`]s while the transfer runs, and
+//! [`DmaClient::transfer_done`] returns them with their active ranges
+//! unchanged.
 //!
 //! Before a Flexcomm transfer, its driver must also enable DMA on the
 //! peripheral side (`FIFOCFG.DMATX` or `FIFOCFG.DMARX`).
 
 use core::cell::Cell;
-use core::sync::atomic::{Ordering, fence};
+use core::ptr;
 
+use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::ErrorCode;
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::dma_slice::DmaSubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     InMemoryRegister, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
@@ -341,14 +348,17 @@ struct TransferSetup {
     dst_end: u32,
 }
 
+/// A memory buffer of a transfer. The controller accesses its active range.
+type Buffer = SubSliceMut<'static, u8>;
+
 /// What is left of a transfer stopped by [`DmaChannel::abort`].
 pub struct AbortedTransfer {
     /// Number of bytes moved before the transfer stopped.
     pub transferred: usize,
     /// Source buffer, if the source was memory.
-    pub source: Option<&'static mut [u8]>,
+    pub source: Option<Buffer>,
     /// Destination buffer, if the destination was memory.
-    pub destination: Option<&'static mut [u8]>,
+    pub destination: Option<Buffer>,
 }
 
 /// Receives the buffers of a finished transfer.
@@ -362,8 +372,8 @@ pub trait DmaClient {
     /// case `transferred` is the best available estimate.
     fn transfer_done(
         &self,
-        source: Option<&'static mut [u8]>,
-        destination: Option<&'static mut [u8]>,
+        source: Option<Buffer>,
+        destination: Option<Buffer>,
         transferred: usize,
         result: Result<(), ErrorCode>,
     );
@@ -375,8 +385,12 @@ pub struct DmaChannel<'a> {
     index: usize,
     descriptor: &'static DmaDescriptor,
     client: OptionalCell<&'a dyn DmaClient>,
-    source: TakeCell<'static, [u8]>,
-    destination: TakeCell<'static, [u8]>,
+    fence: CortexMDmaFence,
+    /// Source buffer of the transfer in progress, if the source is memory.
+    source: MapCell<DmaSubSliceMut<'static, u8>>,
+    /// Destination buffer of the transfer in progress, if the destination is
+    /// memory.
+    destination: MapCell<DmaSubSliceMut<'static, u8>>,
     /// Length in bytes of the transfer in progress, or 0 if the channel is idle.
     ///
     /// The hardware status cannot replace this: `ACTIVE0` clears when the
@@ -390,14 +404,16 @@ impl<'a> DmaChannel<'a> {
         registers: StaticRef<DmaRegisters>,
         index: usize,
         descriptor: &'static DmaDescriptor,
+        fence: CortexMDmaFence,
     ) -> Self {
         Self {
             registers,
             index,
             descriptor,
             client: OptionalCell::empty(),
-            source: TakeCell::empty(),
-            destination: TakeCell::empty(),
+            fence,
+            source: MapCell::empty(),
+            destination: MapCell::empty(),
             len: Cell::new(0),
         }
     }
@@ -438,13 +454,7 @@ impl<'a> DmaChannel<'a> {
     }
 
     /// Check that a transfer can start, returning the number of items.
-    fn validate(
-        &self,
-        width: DmaWidth,
-        len: usize,
-        max_len: usize,
-        addresses: &[u32],
-    ) -> Result<u32, ErrorCode> {
+    fn validate(&self, width: DmaWidth, len: usize, addresses: &[usize]) -> Result<u32, ErrorCode> {
         if !self.registers.ctrl.is_set(CTRL::ENABLE) {
             return Err(ErrorCode::OFF);
         }
@@ -454,13 +464,10 @@ impl<'a> DmaChannel<'a> {
 
         let bytes = width.bytes();
         let items = len / bytes;
-        if len == 0 || len > max_len || !len.is_multiple_of(bytes) || items > MAX_TRANSFERS {
+        if len == 0 || !len.is_multiple_of(bytes) || items > MAX_TRANSFERS {
             return Err(ErrorCode::SIZE);
         }
-        if addresses
-            .iter()
-            .any(|&a| !(a as usize).is_multiple_of(bytes))
-        {
+        if addresses.iter().any(|&a| !a.is_multiple_of(bytes)) {
             return Err(ErrorCode::INVAL);
         }
         Ok(items as u32)
@@ -480,9 +487,10 @@ impl<'a> DmaChannel<'a> {
     ///
     /// - Every memory side covers a buffer owned by this channel: the
     ///   `items * width` bytes ending at `src_end` (or `dst_end`) lie inside the
-    ///   buffer held in `self.source` (or `self.destination`). The channel holds
-    ///   the buffers until [`DmaChannel::halt`] or the transfer interrupt hands
-    ///   them back, so no other code can access them while the controller does.
+    ///   active range of the [`DmaSubSliceMut`] held in `self.source` (or
+    ///   `self.destination`). The channel holds the buffers until
+    ///   [`DmaChannel::abort`] or the transfer interrupt hands them back, so no
+    ///   other code can access them while the controller does.
     /// - Every peripheral side is the Flexcomm FIFO register wired to the
     ///   request line of this channel, which the controller may access at any
     ///   time during the transfer.
@@ -552,175 +560,209 @@ impl<'a> DmaChannel<'a> {
         self.registers.intenset0.set(self.mask());
         self.registers.enableset0.set(self.mask());
 
-        // The controller is another bus master: writes to the buffers and the
-        // descriptor must be visible to it before the trigger is set.
-        fence(Ordering::SeqCst);
+        // The controller reads the descriptor from memory, so the writes above
+        // must be visible to it before the trigger is set. The buffers were
+        // released when their `DmaSubSliceMut`s were created.
+        self.fence
+            .release(ptr::from_ref(core::slice::from_ref(self.descriptor)).cast_mut());
         regs.xfercfg.modify(XFERCFG::SWTRIG::SET);
     }
 
-    /// Copy `len` bytes from `source` to `destination`.
+    /// Copy the active range of `source` to the start of the active range of
+    /// `destination`.
     ///
-    /// `len` must be a multiple of the width, fit in both buffers, and be at
-    /// most [`MAX_TRANSFERS`] items. Both buffers must be aligned to the width
-    /// (UM11126, Section 22.5.7).
+    /// The length of `source` must be a multiple of the width, fit in
+    /// `destination`, and be at most [`MAX_TRANSFERS`] items. Both active ranges
+    /// must start at an address aligned to the width (UM11126, Section 22.5.7).
     ///
     /// On failure the buffers are returned with one of:
     ///
     /// - `OFF`: [`Dma::init`] has not been called.
     /// - `BUSY`: the channel has a transfer in progress.
-    /// - `SIZE`: `len` is invalid.
+    /// - `SIZE`: the length of `source` is invalid.
     /// - `INVAL`: a buffer is not aligned to the width.
     pub fn transfer_mem_to_mem(
         &self,
         width: DmaWidth,
-        source: &'static mut [u8],
-        destination: &'static mut [u8],
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], &'static mut [u8])> {
-        let src = source.as_ptr() as u32;
-        let dst = destination.as_ptr() as u32;
-        let max_len = source.len().min(destination.len());
-        let items = match self.validate(width, len, max_len, &[src, dst]) {
+        source: Buffer,
+        destination: Buffer,
+    ) -> Result<(), (ErrorCode, Buffer, Buffer)> {
+        let len = source.len();
+        let items = match self.validate(
+            width,
+            len,
+            &[source.as_ptr().addr(), destination.as_ptr().addr()],
+        ) {
+            Ok(_) if destination.len() < len => {
+                return Err((ErrorCode::SIZE, source, destination));
+            }
             Ok(items) => items,
             Err(e) => return Err((e, source, destination)),
         };
 
+        let source = DmaSubSliceMut::new_static(source, self.fence);
+        let destination = DmaSubSliceMut::new_static(destination, self.fence);
         let last_item = (len - width.bytes()) as u32;
+        let src_end = source.ptr_addr() as u32 + last_item;
+        let dst_end = destination.ptr_addr() as u32 + last_item;
         self.len.set(len);
         self.source.replace(source);
         self.destination.replace(destination);
-        // SAFETY: `validate` checked that `len` fits in both buffers, is
-        // `items` items of `width`, and that both buffers are aligned to
-        // `width`. Each range ends `last_item` bytes into a buffer that is now
-        // held by this channel, and `self.len` is set. `validate` also checked
-        // that the controller is enabled.
+        // SAFETY: `len` is the length of the active range of `source`, and was
+        // checked above to fit in the active range of `destination`.
+        // `validate` checked that it is `items` items of `width`, and that
+        // both active ranges are aligned to `width`. Each range ends
+        // `last_item` bytes into the active range of a `DmaSubSliceMut` that is
+        // now held by this channel, and `self.len` is set. `validate` also
+        // checked that the controller is enabled.
         unsafe {
             self.start(TransferSetup {
                 path: TransferPath::MemToMem,
                 width,
                 items,
-                src_end: src + last_item,
-                dst_end: dst + last_item,
+                src_end,
+                dst_end,
             })
         };
         Ok(())
     }
 
-    /// Send `len` bytes of `buffer` to the Flexcomm FIFO of this channel, paced
-    /// by the peripheral request line.
+    /// Send the active range of `buffer` to the Flexcomm FIFO of this channel,
+    /// paced by the peripheral request line.
     ///
     /// The channel must be a TX channel of [`DmaRequest`], otherwise this
     /// returns `NOSUPPORT`. See [`DmaChannel::transfer_mem_to_mem`] for the
     /// other errors.
     ///
-    /// ### Safety
+    /// # Safety Considerations
     ///
     /// The controller writes `FIFOWR` of the Flexcomm wired to this channel
-    /// directly, outside of any driver for that Flexcomm. This is a second path
-    /// to registers that the Flexcomm driver otherwise owns. The caller must
-    /// ensure that, until the transfer ends or is aborted:
+    /// directly, outside of any driver for that Flexcomm. This cannot break
+    /// memory safety, as the controller only reads `buffer`, which the channel
+    /// holds, and writes a fixed MMIO register. For the transfer to be correct,
+    /// the caller must ensure that, until the transfer ends or is aborted:
     ///
     /// - The caller owns the TX FIFO of that Flexcomm, and no other code
     ///   writes `FIFOWR` or reconfigures, resets or disables the TX FIFO.
+    ///   Otherwise the data sent is interleaved with other writes, or lost.
     /// - The Flexcomm is powered, clocked, set to the function the data is
     ///   meant for, and has its TX FIFO and DMA TX request (`FIFOCFG.ENABLETX`
     ///   and `FIFOCFG.DMATX`) enabled. Without the request the transfer never
-    ///   ends, and the channel keeps `buffer`.
-    pub unsafe fn transfer_mem_to_periph(
+    ///   ends, and the channel keeps `buffer` until [`DmaChannel::abort`].
+    pub fn transfer_mem_to_periph(
         &self,
         width: DmaWidth,
-        buffer: &'static mut [u8],
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        buffer: Buffer,
+    ) -> Result<(), (ErrorCode, Buffer)> {
         let fifo = match flexcomm_base(self.index) {
             Some(base) if self.is_tx() => base + FLEXCOMM_FIFOWR,
             _ => return Err((ErrorCode::NOSUPPORT, buffer)),
         };
-        let src = buffer.as_ptr() as u32;
-        let items = match self.validate(width, len, buffer.len(), &[src]) {
+        let len = buffer.len();
+        let items = match self.validate(width, len, &[buffer.as_ptr().addr()]) {
             Ok(items) => items,
             Err(e) => return Err((e, buffer)),
         };
 
-        let last_item = (len - width.bytes()) as u32;
+        let buffer = DmaSubSliceMut::new_static(buffer, self.fence);
+        let src_end = buffer.ptr_addr() as u32 + (len - width.bytes()) as u32;
         self.len.set(len);
         self.source.replace(buffer);
-        // SAFETY: `validate` checked that `len` fits in `buffer`, is `items`
-        // items of `width`, and that `buffer` is aligned to `width`. The source
-        // range ends `last_item` bytes into `buffer`, which is now held by this
-        // channel, and `self.len` is set. `fifo` is the `FIFOWR` register of
-        // the Flexcomm wired to this TX channel, and the caller guarantees
-        // that it owns that FIFO for the transfer. `validate` also checked that
-        // the controller is enabled.
+        // SAFETY: `validate` checked that `len` is `items` items of `width`,
+        // and that the active range of `buffer` is aligned to `width`. The
+        // source range is that active range, of a `DmaSubSliceMut` that is now
+        // held by this channel, and `self.len` is set. `fifo` is the `FIFOWR`
+        // register of the Flexcomm wired to this TX channel. `validate` also
+        // checked that the controller is enabled.
         unsafe {
             self.start(TransferSetup {
                 path: TransferPath::MemToPeriph,
                 width,
                 items,
-                src_end: src + last_item,
+                src_end,
                 dst_end: fifo,
             })
         };
         Ok(())
     }
 
-    /// Receive `len` bytes into `buffer` from the Flexcomm FIFO of this
+    /// Receive into the active range of `buffer` from the Flexcomm FIFO of this
     /// channel, paced by the peripheral request line.
     ///
     /// The channel must be an RX channel of [`DmaRequest`], otherwise this
     /// returns `NOSUPPORT`. See [`DmaChannel::transfer_mem_to_mem`] for the
     /// other errors.
     ///
-    /// ### Safety
+    /// # Safety Considerations
     ///
     /// The controller reads `FIFORD` of the Flexcomm wired to this channel
-    /// directly, outside of any driver for that Flexcomm. This is a second path
-    /// to registers that the Flexcomm driver otherwise owns, and each read pops
-    /// an entry from the RX FIFO. The caller must ensure that, until the
-    /// transfer ends or is aborted:
+    /// directly, outside of any driver for that Flexcomm, and each read pops an
+    /// entry from the RX FIFO. This cannot break memory safety, as the
+    /// controller only writes `buffer`, which the channel holds, and reads a
+    /// fixed MMIO register. For the transfer to be correct, the caller must
+    /// ensure that, until the transfer ends or is aborted:
     ///
     /// - The caller owns the RX FIFO of that Flexcomm, and no other code reads
-    ///   `FIFORD` or reconfigures, resets or disables the RX FIFO.
+    ///   `FIFORD` or reconfigures, resets or disables the RX FIFO. Otherwise
+    ///   entries are split between the readers.
     /// - The Flexcomm is powered, clocked, set to the function the data comes
     ///   from, and has its RX FIFO and DMA RX request (`FIFOCFG.ENABLERX` and
     ///   `FIFOCFG.DMARX`) enabled. Without the request the transfer never
-    ///   ends, and the channel keeps `buffer`.
-    pub unsafe fn transfer_periph_to_mem(
+    ///   ends, and the channel keeps `buffer` until [`DmaChannel::abort`].
+    pub fn transfer_periph_to_mem(
         &self,
         width: DmaWidth,
-        buffer: &'static mut [u8],
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        buffer: Buffer,
+    ) -> Result<(), (ErrorCode, Buffer)> {
         let fifo = match flexcomm_base(self.index) {
             Some(base) if !self.is_tx() => base + FLEXCOMM_FIFORD,
             _ => return Err((ErrorCode::NOSUPPORT, buffer)),
         };
-        let dst = buffer.as_ptr() as u32;
-        let items = match self.validate(width, len, buffer.len(), &[dst]) {
+        let len = buffer.len();
+        let items = match self.validate(width, len, &[buffer.as_ptr().addr()]) {
             Ok(items) => items,
             Err(e) => return Err((e, buffer)),
         };
 
-        let last_item = (len - width.bytes()) as u32;
+        let buffer = DmaSubSliceMut::new_static(buffer, self.fence);
+        let dst_end = buffer.ptr_addr() as u32 + (len - width.bytes()) as u32;
         self.len.set(len);
         self.destination.replace(buffer);
-        // SAFETY: `validate` checked that `len` fits in `buffer`, is `items`
-        // items of `width`, and that `buffer` is aligned to `width`. The
-        // destination range ends `last_item` bytes into `buffer`, which is now
-        // held by this channel, and `self.len` is set. `fifo` is the `FIFORD`
-        // register of the Flexcomm wired to this RX channel, and the caller
-        // guarantees that it owns that FIFO for the transfer. `validate` also
-        // checked that the controller is enabled.
+        // SAFETY: `validate` checked that `len` is `items` items of `width`,
+        // and that the active range of `buffer` is aligned to `width`. The
+        // destination range is that active range, of a `DmaSubSliceMut` that
+        // is now held by this channel, and `self.len` is set. `fifo` is the
+        // `FIFORD` register of the Flexcomm wired to this RX channel.
+        // `validate` also checked that the controller is enabled.
         unsafe {
             self.start(TransferSetup {
                 path: TransferPath::PeriphToMem,
                 width,
                 items,
                 src_end: fifo,
-                dst_end: dst + last_item,
+                dst_end,
             })
         };
         Ok(())
+    }
+
+    /// Take back the buffers of the transfer, making the writes of the
+    /// controller visible to Rust.
+    ///
+    /// ### Safety
+    ///
+    /// The controller must no longer access the buffers: the transfer has
+    /// finished, or [`halt`](Self::halt) has stopped the channel.
+    unsafe fn take_buffers(&self) -> (Option<Buffer>, Option<Buffer>) {
+        // SAFETY: The caller guarantees that the controller no longer accesses
+        // either buffer.
+        let source = self.source.take().map(|b| unsafe { b.take(self.fence) });
+        // SAFETY: As above.
+        let destination = self
+            .destination
+            .take()
+            .map(|b| unsafe { b.take(self.fence) });
+        (source, destination)
     }
 
     /// Disable the channel and its interrupt.
@@ -779,11 +821,13 @@ impl<'a> DmaChannel<'a> {
         self.registers.inta0.set(self.mask());
         self.registers.errint0.set(self.mask());
         self.len.set(0);
-        fence(Ordering::SeqCst);
+        // SAFETY: `halt` disabled the channel and waited until `BUSY0` cleared,
+        // so the controller no longer accesses the buffers.
+        let (source, destination) = unsafe { self.take_buffers() };
         AbortedTransfer {
             transferred,
-            source: self.source.take(),
-            destination: self.destination.take(),
+            source,
+            destination,
         }
     }
 
@@ -791,7 +835,7 @@ impl<'a> DmaChannel<'a> {
     ///
     /// ### Safety
     ///
-    /// This hands the buffers of the transfer back as `&'static mut`, so the
+    /// This hands the buffers of the transfer back to the client, so the
     /// controller must no longer access them. With `error` set, [`halt`](Self::halt) stops
     /// the channel and waits for it. Without `error` nothing is waited for, so
     /// the caller must ensure that the controller has finished the transfer:
@@ -817,11 +861,9 @@ impl<'a> DmaChannel<'a> {
         };
 
         self.len.set(0);
-        // The buffers were written by another bus master, so reads of them must
-        // not be moved before this point.
-        fence(Ordering::SeqCst);
-        let source = self.source.take();
-        let destination = self.destination.take();
+        // SAFETY: With `error` set, `halt` stopped the channel and waited for
+        // it. Otherwise the caller guarantees that the transfer has finished.
+        let (source, destination) = unsafe { self.take_buffers() };
         self.client
             .map(|client| client.transfer_done(source, destination, transferred, result));
     }
@@ -864,11 +906,16 @@ impl<'a, const N: usize> Dma<'a, N> {
         registers: StaticRef<DmaRegisters>,
         descriptors: &'static DmaDescriptorTable<N>,
     ) -> Self {
+        // SAFETY: The LPC55S6x has an ARM Cortex-M33 core, for which
+        // `CortexMDmaFence` is the architecture-provided `DmaFence`. The chip has no data cache in
+        // front of SRAM, so the `DMB` issued by this fence is sufficient to
+        // order CPU and DMA accesses.
+        let fence = unsafe { CortexMDmaFence::new() };
         Self {
             registers,
             descriptors,
             channels: core::array::from_fn(|index| {
-                DmaChannel::new(registers, index, &descriptors.0[index])
+                DmaChannel::new(registers, index, &descriptors.0[index], fence)
             }),
         }
     }
