@@ -48,10 +48,13 @@ unsafe fn get_peripherals(
         static_init!(DmaDescriptorTable<DMA0_CHANNELS>, DmaDescriptorTable::new());
     let dma1_descriptors =
         static_init!(DmaDescriptorTable<DMA1_CHANNELS>, DmaDescriptorTable::new());
-    static_init!(
-        Lpc55s69DefaultPeripherals,
+    // SAFETY: `get_peripherals` is only called once, from `main`, and no other
+    // code in this board accesses the DMA controllers or their descriptor
+    // tables.
+    let peripherals = unsafe {
         Lpc55s69DefaultPeripherals::new(clocks, flexcomm, dma0_descriptors, dma1_descriptors)
-    )
+    };
+    static_init!(Lpc55s69DefaultPeripherals, peripherals)
 }
 
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =

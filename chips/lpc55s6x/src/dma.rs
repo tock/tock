@@ -882,7 +882,20 @@ pub type Dma0<'a> = Dma<'a, DMA0_CHANNELS>;
 pub type Dma1<'a> = Dma<'a, DMA1_CHANNELS>;
 
 impl<'a> Dma0<'a> {
-    pub fn new_dma0(descriptors: &'static DmaDescriptorTable<DMA0_CHANNELS>) -> Self {
+    /// Create the driver of the DMA0 controller.
+    ///
+    /// # Safety
+    ///
+    /// This driver controls DMA hardware, and its soundness relies on being
+    /// the only code that starts transfers on DMA0: each channel tracks the
+    /// buffers it owns, and a second instance could program the same channel
+    /// to access memory that the first instance has handed back to Rust. This
+    /// requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - There must not be any other code that accesses the registers of the
+    ///   DMA0 controller, or the descriptor table passed in `descriptors`.
+    pub unsafe fn new_dma0(descriptors: &'static DmaDescriptorTable<DMA0_CHANNELS>) -> Self {
         Self::new(DMA0_BASE, descriptors)
     }
 
@@ -896,7 +909,20 @@ impl<'a> Dma0<'a> {
 }
 
 impl Dma1<'_> {
-    pub fn new_dma1(descriptors: &'static DmaDescriptorTable<DMA1_CHANNELS>) -> Self {
+    /// Create the driver of the DMA1 controller.
+    ///
+    /// # Safety
+    ///
+    /// This driver controls DMA hardware, and its soundness relies on being
+    /// the only code that starts transfers on DMA1: each channel tracks the
+    /// buffers it owns, and a second instance could program the same channel
+    /// to access memory that the first instance has handed back to Rust. This
+    /// requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - There must not be any other code that accesses the registers of the
+    ///   DMA1 controller, or the descriptor table passed in `descriptors`.
+    pub unsafe fn new_dma1(descriptors: &'static DmaDescriptorTable<DMA1_CHANNELS>) -> Self {
         Self::new(DMA1_BASE, descriptors)
     }
 }

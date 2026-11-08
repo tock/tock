@@ -120,7 +120,18 @@ pub struct Lpc55s69DefaultPeripherals<'a> {
 }
 
 impl Lpc55s69DefaultPeripherals<'_> {
-    pub fn new(
+    /// Create default peripherals for an LPC55S69 microcontroller.
+    ///
+    /// # Safety
+    ///
+    /// The DMA0 and DMA1 drivers control DMA hardware. As such, the default
+    /// peripherals must be unique. This requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - There must not be additional instances of the DMA drivers.
+    /// - There must not be any other code that accesses the registers of the
+    ///   DMA controllers, or the descriptor tables passed in.
+    pub unsafe fn new(
         clocks: &'static Clock,
         flexcomm: &'static Flexcomm,
         dma0_descriptors: &'static DmaDescriptorTable<DMA0_CHANNELS>,
@@ -130,8 +141,10 @@ impl Lpc55s69DefaultPeripherals<'_> {
             pins: Pins::new(),
             ctimer0: LPCTimer::new(),
             uart: Uart::new_uart0(clocks, flexcomm),
-            dma0: Dma0::new_dma0(dma0_descriptors),
-            dma1: Dma1::new_dma1(dma1_descriptors),
+            // SAFETY: See function-level doc.
+            dma0: unsafe { Dma0::new_dma0(dma0_descriptors) },
+            // SAFETY: See function-level doc.
+            dma1: unsafe { Dma1::new_dma1(dma1_descriptors) },
             rng: RNG::new(),
         }
     }
