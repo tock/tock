@@ -956,14 +956,14 @@ impl ReadableProcessSlice {
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
-    #[deprecated = "Use ReadableProcessSlice::get instead"]
+    #[deprecated(note = "Use ReadableProcessSlice::get instead", since = "2.2.0")]
     pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&ReadableProcessSlice> {
         range.get(self)
     }
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
-    #[deprecated = "Use ReadableProcessSlice::get instead"]
+    #[deprecated(note = "Use ReadableProcessSlice::get instead", since = "2.2.0")]
     pub fn get_to(&self, range: RangeTo<usize>) -> Option<&ReadableProcessSlice> {
         range.get(self)
     }
@@ -1197,14 +1197,14 @@ impl WriteableProcessSlice {
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
-    #[deprecated = "Use WriteableProcessSlice::get instead"]
+    #[deprecated(note = "Use WriteableProcessSlice::get instead", since = "2.2.0")]
     pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&WriteableProcessSlice> {
         range.get(self)
     }
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
-    #[deprecated = "Use WriteableProcessSlice::get instead"]
+    #[deprecated(note = "Use WriteableProcessSlice::get instead", since = "2.2.0")]
     pub fn get_to(&self, range: RangeTo<usize>) -> Option<&WriteableProcessSlice> {
         range.get(self)
     }

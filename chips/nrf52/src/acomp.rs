@@ -64,7 +64,7 @@ impl Channel {
 }
 
 register_structs! {
-    CompRegisters {
+    pub CompRegisters {
         /// TASK REGISTERS
         /// Trigger task by writing 1
         /// start comparator. Needed before comparator does anything.
@@ -221,9 +221,9 @@ pub struct Comparator<'a> {
 }
 
 impl Comparator<'_> {
-    pub const fn new() -> Self {
+    pub const fn new(registers: StaticRef<CompRegisters>) -> Self {
         Comparator {
-            registers: ACOMP_BASE,
+            registers,
             client: OptionalCell::empty(),
         }
     }
@@ -333,6 +333,3 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
         self.client.set(client);
     }
 }
-
-const ACOMP_BASE: StaticRef<CompRegisters> =
-    unsafe { StaticRef::new(0x40013000 as *const CompRegisters) };

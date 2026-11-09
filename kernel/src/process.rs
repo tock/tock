@@ -833,7 +833,12 @@ pub trait Process {
     ///
     /// This will return `None` if the process is inactive and cannot be
     /// switched to.
-    fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the MPU is properly configured for the process
+    /// being switched to.
+    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
     /// Return process state information related to the location in memory of
     /// various process data structures.

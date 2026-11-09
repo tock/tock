@@ -67,7 +67,7 @@ kernel::stack_size! {0x900}
 
 type RngDriver = components::rng::RngComponentType<esp32_c3::rng::Rng<'static>>;
 type GpioHw = esp32::gpio::GpioPin<'static>;
-type LedHw = components::sk68xx::Sk68xxLedComponentType<GpioHw, 3>;
+type LedHw = components::ws2812::Ws2812LedComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 3>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 
@@ -184,6 +184,10 @@ unsafe fn setup() -> (
         .sysreg
         .use_pll_clock_source(PllFrequency::MHz320, CpuFrequency::MHz160);
 
+    // The mask ROM leaves flash in single-bit mode at 20 MHz. Switch flash
+    // reads to a faster mode (DIO or QIO at 80MHz).
+    esp32_c3::flash::configure();
+
     // initialise capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -295,14 +299,14 @@ unsafe fn setup() -> (
     //
 
     let led_gpio = &peripherals.gpio[8];
-    let sk68xx = components::sk68xx::Sk68xxComponent::new(led_gpio, rv32i::support::nop)
-        .finalize(components::sk68xx_component_static_esp32c3_160mhz!(GpioHw,));
+    let ws2812 = components::ws2812::Ws2812Component::new(led_gpio, esp32_c3::ws2812::write_frame)
+        .finalize(components::ws2812_component_static!(GpioHw));
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHw,
-        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 0), // red
-        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 1), // green
-        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 2), // blue
+        capsules_extra::ws2812::Ws2812Led::new(ws2812, 0), // red
+        capsules_extra::ws2812::Ws2812Led::new(ws2812, 1), // green
+        capsules_extra::ws2812::Ws2812Led::new(ws2812, 2), // blue
     ));
 
     //
@@ -399,6 +403,7 @@ unsafe fn setup() -> (
     // enable interrupts globally
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
+    esp32_c3::flash::print_active_flash_mode();
     debug!("ESP32-C3 initialisation complete.");
     debug!("Entering main loop.");
 
@@ -460,7 +465,17 @@ unsafe fn setup() -> (
 ///
 /// This function is called from the arch crate after some very basic RISC-V
 /// setup and RAM initialization.
-#[no_mangle]
+///
+/// # Safety
+///
+/// ## `no_mangle`
+///
+/// We use `main` as a symbol in the arch crate's initialization routine to jump
+/// here. We guarantee no other symbol has the same name.
+///
+/// Note: this requires a global/uniqueness guarantee.
+/// See <https://github.com/tock/tock/issues/5250>.
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     #[cfg(test)]
     test_main();

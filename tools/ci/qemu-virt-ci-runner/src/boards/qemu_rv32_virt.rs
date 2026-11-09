@@ -1,0 +1,96 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
+
+use std::time::Duration;
+
+use crate::{App, TestCase, TestStep};
+
+pub static BOARD: super::Board = super::Board {
+    name: "qemu_rv32_virt",
+    board_dir: "../../../boards/configurations/qemu_rv32_virt/qemu_rv32_virt-test-ci",
+    tock_targets: "\
+        rv32imac|rv32imac.0x80100080.0x80300000|0x80100080|0x80300000 \
+        rv32imac|rv32imac.0x80110080.0x80310000|0x80110080|0x80310000 \
+        rv32imac|rv32imac.0x80130080.0x80330000|0x80130080|0x80330000 \
+        rv32imac|rv32imac.0x80180080.0x80380000|0x80180080|0x80380000",
+    tests: TESTS,
+};
+
+static TESTS: &[TestCase] = &[
+    TestCase {
+        name: "c_hello",
+        description: "Run the c_hello app and verify it prints \"Hello World!\" over serial.",
+        apps: &[App::LibtockC("c_hello")],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &["Hello World!"],
+            timeout: Duration::from_secs(30),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
+    TestCase {
+        name: "syscall-return",
+        description: "Check syscalls return expected success/error codes.",
+        apps: &[App::LibtockC("tests/syscall-return")],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &["All tests succeeded"],
+            timeout: Duration::from_secs(5),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
+    TestCase {
+        name: "isolated_nonvolatile_storage_read_write",
+        description: "Check writing to isolated nonvolatile storage works.",
+        apps: &[App::LibtockC(
+            "tests/isolated_nonvolatile_storage/invs_read_write",
+        )],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &["All tests succeeded"],
+            timeout: Duration::from_secs(30),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
+    TestCase {
+        name: "sha256",
+        description: "Check SHA256 computation works.",
+        apps: &[App::LibtockC("tests/sha")],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &["SHA computation correct."],
+            timeout: Duration::from_secs(5),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
+    TestCase {
+        name: "rng",
+        description: "Verify we get multiple rounds of random numbers.",
+        apps: &[App::LibtockC("tests/rng")],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &["Randomness:", "Randomness:", "Randomness:", "Randomness:"],
+            timeout: Duration::from_secs(5),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
+    TestCase {
+        name: "restart",
+        description: "Verify apps can restart.",
+        apps: &[App::LibtockC("tests/restart")],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &[
+                "Testing restart. x=1 (should be 1), z=0 (should be 0)",
+                "Restarting.",
+                "Testing restart. x=1 (should be 1), z=0 (should be 0)",
+                "Restarting.",
+                "Testing restart. x=1 (should be 1), z=0 (should be 0)",
+                "Restarting.",
+            ],
+            timeout: Duration::from_secs(10),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
+];

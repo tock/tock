@@ -132,9 +132,9 @@ pub trait Entropy32<'a> {
     fn set_client(&'a self, _: &'a dyn Client32);
 }
 
-/// An [Entropy32](trait.Entropy32.html) client
+/// An [Entropy32] client
 ///
-/// Clients of an [Entropy32](trait.Entropy32.html) must implement this trait.
+/// Clients of an [Entropy32] must implement this trait.
 pub trait Client32 {
     /// Called by the (Entropy)[trait.Entropy32.html] when there is entropy
     /// available.
@@ -164,7 +164,7 @@ pub trait Client32 {
 /// An 8-bit entropy generator.
 ///
 /// Implementors should assume the client implements the
-/// [Client8](trait.Client8.html) trait.
+/// [Client8] trait.
 pub trait Entropy8<'a> {
     /// Initiate the acquisition of new entropy.
     ///
@@ -193,9 +193,9 @@ pub trait Entropy8<'a> {
     fn set_client(&'a self, _: &'a dyn Client8);
 }
 
-/// An [Entropy8](trait.Entropy8.html) client
+/// An [Entropy8] client
 ///
-/// Clients of an [Entropy8](trait.Entropy8.html) must implement this trait.
+/// Clients of an [Entropy8] must implement this trait.
 pub trait Client8 {
     /// Called by the (Entropy)[trait.Entropy8.html] when there are
     /// one or more bytes of entropy available.

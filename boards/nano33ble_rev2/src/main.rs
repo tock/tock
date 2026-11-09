@@ -106,9 +106,9 @@ fn baud_rate_reset_bootloader_enter() {
         power.set_gpregret(0x90);
     });
 
-    unsafe {
-        cortexm4::scb::reset();
-    }
+    cortexm4::scb::reset(&kernel::create_capability!(
+        kernel::capabilities::CpuStateControlCapability
+    ));
 }
 
 type HS3003Sensor = components::hs3003::Hs3003ComponentType<
@@ -266,9 +266,14 @@ pub unsafe fn start() -> (
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let ficr = static_init!(
+        nrf52840::ficr::Ficr,
+        nrf52840::ficr::Ficr::new(nrf52840::chip::FICR_BASE)
+    );
 
     // SAFETY: This is the only copy and only user of the DMA peripherals.
-    let peripherals = unsafe { Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf) };
+    let peripherals =
+        unsafe { Nrf52840DefaultPeripherals::new(ficr, ieee802154_ack_buf, aes_ecb_buf) };
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(Nrf52840DefaultPeripherals, peripherals);
 
@@ -292,9 +297,6 @@ pub unsafe fn start() -> (
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
-
-    // Get FICR instance to read chip properties.
-    let ficr = nrf52840::ficr::Ficr::new();
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -425,7 +427,11 @@ pub unsafe fn start() -> (
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(cortexm4::support::reset),
+        Some(|| {
+            cortexm4::support::reset(&kernel::create_capability!(
+                kernel::capabilities::CpuStateControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
@@ -779,7 +785,17 @@ pub unsafe fn start() -> (
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+///
+/// # Safety
+///
+/// ## `no_mangle`
+///
+/// We use `main` as a symbol in the arch crate's initialization routine to jump
+/// here. We guarantee no other symbol has the same name.
+///
+/// Note: this requires a global/uniqueness guarantee.
+/// See <https://github.com/tock/tock/issues/5250>.
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 

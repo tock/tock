@@ -10,11 +10,13 @@ use cortexm33::{CortexM33, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
+use crate::Lpc55ImageHeader;
 use crate::clocks::Clock;
 use crate::ctimer0::LPCTimer;
 use crate::flexcomm::Flexcomm;
 use crate::gpio::Pins;
 use crate::interrupts;
+use crate::rng::RNG;
 use crate::uart::Uart;
 
 #[repr(u8)]
@@ -52,12 +54,15 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
         cortexm33::nvic::clear_all_pending();
 
         unsafe {
-            // Set the vector table offset, which requires casting from a BASE_VECTORS to a *const ()
-            // pointer.
-            let vector_table: *const [unsafe extern "C" fn(); 16] =
-                core::ptr::addr_of!(crate::BASE_VECTORS);
-            let vector_table: *const () = vector_table.cast();
-            cortexm33::scb::set_vector_table_offset(vector_table);
+            let lpc55_image_header: *const Lpc55ImageHeader =
+                core::ptr::addr_of!(crate::LPC55_IMAGE_HEADER);
+            let lpc55_image_header: *const () = lpc55_image_header.cast();
+            // The LPC55 image header is a superset of the Cortex-M33 vector
+            // table: it places the image header fields that the boot ROM reads
+            // in the vector slots that Cortex-M33 reserves (offsets 0x20, 0x24,
+            // 0x28, and 0x34), so the header *is* the vector table. Point VTOR
+            // at its start.
+            cortexm33::scb::set_vector_table_offset(lpc55_image_header);
         }
 
         cortexm33::nvic::enable_all();
@@ -88,9 +93,8 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm33::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
+        cortexm33::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
@@ -109,6 +113,7 @@ pub struct Lpc55s69DefaultPeripheral<'a> {
     pub pins: Pins<'a>,
     pub ctimer0: LPCTimer<'a>,
     pub uart: Uart<'a>,
+    pub rng: RNG<'a>,
 }
 
 impl Lpc55s69DefaultPeripheral<'_> {
@@ -117,7 +122,12 @@ impl Lpc55s69DefaultPeripheral<'_> {
             pins: Pins::new(),
             ctimer0: LPCTimer::new(),
             uart: Uart::new_uart0(clocks, flexcomm),
+            rng: RNG::new(),
         }
+    }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.rng);
     }
 }
 

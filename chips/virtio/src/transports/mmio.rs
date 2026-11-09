@@ -8,7 +8,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
+    LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
@@ -18,77 +18,69 @@ use super::super::transports::{VirtIOInitializationError, VirtIOTransport};
 // Magic string "virt" every device has to expose
 const VIRTIO_MAGIC_VALUE: [u8; 4] = [0x76, 0x69, 0x72, 0x74];
 
-#[repr(C)]
-pub struct VirtIOMMIODeviceRegisters {
-    /// 0x000 Magic string "virt" for identification
-    magic_value: ReadOnly<u32>,
-    /// 0x004 Device version number
-    device_version: ReadOnly<u32>,
-    /// 0x008 VirtIO Subsystem Device ID
-    device_id: ReadOnly<u32>,
-    /// 0x00C VirtIO Subsystem Vendor ID
-    vendor_id: ReadOnly<u32>,
-    /// 0x010 Flags representing features the device supports
-    device_features: ReadOnly<u32, DeviceFeatures::Register>,
-    /// 0x014 Device (host) features word selection
-    device_features_sel: WriteOnly<u32, DeviceFeatures::Register>,
-    // 0x018 - 0x01C: reserved
-    _reversed0: [u32; 2],
-    /// 0x020 Flags representing features understood and activated by the driver
-    driver_features: WriteOnly<u32>,
-    /// 0x024 Activated (guest) features word selection
-    driver_features_sel: WriteOnly<u32>,
-    // 0x028 - 0x02C: reserved
-    _reserved1: [u32; 2],
-    /// 0x030 Virtual queue index
-    queue_sel: WriteOnly<u32>,
-    /// 0x034 Maximum virtual queue size
-    queue_num_max: ReadOnly<u32>,
-    /// 0x038 Virtual queue size
-    queue_num: WriteOnly<u32>,
-    // 0x03C - 0x40: reserved
-    _reserved2: [u32; 2],
-    /// 0x044 Virtual queue ready bit
-    queue_ready: ReadWrite<u32>,
-    // 0x048 - 0x04C: reserved
-    _reserved3: [u32; 2],
-    /// 0x050 Queue notifier
-    queue_notify: WriteOnly<u32>,
-    // 0x054 - 0x05C: reserved
-    _reserved4: [u32; 3],
-    /// 0x060 Interrupt status
-    interrupt_status: ReadOnly<u32, InterruptStatus::Register>,
-    /// 0x064 Interrupt acknowledge
-    interrupt_ack: WriteOnly<u32, InterruptStatus::Register>,
-    // 0x068 - 0x06C: reserved
-    _reserved5: [u32; 2],
-    /// 0x070 Device status
-    device_status: ReadWrite<u32, DeviceStatus::Register>,
-    // 0x074 - 0x07C: reserved
-    _reserved6: [u32; 3],
-    /// 0x080 - 0x084 Virtual queue's Descriptor Area 64-bit long physical address
-    queue_desc_low: WriteOnly<u32>,
-    queue_desc_high: WriteOnly<u32>,
-    // 0x088 - 0x08C: reserved
-    _reserved7: [u32; 2],
-    /// 0x090 - 0x094 Virtual queue's Driver Area 64-bit long physical address
-    queue_driver_low: WriteOnly<u32>,
-    queue_driver_high: WriteOnly<u32>,
-    // 0x098 - 0x09C: reserved
-    _reserved8: [u32; 2],
-    /// 0x0A0 - 0x0A4 Virtual queue's Device Area 64-bit long physical address
-    queue_device_low: WriteOnly<u32>,
-    queue_device_high: WriteOnly<u32>,
-    // 0x0A8 - 0x0AC: reserved
-    _reserved9: [u32; 21],
-    /// 0x0FC Configuration atomicity value
-    config_generation: ReadOnly<u32>,
-    /// 0x100 - 0x19C device configuration space
-    ///
-    /// This is individually defined per device, with a variable
-    /// size. TODO: How to address this properly? Just hand around
-    /// addresses to this?
-    config: [u32; 40],
+register_structs! {
+    pub VirtIOMMIODeviceRegisters {
+        /// 0x000 Magic string "virt" for identification
+        (0x000 => magic_value: ReadOnly<u32>),
+        /// 0x004 Device version number
+        (0x004 => device_version: ReadOnly<u32>),
+        /// 0x008 VirtIO Subsystem Device ID
+        (0x008 => device_id: ReadOnly<u32>),
+        /// 0x00C VirtIO Subsystem Vendor ID
+        (0x00C => vendor_id: ReadOnly<u32>),
+        /// 0x010 Flags representing features the device supports
+        (0x010 => device_features: ReadOnly<u32, DeviceFeatures::Register>),
+        /// 0x014 Device (host) features word selection
+        (0x014 => device_features_sel: WriteOnly<u32, DeviceFeatures::Register>),
+        (0x018 => _reversed0: [u32; 2]),
+        /// 0x020 Flags representing features understood and activated by the driver
+        (0x020 => driver_features: WriteOnly<u32>),
+        /// 0x024 Activated (guest) features word selection
+        (0x024 => driver_features_sel: WriteOnly<u32>),
+        (0x028 => _reserved1),
+        /// 0x030 Virtual queue index
+        (0x030 => queue_sel: WriteOnly<u32>),
+        /// 0x034 Maximum virtual queue size
+        (0x034 => queue_num_max: ReadOnly<u32>),
+        /// 0x038 Virtual queue size
+        (0x038 => queue_num: WriteOnly<u32>),
+        (0x03C => _reserved2),
+        /// 0x044 Virtual queue ready bit
+        (0x044 => queue_ready: ReadWrite<u32>),
+        (0x048 => _reserved3),
+        /// 0x050 Queue notifier
+        (0x050 => queue_notify: WriteOnly<u32>),
+        (0x054 => _reserved4),
+        /// 0x060 Interrupt status
+        (0x060 => interrupt_status: ReadOnly<u32, InterruptStatus::Register>),
+        /// 0x064 Interrupt acknowledge
+        (0x064 => interrupt_ack: WriteOnly<u32, InterruptStatus::Register>),
+        (0x068 => _reserved5),
+        /// 0x070 Device status
+        (0x070 => device_status: ReadWrite<u32, DeviceStatus::Register>),
+        (0x074 => _reserved6),
+        /// 0x080 - 0x084 Virtual queue's Descriptor Area 64-bit long physical address
+        (0x080 => queue_desc_low: WriteOnly<u32>),
+        (0x084 => queue_desc_high: WriteOnly<u32>),
+        (0x088 => _reserved7),
+        /// 0x090 - 0x094 Virtual queue's Driver Area 64-bit long physical address
+        (0x090 => queue_driver_low: WriteOnly<u32>),
+        (0x094 => queue_driver_high: WriteOnly<u32>),
+        (0x098 => _reserved8),
+        /// 0x0A0 - 0x0A4 Virtual queue's Device Area 64-bit long physical address
+        (0x0A0 => queue_device_low: WriteOnly<u32>),
+        (0x0A4 => queue_device_high: WriteOnly<u32>),
+        (0x0A8 => _reserved9),
+        /// 0x0FC Configuration atomicity value
+        (0x0FC => config_generation: ReadOnly<u32>),
+        /// 0x100 - 0x19C device configuration space
+        ///
+        /// This is individually defined per device, with a variable
+        /// size. TODO: How to address this properly? Just hand around
+        /// addresses to this?
+        (0x100 => config: [u32; 40]),
+        (0x1A0 => @END),
+    }
 }
 
 register_bitfields![u32,

@@ -42,9 +42,8 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm0p::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
+        cortexm0p::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

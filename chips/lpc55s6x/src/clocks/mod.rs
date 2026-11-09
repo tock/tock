@@ -10,7 +10,7 @@
 //! clarity and maintainability across the Tock kernel codebase.
 
 pub mod syscon;
-use crate::clocks::syscon::SYSCON_BASE;
+use crate::clocks::syscon::{AHBCLKCTRL2, PRESETCTRL2, SYSCON_BASE};
 
 use self::syscon::SysconRegisters;
 use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
@@ -79,6 +79,21 @@ impl Clock {
                 + syscon::AHBCLKCTRL0::PINT::SET
                 + syscon::AHBCLKCTRL0::MUX::SET,
         );
+    }
+
+    /// Enable the RNG clock and pulse the RNG reset. The RNG entropy sources
+    /// must be powered up first with `Pmc::power_up_rng`.
+    pub fn start_rng_clock(&self) {
+        self.syscon
+            .ahbclkctrl2
+            .modify(AHBCLKCTRL2::RNG::EnableClock);
+
+        self.syscon
+            .presetctrl2
+            .modify(PRESETCTRL2::RNG_RST::BlocIsReset);
+        self.syscon
+            .presetctrl2
+            .modify(PRESETCTRL2::RNG_RST::BlocIsNotReset);
     }
 
     pub fn start_timer_clocks(&self) {

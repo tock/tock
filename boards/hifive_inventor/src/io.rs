@@ -12,7 +12,7 @@ use sifive::uart::{Uart, UartPanicWriterConfig};
 /// Panic handler.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = sifive::gpio::GpioPin::new(
         e310_g003::gpio::GPIO0_BASE,
         sifive::gpio::pins::pin22,

@@ -15,14 +15,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use nrf5x::pinmux::Pinmux;
 
-/// Uninitialized `TWI` instances.
-const INSTANCES: [StaticRef<TwiRegisters>; 2] = unsafe {
-    [
-        StaticRef::new(0x40003000 as *const TwiRegisters),
-        StaticRef::new(0x40004000 as *const TwiRegisters),
-    ]
-};
-
 /// An I2C master device.
 ///
 /// A `TWI` instance wraps a `registers::TWI` together with
@@ -44,7 +36,7 @@ pub enum Speed {
 }
 
 impl TWI<'_> {
-    const fn new(registers: StaticRef<TwiRegisters>) -> Self {
+    pub const fn new(registers: StaticRef<TwiRegisters>) -> Self {
         Self {
             registers,
             client: OptionalCell::empty(),
@@ -52,14 +44,6 @@ impl TWI<'_> {
             buf: TakeCell::empty(),
             slave_read_buf: TakeCell::empty(),
         }
-    }
-
-    pub const fn new_twi0() -> Self {
-        TWI::new(INSTANCES[0])
-    }
-
-    pub const fn new_twi1() -> Self {
-        TWI::new(INSTANCES[1])
     }
 
     /// Configures an already constructed `TWI`.

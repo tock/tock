@@ -8,7 +8,7 @@ use nrf52840::gpio::Pin;
 #[cfg(not(test))]
 #[panic_handler]
 /// Panic handler
-pub unsafe fn panic_fmt(_pi: &PanicInfo) -> ! {
+pub fn panic_fmt(_pi: &PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_13);
     let led = &mut kernel::hil::led::LedLow::new(led_kernel_pin);

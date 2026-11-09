@@ -25,7 +25,6 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
-use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 use kernel::debug_verbose;
 use kernel::hil::flash;
@@ -63,9 +62,10 @@ pub unsafe fn run(mux_alarm: &'static MuxAlarm<'static, Rtc>, flash_controller: 
     alarm.setup();
 
     // Create and run test for log storage.
+    let buffer = static_init!([u8; 2480], [0; 2480]);
     let test = static_init!(
         LogTest<VirtualMuxAlarm<'static, Rtc>>,
-        LogTest::new(log, &mut *addr_of_mut!(BUFFER), alarm, &TEST_OPS)
+        LogTest::new(log, buffer, alarm, &TEST_OPS)
     );
     log.set_read_client(test);
     log.set_append_client(test);
@@ -92,8 +92,6 @@ static TEST_OPS: [TestOp; 9] = [
     TestOp::Write(2464),
 ];
 
-// Buffer for reading from and writing to in the log tests.
-static mut BUFFER: [u8; 2480] = [0; 2480];
 // Time to wait in between log operations.
 const WAIT_MS: u32 = 100;
 

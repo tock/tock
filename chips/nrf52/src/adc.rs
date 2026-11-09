@@ -15,7 +15,7 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 
 #[repr(C)]
-struct AdcRegisters {
+pub struct AdcRegisters {
     /// Start the ADC and prepare the result buffer in RAM
     tasks_start: WriteOnly<u32, TASK::Register>,
     /// Take one ADC sample, if scan is enabled all channels are sampled
@@ -244,9 +244,6 @@ pub enum AdcChannel {
     VDDHDIV5 = 0xD,
 }
 
-const SAADC_BASE: StaticRef<AdcRegisters> =
-    unsafe { StaticRef::new(0x40007000 as *const AdcRegisters) };
-
 // Buffer to save completed sample to.
 static mut SAMPLE: [u16; 1] = [0; 1];
 
@@ -349,9 +346,9 @@ pub struct Adc<'a> {
 }
 
 impl Adc<'_> {
-    pub const fn new(voltage_reference_in_mv: usize) -> Self {
+    pub const fn new(registers: StaticRef<AdcRegisters>, voltage_reference_in_mv: usize) -> Self {
         Self {
-            registers: SAADC_BASE,
+            registers,
             reference: Cell::new(voltage_reference_in_mv),
             mode: Cell::new(AdcMode::Idle),
             client: OptionalCell::empty(),

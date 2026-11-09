@@ -57,19 +57,10 @@ macro_rules! internal_err {
     };
 }
 
-const CHIPINFO_BASE: StaticRef<ChipInfoRegisters> =
-    unsafe { StaticRef::new(0x10000130 as *const ChipInfoRegisters) };
-
-const USBD_BASE: StaticRef<UsbdRegisters<'static>> =
-    unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters<'static>) };
-
-const USBERRATA_BASE: StaticRef<UsbErrataRegisters> =
-    unsafe { StaticRef::new(0x4006E000 as *const UsbErrataRegisters) };
-
 const NUM_ENDPOINTS: usize = 8;
 
 register_structs! {
-    ChipInfoRegisters {
+    pub ChipInfoRegisters {
         /// Undocumented register indicating the model of the chip
         (0x000 => chip_model: ReadOnly<u32, ChipModel::Register>),
         /// Undocumented register indicating the revision of the chip
@@ -78,7 +69,7 @@ register_structs! {
         (0x008 => @END),
     },
 
-    UsbErrataRegisters {
+    pub UsbErrataRegisters {
         (0x000 => _reserved0),
         /// Undocumented register - Errata 171
         (0xC00 => reg_c00: ReadWrite<u32>),
@@ -93,7 +84,7 @@ register_structs! {
 }
 
 #[repr(C)]
-struct UsbdRegisters<'a> {
+pub struct UsbdRegisters<'a> {
     _reserved1: [u32; 1],
     /// Captures the EPIN\[n\].PTR, EPIN\[n\].MAXCNT and EPIN\[n\].CONFIG
     /// registers values and enables endpoint IN not respond to traffic
@@ -713,6 +704,8 @@ impl Endpoint<'_> {
 
 pub struct Usbd<'a> {
     registers: StaticRef<UsbdRegisters<'a>>,
+    registers_chip_info: StaticRef<ChipInfoRegisters>,
+    registers_errata: StaticRef<UsbErrataRegisters>,
     state: OptionalCell<UsbState>,
     dma_pending: Cell<bool>,
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
@@ -721,9 +714,15 @@ pub struct Usbd<'a> {
 }
 
 impl<'a> Usbd<'a> {
-    pub const fn new() -> Self {
+    pub const fn new(
+        registers: StaticRef<UsbdRegisters<'a>>,
+        registers_chip_info: StaticRef<ChipInfoRegisters>,
+        registers_errata: StaticRef<UsbErrataRegisters>,
+    ) -> Self {
         Usbd {
-            registers: USBD_BASE,
+            registers,
+            registers_chip_info,
+            registers_errata,
             client: OptionalCell::empty(),
             state: OptionalCell::new(UsbState::Disabled),
             dma_pending: Cell::new(false),
@@ -763,10 +762,14 @@ impl<'a> Usbd<'a> {
     }
 
     fn has_errata_187(&self) -> bool {
-        CHIPINFO_BASE
+        self.registers_chip_info
             .chip_model
             .matches_all(ChipModel::MODEL::NRF52840)
-            && match CHIPINFO_BASE.chip_revision.read_as_enum(ChipRevision::REV) {
+            && match self
+                .registers_chip_info
+                .chip_revision
+                .read_as_enum(ChipRevision::REV)
+            {
                 Some(ChipRevision::REV::Value::REVB)
                 | Some(ChipRevision::REV::Value::REVC)
                 | Some(ChipRevision::REV::Value::REVD)
@@ -792,12 +795,12 @@ impl<'a> Usbd<'a> {
     fn apply_errata_171(&self, val: u32) {
         if self.has_errata_171() {
             with_interrupts_disabled(|| {
-                if USBERRATA_BASE.reg_c00.get() == 0 {
-                    USBERRATA_BASE.reg_c00.set(0x9375);
-                    USBERRATA_BASE.reg_c14.set(val);
-                    USBERRATA_BASE.reg_c00.set(0x9375);
+                if self.registers_errata.reg_c00.get() == 0 {
+                    self.registers_errata.reg_c00.set(0x9375);
+                    self.registers_errata.reg_c14.set(val);
+                    self.registers_errata.reg_c00.set(0x9375);
                 } else {
-                    USBERRATA_BASE.reg_c14.set(val);
+                    self.registers_errata.reg_c14.set(val);
                 }
             });
         }
@@ -807,12 +810,12 @@ impl<'a> Usbd<'a> {
     fn apply_errata_187(&self, val: u32) {
         if self.has_errata_187() {
             with_interrupts_disabled(|| {
-                if USBERRATA_BASE.reg_c00.get() == 0 {
-                    USBERRATA_BASE.reg_c00.set(0x9375);
-                    USBERRATA_BASE.reg_d14.set(val);
-                    USBERRATA_BASE.reg_c00.set(0x9375);
+                if self.registers_errata.reg_c00.get() == 0 {
+                    self.registers_errata.reg_c00.set(0x9375);
+                    self.registers_errata.reg_d14.set(val);
+                    self.registers_errata.reg_c00.set(0x9375);
                 } else {
-                    USBERRATA_BASE.reg_d14.set(val);
+                    self.registers_errata.reg_d14.set(val);
                 }
             });
         }
@@ -910,14 +913,14 @@ impl<'a> Usbd<'a> {
         // If your chip isn't one of these, you will be alerted by these panics. You can disable
         // them but will likely need to add the relevant errata to this implementation (errata 104,
         // 154, 200).
-        let chip_model = CHIPINFO_BASE.chip_model.get();
+        let chip_model = self.registers_chip_info.chip_model.get();
         if chip_model != u32::from(ChipModel::MODEL::NRF52840) {
             panic!(
                 "USB was only tested on NRF52840. Your chip model is {}.",
                 chip_model
             );
         }
-        let chip_revision = CHIPINFO_BASE.chip_revision.extract();
+        let chip_revision = self.registers_chip_info.chip_revision.extract();
         match chip_revision.read_as_enum(ChipRevision::REV) {
             Some(ChipRevision::REV::Value::REVA) | Some(ChipRevision::REV::Value::REVB) => {
                 panic!(

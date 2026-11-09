@@ -126,7 +126,7 @@ pub enum Pin {
 /// (see[^1]).
 ///
 /// In general, the kernel and applications should care about individual
-/// [GPIOPin](struct.GPIOPin.html)s. However, mirroring the hardware grouping in
+/// [GPIOPin]s. However, mirroring the hardware grouping in
 /// Rust is useful, internally, for correctly handling and dispatching
 /// interrupts.
 ///

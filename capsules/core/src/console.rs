@@ -378,88 +378,85 @@ impl uart::ReceiveClient for Console<'_> {
         rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
-        self.rx_in_progress
-            .take()
-            .map(|processid| {
-                self.apps
-                    .enter(processid, |_, kernel_data| {
-                        // An iterator over the returned buffer yielding only the first `rx_len`
-                        // bytes
-                        let rx_buffer = buffer.iter().take(rx_len);
-                        match error {
-                            uart::Error::None | uart::Error::Aborted => {
-                                // Receive some bytes, signal error type and return bytes to process buffer
-                                let count = kernel_data
-                                    .get_readwrite_processbuffer(rw_allow::READ)
-                                    .and_then(|read| {
-                                        read.mut_enter(|data| {
-                                            let mut c = 0;
-                                            for (a, b) in data.iter().zip(rx_buffer) {
-                                                c += 1;
-                                                a.set(*b);
-                                            }
-                                            c
-                                        })
+        self.rx_in_progress.take().map_or_default(|processid| {
+            self.apps
+                .enter(processid, |_, kernel_data| {
+                    // An iterator over the returned buffer yielding only the first `rx_len`
+                    // bytes
+                    let rx_buffer = buffer.iter().take(rx_len);
+                    match error {
+                        uart::Error::None | uart::Error::Aborted => {
+                            // Receive some bytes, signal error type and return bytes to process buffer
+                            let count = kernel_data
+                                .get_readwrite_processbuffer(rw_allow::READ)
+                                .and_then(|read| {
+                                    read.mut_enter(|data| {
+                                        let mut c = 0;
+                                        for (a, b) in data.iter().zip(rx_buffer) {
+                                            c += 1;
+                                            a.set(*b);
+                                        }
+                                        c
                                     })
-                                    .unwrap_or(-1);
+                                })
+                                .unwrap_or(-1);
 
-                                // Make sure we report the same number
-                                // of bytes that we actually copied into
-                                // the app's buffer. This is defensive:
-                                // we shouldn't ever receive more bytes
-                                // than will fit in the app buffer since
-                                // we use the app_buffer's length when
-                                // calling `receive()`. However, a buggy
-                                // lower layer could return more bytes
-                                // than we asked for, and we don't want
-                                // to propagate that length error to
-                                // userspace. However, we do return an
-                                // error code so that userspace knows
-                                // something went wrong.
-                                //
-                                // If count < 0 this means the buffer
-                                // disappeared: return NOMEM.
-                                let read_buffer_len = kernel_data
-                                    .get_readwrite_processbuffer(rw_allow::READ)
-                                    .map_or(0, |read| read.len());
-                                let (ret, received_length) = if count < 0 {
-                                    (Err(ErrorCode::NOMEM), 0)
-                                } else if rx_len > read_buffer_len {
-                                    // Return `SIZE` indicating that
-                                    // some received bytes were dropped.
-                                    // We report the length that we
-                                    // actually copied into the buffer,
-                                    // but also indicate that there was
-                                    // an issue in the kernel with the
-                                    // receive.
-                                    (Err(ErrorCode::SIZE), read_buffer_len)
-                                } else {
-                                    // This is the normal and expected
-                                    // case.
-                                    (rcode, rx_len)
-                                };
+                            // Make sure we report the same number
+                            // of bytes that we actually copied into
+                            // the app's buffer. This is defensive:
+                            // we shouldn't ever receive more bytes
+                            // than will fit in the app buffer since
+                            // we use the app_buffer's length when
+                            // calling `receive()`. However, a buggy
+                            // lower layer could return more bytes
+                            // than we asked for, and we don't want
+                            // to propagate that length error to
+                            // userspace. However, we do return an
+                            // error code so that userspace knows
+                            // something went wrong.
+                            //
+                            // If count < 0 this means the buffer
+                            // disappeared: return NOMEM.
+                            let read_buffer_len = kernel_data
+                                .get_readwrite_processbuffer(rw_allow::READ)
+                                .map_or(0, |read| read.len());
+                            let (ret, received_length) = if count < 0 {
+                                (Err(ErrorCode::NOMEM), 0)
+                            } else if rx_len > read_buffer_len {
+                                // Return `SIZE` indicating that
+                                // some received bytes were dropped.
+                                // We report the length that we
+                                // actually copied into the buffer,
+                                // but also indicate that there was
+                                // an issue in the kernel with the
+                                // receive.
+                                (Err(ErrorCode::SIZE), read_buffer_len)
+                            } else {
+                                // This is the normal and expected
+                                // case.
+                                (rcode, rx_len)
+                            };
 
-                                let _ = kernel_data.schedule_upcall(
-                                    upcall::READ_DONE,
-                                    (kernel::errorcode::into_statuscode(ret), received_length, 0),
-                                );
-                            }
-                            _ => {
-                                // Some UART error occurred
-                                let _ = kernel_data.schedule_upcall(
-                                    upcall::READ_DONE,
-                                    (
-                                        kernel::errorcode::into_statuscode(Err(ErrorCode::FAIL)),
-                                        0,
-                                        0,
-                                    ),
-                                );
-                            }
+                            let _ = kernel_data.schedule_upcall(
+                                upcall::READ_DONE,
+                                (kernel::errorcode::into_statuscode(ret), received_length, 0),
+                            );
                         }
-                    })
-                    .unwrap_or_default();
-            })
-            .unwrap_or_default();
+                        _ => {
+                            // Some UART error occurred
+                            let _ = kernel_data.schedule_upcall(
+                                upcall::READ_DONE,
+                                (
+                                    kernel::errorcode::into_statuscode(Err(ErrorCode::FAIL)),
+                                    0,
+                                    0,
+                                ),
+                            );
+                        }
+                    }
+                })
+                .unwrap_or_default();
+        });
 
         // Whatever happens, we want to make sure to replace the rx_buffer for future transactions
         self.rx_buffer.replace(buffer);

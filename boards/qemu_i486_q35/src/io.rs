@@ -47,15 +47,16 @@ fn exit_qemu() -> ! {
 /// Panic handler.
 #[cfg(not(test))]
 #[panic_handler]
-unsafe fn panic_handler(pi: &PanicInfo) -> ! {
-    let mut com1 = BlockingSerialPort::new(COM1_BASE);
-
-    debug::panic_print_old(
-        &mut com1,
-        pi,
-        &x86::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+fn panic_handler(pi: &PanicInfo) -> ! {
+    let mut com1 = unsafe { BlockingSerialPort::new(COM1_BASE) };
+    unsafe {
+        debug::panic_print_old(
+            &mut com1,
+            pi,
+            &x86::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        );
+    }
 
     exit_qemu();
 }

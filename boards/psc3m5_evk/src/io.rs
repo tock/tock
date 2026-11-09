@@ -14,7 +14,7 @@ use kernel::hil::led::LedHigh;
 /// This function is called on panic, and it will attempt to print the panic message to the serial port.
 /// It also blinks the LED to indicate a panic has occurred.
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &GpioPin::new(gpio::PsocPin::P8_5);
     let led = &mut LedHigh::new(led_kernel_pin);
 

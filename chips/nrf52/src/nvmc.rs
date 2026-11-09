@@ -17,11 +17,8 @@ use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
-const NVMC_BASE: StaticRef<NvmcRegisters> =
-    unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };
-
 #[repr(C)]
-struct NvmcRegisters {
+pub struct NvmcRegisters {
     /// Ready flag
     /// Address 0x400 - 0x404
     pub ready: ReadOnly<u32, Ready::Register>,
@@ -208,9 +205,9 @@ pub struct Nvmc {
 }
 
 impl Nvmc {
-    pub fn new() -> Self {
+    pub fn new(registers: StaticRef<NvmcRegisters>) -> Self {
         Self {
-            registers: NVMC_BASE,
+            registers,
             client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             state: Cell::new(FlashState::Ready),

@@ -11,7 +11,7 @@ use stm32u545::usart::{Usart, UsartPanicWriterConfig};
 
 /// Panic handler.
 #[panic_handler]
-pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
+pub fn panic_fmt(info: &PanicInfo) -> ! {
     debug::panic_print::<Usart, crate::ChipHw, crate::ProcessPrinterInUse>(
         UsartPanicWriterConfig {
             registers: crate::PANIC_USART,

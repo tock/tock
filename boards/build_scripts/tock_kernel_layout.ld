@@ -105,14 +105,14 @@ SECTIONS
          * shouldn't have any effect.
          */
         KEEP(*(.riscv.start));
-        /* For RISC-V we need the `_start_trap` function to be 256 byte aligned,
+        /* For RISC-V we need the `start_trap` function to be 256 byte aligned,
          * and that function is at the start of the .riscv.trap section. If that
          * function does not exist (as for non-RISC-V platforms) then we do not
          * need any unusual alignment.
          * The alignment is implementation specific, so we currently use 256 to
          * work with the lowRISC CPUs.
          */
-        . = DEFINED(_start_trap) ? ALIGN(256) : ALIGN(1);
+        . = DEFINED(start_trap) ? ALIGN(256) : ALIGN(1);
         KEEP(*(.riscv.trap_vectored));
         KEEP(*(.riscv.trap));
 
@@ -440,15 +440,6 @@ SECTIONS
 _sattributes = LOADADDR(.attributes);
 _eattributes = LOADADDR(.attributes) + SIZEOF(.attributes);
 _erom = ORIGIN(rom) + LENGTH(rom);
-
-/* Set the ENTRY attribute to the start of the text section, _stext. For RISC-V
- * this should point to `.riscv.start`, which contains the `_start` symbol. For
- * Cortex-M, this starts with the interrupt vector table.
- *
- * This variable is used by, e.g., QEMU to determine the entrypoint to start
- * program execution.
- */
-ENTRY(_stext);
 
 /* This.. this is a dirty, not-fully-understood, hack. In some way, linking is
  * a multi-pass process. i.e., if you were to ASSERT(0, "how many links")

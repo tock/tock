@@ -15,11 +15,8 @@ use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
 use crate::gpio::Pin;
 
-const UICR_BASE: StaticRef<UicrRegisters> =
-    unsafe { StaticRef::new(0x10001200 as *const UicrRegisters) };
-
 #[repr(C)]
-struct UicrRegisters {
+pub struct UicrRegisters {
     /// Mapping of the nRESET function (see POWER chapter for details)
     /// - Address: 0x200 - 0x204
     pselreset0: ReadWrite<u32, Pselreset::Register>,
@@ -102,8 +99,9 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct Uicr {
+pub struct Uicr<'a> {
     registers: StaticRef<UicrRegisters>,
+    ficr: &'a ficr::Ficr,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -138,11 +136,9 @@ impl From<u32> for Regulator0Output {
     }
 }
 
-impl Uicr {
-    pub const fn new() -> Uicr {
-        Uicr {
-            registers: UICR_BASE,
-        }
+impl<'a> Uicr<'a> {
+    pub const fn new(registers: StaticRef<UicrRegisters>, ficr: &'a ficr::Ficr) -> Uicr<'a> {
+        Uicr { registers, ficr }
     }
 
     pub fn set_psel0_reset_pin(&self, pin: Pin) {
@@ -185,8 +181,7 @@ impl Uicr {
         // We need to understand the variant of this nRF52 chip to correctly
         // implement this function. Newer versions use a different value to
         // indicate disabled.
-        let factory_config = ficr::Ficr::new();
-        let disabled_val = if factory_config.has_updated_approtect_logic() {
+        let disabled_val = if self.ficr.has_updated_approtect_logic() {
             ApProtect::PALL::HWDISABLE
         } else {
             ApProtect::PALL::DISABLED
@@ -207,8 +202,7 @@ impl Uicr {
     pub fn disable_ap_protect(&self) {
         // We need to understand the variant of this nRF52 chip to correctly
         // implement this function.
-        let factory_config = ficr::Ficr::new();
-        if factory_config.has_updated_approtect_logic() {
+        if self.ficr.has_updated_approtect_logic() {
             // Newer revisions of the chip require setting the APPROTECT
             // register to `HwDisable`.
             self.registers.approtect.write(ApProtect::PALL::HWDISABLE);

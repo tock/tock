@@ -35,6 +35,9 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
+mod qemu_systick;
+use qemu_systick::QemuMps2SysTick;
+
 pub const NUM_PROCS: usize = 4;
 
 pub type ChipHw<C> = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
@@ -48,7 +51,7 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
     scheduler: &'static SchedulerInUse,
-    systick: cortexm::systick::SysTick,
+    systick: QemuMps2SysTick,
     led: &'static capsules_core::led::LedDriver<
         'static,
         qemu_arm_mps2::led::Led<'static>,
@@ -91,7 +94,7 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = SchedulerInUse;
-    type SchedulerTimer = cortexm::systick::SysTick;
+    type SchedulerTimer = QemuMps2SysTick;
     type WatchDog = qemu_arm_mps2::watchdog::Watchdog;
     type ContextSwitchCallback = ();
 
@@ -156,11 +159,28 @@ where
     let _ = panic_resources
         .bind_to_thread::<<ChipHw<C> as Chip>::ThreadIdProvider>(PanicResources::new());
 
+    // The hardware buffers nothing, so UART0 needs a ring buffer for
+    // background RX collection -- see
+    // `qemu_arm_mps2::uart::Uart::set_ring_buffer`. Built here, rather than
+    // in `qemu_arm_mps2_unsafe::default_peripherals()`, because `static_init!()`
+    // is a board's call to make, not a chip's.
+    let uart0_ring_buffer_bytes = static_init!(
+        [u8; qemu_arm_mps2::uart::RING_BUFFER_SIZE_BYTE],
+        [0; qemu_arm_mps2::uart::RING_BUFFER_SIZE_BYTE]
+    );
+    let uart0_ring_buffer = static_init!(
+        kernel::collections::ring_buffer::RingBuffer<'static, u8>,
+        kernel::collections::ring_buffer::RingBuffer::new(
+            kernel::utilities::slice_uninit::mut_slice_as_maybeuninit(uart0_ring_buffer_bytes)
+        )
+    );
+
     // SAFETY: We promise to be the only caller of `default_peripherals`.
     let peripherals = static_init!(
         qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
-        qemu_arm_mps2_unsafe::default_peripherals()
+        qemu_arm_mps2_unsafe::default_peripherals(uart0_ring_buffer)
     );
+    peripherals.init();
 
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
@@ -261,7 +281,10 @@ where
         Platform {
             console,
             scheduler,
-            systick: cortexm::systick::SysTick::new(),
+            systick: QemuMps2SysTick::new(
+                cortexm::systick::SysTick::new_with_calibration(qemu_arm_mps2::SYSCLK_FRQ),
+                qemu_arm_mps2::SYSCLK_FRQ,
+            ),
             led,
             alarm,
             spi,

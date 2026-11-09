@@ -19,6 +19,7 @@ members = [
     "boards/arty_e21",
     "boards/opentitan/earlgrey-cw310",
     "boards/esp32-c3-devkitM-1",
+    "boards/esp32-c3-devkit-rust-2",
     "boards/cy8cproto_62_4343_w",
     "boards/clue_nrf52840",
     "boards/veer_el2_sim",
@@ -151,7 +152,7 @@ authors = ["Tock Project Developers <devel@lists.tockos.org>"]
 edition = "2021"
 
 [workspace.dependencies]
-tock-registers = { version = "0.10.0", default-features = false }
+tock-registers = { version = "0.11.0", default-features = false }
 
 [profile.dev]
 panic = "abort"
@@ -294,6 +295,7 @@ cognitive_complexity = "allow"
 
 
 branches_sharing_code = "allow"
+empty_enums = "allow"
 
 
 use_self = "allow"

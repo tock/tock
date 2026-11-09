@@ -5,7 +5,7 @@
 //! Utilities used by the components of the IP stack.
 //!
 //! Note that this file also contains the definition for the
-//! [IPAddr](struct.IPAddr.html) struct and associated helper
+//! [IPAddr] struct and associated helper
 //! functions.
 
 use crate::net::icmpv6::{ICMP6Header, ICMP6HeaderOptions};

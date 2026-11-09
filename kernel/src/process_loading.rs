@@ -957,12 +957,13 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
     /// Helper function to find the next potential aligned address for the
     /// new app with size `app_length` assuming Cortex-M alignment rules.
+    ///
+    /// A zero-length app has no alignment requirement, so `address` is
+    /// returned as is rather than dividing by zero.
     fn find_next_cortex_m_aligned_address(&self, address: usize, app_length: usize) -> usize {
-        let remaining = address % app_length;
-        if remaining == 0 {
-            address
-        } else {
-            address + (app_length - remaining)
+        match address.checked_rem(app_length) {
+            None | Some(0) => address,
+            Some(remaining) => address + (app_length - remaining),
         }
     }
 

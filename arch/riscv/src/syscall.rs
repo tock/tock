@@ -40,7 +40,7 @@ pub struct RiscvStoredState {
 }
 
 // Named offsets into the stored state registers. These needs to be kept in
-// sync with the register save logic in _start_trap() as well as the register
+// sync with the register save logic in start_trap() as well as the register
 // restore logic in switch_to_process() below.
 const R_RA: usize = 0;
 const R_SP: usize = 1;
@@ -264,7 +264,7 @@ fn encode_upcall_helper(
 pub struct SysCall<I: InterruptController = Clint>(PhantomData<I>);
 
 impl<I: InterruptController> SysCall<I> {
-    pub const unsafe fn new() -> SysCall<I> {
+    pub const fn new() -> SysCall<I> {
         SysCall(PhantomData)
     }
 }
@@ -454,7 +454,7 @@ impl<I: InterruptController> kernel::syscall::UserspaceKernelBoundary for SysCal
     // handler address to our current stack pointer. This stack pointer,
     // at `1*(XLEN/8)(sp)`, holds the address of `_start_app_trap`.
     //
-    // Upon a trap, the global trap handler (_start_trap) will swap `s0`
+    // Upon a trap, the global trap handler (start_trap) will swap `s0`
     // with the `mscratch` CSR and, if it contains a non-zero address,
     // jump to the address that is now at `1*(XLEN/8)(s0)`. This allows us to
     // hook a custom trap handler that saves all userspace state:

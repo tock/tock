@@ -33,24 +33,22 @@ impl IoWrite for Writer {
 }
 
 /// Panic handler.
-///
-/// # Safety
-/// Accesses memory-mapped registers.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let writer = &mut *addr_of_mut!(WRITER);
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
+    unsafe {
+        let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_print_old(
-        writer,
-        pi,
-        &rv32i::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+        debug::panic_print_old(
+            writer,
+            pi,
+            &rv32i::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        );
 
-    // By writing 0xff to this address we can exit the simulation.
-    // So instead of blinking in a loop let's exit the simulation.
-    write_volatile(0xd0580000 as *mut u8, 0xff);
-
-    unreachable!()
+        // By writing 0xff to this address we can exit the simulation.
+        // So instead of blinking in a loop let's exit the simulation.
+        write_volatile(0xd0580000 as *mut u8, 0xff);
+    }
+    loop {}
 }

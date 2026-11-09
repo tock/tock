@@ -63,7 +63,7 @@ impl IoWrite for Writer {
 
 /// Panic handler.
 #[panic_handler]
-pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
+pub fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD3 is connected to PE09
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f303xc::rcc::Rcc::new();
@@ -73,13 +73,15 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     let gpio_ports = stm32f303xc::gpio::GpioPorts::new(&rcc, &exti);
     pin.set_ports_ref(&gpio_ports);
     let led = &mut led::LedHigh::new(&pin);
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    debug::panic_old(
-        &mut [led],
-        writer,
-        info,
-        &cortexm4::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    unsafe {
+        debug::panic_old(
+            &mut [led],
+            writer,
+            info,
+            &cortexm4::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }

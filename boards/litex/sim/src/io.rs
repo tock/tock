@@ -29,28 +29,32 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    // TODO: this double-instantiates the LiteX UART. `transmit_sync` should be
-    // converted into an unsafe, static method instead (which can take over UART
-    // operation with the hardware in any arbitrary state, and where the caller
-    // guarantees that the regular UART driver will not run following any call
-    // to `transmit_sync`)
-    let mut writer = Writer {
-        uart: litex_vexriscv::uart::LiteXUart::new(
-            kernel::utilities::StaticRef::new(
-                crate::socc::CSR_UART_BASE
-                    as *const litex_vexriscv::uart::LiteXUartRegisters<crate::socc::SoCRegisterFmt>,
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
+    unsafe {
+        // TODO: this double-instantiates the LiteX UART. `transmit_sync` should be
+        // converted into an unsafe, static method instead (which can take over UART
+        // operation with the hardware in any arbitrary state, and where the caller
+        // guarantees that the regular UART driver will not run following any call
+        // to `transmit_sync`)
+        let mut writer = Writer {
+            uart: litex_vexriscv::uart::LiteXUart::new(
+                kernel::utilities::StaticRef::new(
+                    crate::socc::CSR_UART_BASE
+                        as *const litex_vexriscv::uart::LiteXUartRegisters<
+                            crate::socc::SoCRegisterFmt,
+                        >,
+                ),
+                None, // LiteX simulator has no UART phy
             ),
-            None, // LiteX simulator has no UART phy
-        ),
-    };
+        };
 
-    debug::panic_print_old(
-        &mut writer,
-        pi,
-        &rv32i::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+        debug::panic_print_old(
+            &mut writer,
+            pi,
+            &rv32i::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        );
+    }
 
     // The system is no longer in a well-defined state; loop forever
     loop {}

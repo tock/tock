@@ -26,6 +26,7 @@ register_structs! {
 
 register_bitfields![u32,
     PERIP_CLK_EN0 [
+        I2C_EXT0 OFFSET(7) NUMBITS(1) [],
         TIMERGROUP0 OFFSET(13) NUMBITS(1) []
     ],
     CPU_PER_CONF [
@@ -106,5 +107,26 @@ impl SysReg {
         self.registers
             .perip_clk_en0
             .is_set(PERIP_CLK_EN0::TIMERGROUP0)
+    }
+
+    /// Enable the bus clock for the I2C_EXT0 controller.
+    ///
+    /// Unlike some other peripherals, I2C_EXT0's clock is *not* enabled by
+    /// default out of reset, so this must be called before
+    /// [`crate::i2c::I2c`] can be used.
+    pub fn enable_i2c0(&self) {
+        self.registers
+            .perip_clk_en0
+            .modify(PERIP_CLK_EN0::I2C_EXT0::SET);
+    }
+
+    pub fn disable_i2c0(&self) {
+        self.registers
+            .perip_clk_en0
+            .modify(PERIP_CLK_EN0::I2C_EXT0::CLEAR);
+    }
+
+    pub fn is_enabled_i2c0(&self) -> bool {
+        self.registers.perip_clk_en0.is_set(PERIP_CLK_EN0::I2C_EXT0)
     }
 }

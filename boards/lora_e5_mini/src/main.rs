@@ -202,7 +202,17 @@ unsafe fn create_peripherals() -> &'static mut Stm32wle5jcDefaultPeripherals<'st
 /// Main function
 ///
 /// This is called after RAM initialization is complete.
-#[no_mangle]
+///
+/// # Safety
+///
+/// ## `no_mangle`
+///
+/// We use `main` as a symbol in the arch crate's initialization routine to jump
+/// here. We guarantee no other symbol has the same name.
+///
+/// Note: this requires a global/uniqueness guarantee.
+/// See <https://github.com/tock/tock/issues/5250>.
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -425,7 +435,11 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(cortexm4::support::reset),
+        Some(|| {
+            cortexm4::support::reset(&kernel::create_capability!(
+                kernel::capabilities::CpuStateControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(

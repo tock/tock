@@ -567,7 +567,10 @@ impl Kernel {
                     chip.mpu().enable_app_mpu();
 
                     scheduler_timer.arm();
-                    let context_switch_reason = process.switch_to();
+                    // SAFETY: We just setup and enabled the MPU for the process,
+                    // ensuring it will be correctly configured when the process
+                    // executes.
+                    let context_switch_reason = unsafe { process.switch_to() };
                     scheduler_timer.disarm();
 
                     // Disable the application MPU. This is necessary on systems

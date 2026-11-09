@@ -7,7 +7,6 @@ members = [
     "ci/board-runner",
     "ci/license-checker",
     "ci/litex-ci-runner",
-    "ci/qemu-runner",
     "ci/qemu-virt-ci-runner",
     "build/sha256sum",
     "debugging-and-development/alert_codes",

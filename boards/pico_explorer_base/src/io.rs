@@ -86,19 +86,21 @@ impl IoWrite for Writer {
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     // LED is connected to GPIO 25
 
     use core::ptr::addr_of_mut;
     let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25);
     let led = &mut LedHigh::new(led_kernel_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    debug::panic_old(
-        &mut [led],
-        writer,
-        pi,
-        &cortexm0p::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    unsafe {
+        debug::panic_old(
+            &mut [led],
+            writer,
+            pi,
+            &cortexm0p::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }

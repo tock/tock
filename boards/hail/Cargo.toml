@@ -8,7 +8,7 @@ version.workspace = true
 authors.workspace = true
 build = "../build.rs"
 edition.workspace = true
-rust-version = "1.89"
+rust-version = "1.98"
 
 [dependencies]
 components = { path = "../components" }
