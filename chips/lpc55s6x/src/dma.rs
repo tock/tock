@@ -556,15 +556,18 @@ impl<'a> DmaChannel<'a> {
         self.descriptor.dst_end.set(setup.dst_end);
         self.descriptor.next.set(0);
 
+        // The controller reads the descriptor from memory, so the writes above
+        // must be visible to it before the channel is enabled. A completed
+        // transfer clears the trigger of the channel (UM11126, Table 455), but
+        // an aborted one may leave it set, and the channel would then start as
+        // soon as it is enabled, before `SWTRIG`. The buffers were released
+        // when their `DmaSubSliceMut`s were created.
+        self.fence
+            .release(ptr::from_ref(core::slice::from_ref(self.descriptor)).cast_mut());
+
         regs.xfercfg.write(xfercfg);
         self.registers.intenset0.set(self.mask());
         self.registers.enableset0.set(self.mask());
-
-        // The controller reads the descriptor from memory, so the writes above
-        // must be visible to it before the trigger is set. The buffers were
-        // released when their `DmaSubSliceMut`s were created.
-        self.fence
-            .release(ptr::from_ref(core::slice::from_ref(self.descriptor)).cast_mut());
         regs.xfercfg.modify(XFERCFG::SWTRIG::SET);
     }
 
