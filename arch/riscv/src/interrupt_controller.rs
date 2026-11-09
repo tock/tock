@@ -22,6 +22,10 @@ pub trait InterruptController {
     /// `mscratch` to zero, indicating kernel execution.
     ///
     /// The trap handler is called on exceptions and for interrupts.
+    ///
+    /// # Safety
+    ///
+    /// Must be called before interrupts are enabled.
     unsafe fn configure_trap_handler() {
         // Indicate to the trap handler that we are executing kernel code.
         csr::CSR.mscratch.set(0);

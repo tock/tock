@@ -20,6 +20,7 @@ use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
+use rv32i::interrupt_controller::InterruptController;
 
 mod io;
 mod litex_generated_constants;
@@ -224,7 +225,7 @@ unsafe fn start() -> (
     // ---------- BASIC INITIALIZATION ----------
 
     // Basic setup of the riscv platform.
-    rv32i::configure_trap_handler();
+    rv32i::interrupt_controller::Clint::configure_trap_handler();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state_unsafe::<

@@ -12,7 +12,6 @@ pub mod machine_timer;
 // both rv32i and riscv as dependencies.
 pub use riscv::PermissionMode;
 pub use riscv::clic;
-pub use riscv::configure_trap_handler;
 pub use riscv::csr;
 pub use riscv::dma_fence;
 pub use riscv::initialize_ram_jump_to_main;

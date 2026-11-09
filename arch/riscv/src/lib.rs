@@ -170,18 +170,6 @@ pub enum PermissionMode {
     Machine = 0x3,
 }
 
-/// Tell the MCU what address the trap handler is located at, and initialize
-/// `mscratch` to zero, indicating kernel execution.
-///
-/// This is a generic implementation. There may be board specific versions as
-/// some platforms have added more bits to the `mtvec` register.
-///
-/// The trap handler is called on exceptions and for interrupts.
-pub unsafe fn configure_trap_handler() {
-    use interrupt_controller::InterruptController;
-    interrupt_controller::Clint::configure_trap_handler();
-}
-
 /// This is the trap handler function. This code is called on all traps,
 /// including interrupts, exceptions, and system calls from applications.
 ///
