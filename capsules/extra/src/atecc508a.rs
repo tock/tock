@@ -1313,6 +1313,10 @@ impl<'a> digest::DigestData<'a, 32> for Atecc508a<'a> {
 
         self.reset();
     }
+
+    fn preset_message_length(&self, _len: usize) -> Result<(), ErrorCode> {
+        Ok(())
+    }
 }
 
 impl<'a> digest::DigestHash<'a, 32> for Atecc508a<'a> {

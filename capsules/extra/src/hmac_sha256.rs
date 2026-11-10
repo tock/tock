@@ -221,6 +221,10 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
         self.sha256.clear_data();
     }
 
+    fn preset_message_length(&self, _len: usize) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+
     fn set_data_client(&'a self, _client: &'a dyn hil::digest::ClientData<32>) {
         // self.data_client.set(client);
         unimplemented!()

@@ -373,6 +373,7 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
     /// - `0`: driver check
     /// - `1`: set_algorithm
     /// - `2`: hash
+    /// - `3`: preset the length
     fn command(
         &self,
         command_num: usize,
@@ -436,6 +437,20 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
                             })
                             .into()
                     }
+                    Err(e) => e.into(),
+                }
+            }
+
+            3 => {
+                let res = self.apps.enter(processid, |app, _kernel_data| {
+                    if app.operation.is_none() {
+                        self.sha.preset_message_length(data1)
+                    } else {
+                        Err(ErrorCode::BUSY)
+                    }
+                });
+                match res {
+                    Ok(_) => CommandReturn::success(),
                     Err(e) => e.into(),
                 }
             }

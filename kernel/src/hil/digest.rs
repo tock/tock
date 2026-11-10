@@ -192,6 +192,19 @@ pub trait DigestData<'a, const DIGEST_LEN: usize> {
     /// [`ErrorCode::CANCEL`]. This call does not clear buffers passed through
     /// `add_mut_data`, those are up to the client clear.
     fn clear_data(&self);
+
+    /// Preset the message length to validate message integrity.
+    ///
+    /// `Ok` indicates the message length is pushed to the digest engine
+    /// and the transaction can be started.
+    ///
+    /// Note: This function is optional and don't have to be invoked during the transaction.
+    /// For peripherals that have no hardware support for this function `Ok` is returned.
+    ///
+    /// Valid `ErrorCode` value is:
+    /// - `BUSY`: there is an outstanding transaction, so the digest engine is busy
+    ///   and cannot reset current message length.
+    fn preset_message_length(&self, len: usize) -> Result<(), ErrorCode>;
 }
 
 /// Computes a digest (cryptographic hash) over data provided through a

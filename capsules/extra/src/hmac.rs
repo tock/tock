@@ -790,6 +790,21 @@ impl<
                             CommandReturn::failure(ErrorCode::OFF)
                         }
                     }
+                    // preset the message length
+                    // it is an optional operation.
+                    6 => {
+                        let res = self.apps.enter(processid, |app, _kernel_data| {
+                            if app.op.get().is_none() {
+                                self.hmac.preset_message_length(data1)
+                            } else {
+                                Err(ErrorCode::BUSY)
+                            }
+                        });
+                        match res {
+                            Ok(_) => CommandReturn::success(),
+                            Err(e) => e.into(),
+                        }
+                    }
 
                     // default
                     _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

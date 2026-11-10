@@ -52,6 +52,10 @@ impl<'a, H: digest::Digest<'a, HMAC_SHA1_DIGEST_LEN> + HmacSha1> TestHmacSha1<'a
             panic!("HmacSha1Test: failed to set key: {:?}", r);
         }
         let data = self.data.take().unwrap();
+        let r = self.hmac.preset_message_length(data.len());
+        if r.is_err() {
+            panic!("HmacSha1Test: failed to preset the length: {:?}", r);
+        }
         let buffer = SubSliceMut::new(data);
         let r = self.hmac.add_mut_data(buffer);
         if r.is_err() {
