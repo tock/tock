@@ -229,6 +229,12 @@ pub unsafe extern "C" fn DEF_Handler() {
     // -23 -27  R12-R8 FIQ
     // -28      SPSR_FIQ
     // -29      SP_FIQ
+    // -30      IFSR 
+    // -31      IFAR 
+    // -32      DFSR 
+    // -33      DFAR 
+    // -34      AIFSR
+    // -35      ADFSR
 
     naked_asm!("
         cpsid af
@@ -254,7 +260,15 @@ pub unsafe extern "C" fn DEF_Handler() {
         mrs r8, r8_fiq
         mrs r7, sp_fiq
         mrs r6, spsr_fiq
-        push {{r6-r12, lr}}
+
+        mrc p15, 0, r5, c5, c0, 1   // IFSR
+        mrc p15, 0, r4, c6, c0, 2   // IFAR
+        mrc p15, 0, r3, c5, c0, 0   // DFSR
+        mrc p15, 0, r2, c6, c0, 0   // DFAR
+        mrc p15, 0, r1, c5, c1, 1   // AIFSR
+        mrc p15, 0, r0, c5, c1, 0   // ADFSR
+
+        push {{r0-r12, lr}}
 
         b   print_fault_frame
     ");

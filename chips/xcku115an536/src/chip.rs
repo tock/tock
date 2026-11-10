@@ -27,7 +27,7 @@ impl XckuChip {
     pub unsafe fn new() -> Self {
         Self {
             syscall: SysCall {},
-            mpu: MPU {},
+            mpu : MPU::new(),
             gic: gic::Gic::new(),
             uart2: ApbUart::new(an536_inst::BASE_UART2),
             gentimer: GenTimer::new(),
@@ -47,6 +47,8 @@ impl Chip for XckuChip {
         unsafe {
             support::irq_enable();
         }
+
+        //TODO: set SCTLR.I (I cache) .C (D cache) but done in MPU
     }
 
     fn mpu(&self) -> &Self::MPU {

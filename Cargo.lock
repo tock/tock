@@ -3,6 +3,27 @@
 version = 4
 
 [[package]]
+name = "aarch32-cpu"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "685b9d999a309934c295fce81bb0ab632351449ba87990588cef879521c8f2aa"
+dependencies = [
+ "arbitrary-int",
+ "arm-targets",
+ "bitbybit",
+ "num_enum",
+ "thiserror",
+]
+
+[[package]]
+name = "an536_inst"
+version = "0.2.4-dev"
+dependencies = [
+ "arm-gic",
+ "kernel",
+]
+
+[[package]]
 name = "apollo3"
 version = "0.2.4-dev"
 dependencies = [
@@ -10,6 +31,85 @@ dependencies = [
  "enum_primitive",
  "kernel",
 ]
+
+[[package]]
+name = "arbitrary-int"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ab387a0c4143b4fd3804e193946e78c8ab16cf26c5fde2048e4ac3d618c3b64"
+
+[[package]]
+name = "arm-gic"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aae38b5192f8463cef6c94ec9804774c2b106b16b0bb7c41401f9457d5e99229"
+dependencies = [
+ "arm-sysregs",
+ "bitflags",
+ "safe-mmio",
+ "thiserror",
+ "zerocopy",
+]
+
+[[package]]
+name = "arm-sysregs"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eea2d77c3eac6be0a300ba179e7bf051ffaec797c39dee0b631c21668b12e1f3"
+dependencies = [
+ "arm-sysregs-aarch32",
+ "arm-sysregs-common",
+ "arm-sysregs-el0",
+ "arm-sysregs-el1",
+]
+
+[[package]]
+name = "arm-sysregs-aarch32"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aeac85b36432f9427827c31c2da2b42fe4928e35b3dbedbe9c9ded5e4d013789"
+dependencies = [
+ "arm-sysregs-common",
+ "bitflags",
+]
+
+[[package]]
+name = "arm-sysregs-common"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11447113c834b1cb206262297477a467c090a3768765bef861858b6098dcac39"
+dependencies = [
+ "num_enum",
+ "pastey",
+]
+
+[[package]]
+name = "arm-sysregs-el0"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a680f4741d246b3f72f977da72f7df76cb9c3227e565acad801ca3c504947d92"
+dependencies = [
+ "arm-sysregs-aarch32",
+ "arm-sysregs-common",
+ "bitflags",
+]
+
+[[package]]
+name = "arm-sysregs-el1"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dcc832aff5e63bad65c4cdcb17a7a5c07a711a4ce365d7a69785efb3a64fc47"
+dependencies = [
+ "arm-sysregs-common",
+ "arm-sysregs-el0",
+ "bitflags",
+]
+
+[[package]]
+name = "arm-targets"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0555f30eb9cd1a07d7677d01971da6c74cbbb0f73f0667cbee74e590a68a619"
 
 [[package]]
 name = "arty_e21"
@@ -39,6 +139,23 @@ name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
+
+[[package]]
+name = "bitbybit"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf218b839af0730012cc21856c4149789afde9ae6dc3078c7adaf311e8b76854"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.110",
+]
+
+[[package]]
+name = "bitflags"
+version = "2.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "block-buffer"
@@ -189,6 +306,18 @@ dependencies = [
  "cortexm",
  "cortexv7m",
  "kernel",
+]
+
+[[package]]
+name = "cortexr52"
+version = "0.2.4-dev"
+dependencies = [
+ "aarch32-cpu",
+ "an536_inst",
+ "arm-gic",
+ "kernel",
+ "semihosting",
+ "sh",
 ]
 
 [[package]]
@@ -430,7 +559,7 @@ source = "git+https://github.com/flux-rs/flux.git?rev=dab48f5c3dd50b7764db5bb5dd
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.110",
 ]
 
 [[package]]
@@ -566,6 +695,8 @@ name = "kernel"
 version = "0.2.4-dev"
 dependencies = [
  "flux-rs",
+ "semihosting",
+ "sh",
  "tock-cells",
  "tock-registers",
  "tock-tbf",
@@ -1198,6 +1329,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_enum"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d0bca838442ec211fa11de3a8b0e0e8f3a4522575b5c4c06ed722e005036f26"
+dependencies = [
+ "num_enum_derive",
+ "rustversion",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.110",
+]
+
+[[package]]
 name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1231,6 +1383,12 @@ dependencies = [
  "segger",
  "tock_build_scripts",
 ]
+
+[[package]]
+name = "pastey"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
 
 [[package]]
 name = "pci-x86"
@@ -1358,6 +1516,24 @@ dependencies = [
  "virtio-pci-x86",
  "x86",
  "x86_q35",
+]
+
+[[package]]
+name = "qemu_mps3an536"
+version = "0.2.4-dev"
+dependencies = [
+ "aarch32-cpu",
+ "an536_inst",
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexr52",
+ "kernel",
+ "semihosting",
+ "sh",
+ "tock_build_scripts",
+ "xcku",
 ]
 
 [[package]]
@@ -1641,6 +1817,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustversion"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
 name = "rv32i"
 version = "0.2.4-dev"
 dependencies = [
@@ -1654,6 +1836,15 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv",
+]
+
+[[package]]
+name = "safe-mmio"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e885ed64c91774b671612cb99dda2ede3738b0aa2d39a85a1471b20bf09eabe0"
+dependencies = [
+ "zerocopy",
 ]
 
 [[package]]
@@ -1683,6 +1874,19 @@ name = "segger"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+]
+
+[[package]]
+name = "semihosting"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8e4abf97879f4e80db69a9fba7bd64998e9bdad25f58ef045a778e191172fd4"
+
+[[package]]
+name = "sh"
+version = "0.2.4-dev"
+dependencies = [
+ "semihosting",
 ]
 
 [[package]]
@@ -1887,6 +2091,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d78c8dee4c7bf0e14673097256fed6142ce9d3b85a408189d07482442145823b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "teensy40"
 version = "0.2.4-dev"
 dependencies = [
@@ -1897,6 +2112,26 @@ dependencies = [
  "imxrt10xx",
  "kernel",
  "tock_build_scripts",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -1921,6 +2156,10 @@ checksum = "928f3adf9b9d80a5852412dcdd7be7a4bd762605fdefa3c413f9d9eba4c7c52d"
 [[package]]
 name = "tock-tbf"
 version = "0.1.0"
+dependencies = [
+ "semihosting",
+ "sh",
+]
 
 [[package]]
 name = "tock_build_scripts"
@@ -2038,6 +2277,38 @@ dependencies = [
  "tock-cells",
  "tock-registers",
  "x86",
+]
+
+[[package]]
+name = "xcku"
+version = "0.2.4-dev"
+dependencies = [
+ "an536_inst",
+ "arm-gic",
+ "cortexr52",
+ "kernel",
+ "semihosting",
+ "sh",
+]
+
+[[package]]
+name = "zerocopy"
+version = "0.8.63"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5fe1f8f1b06191a00962174c61aa5005e0bb391a6d80d07e24d115c01a92ed8"
+dependencies = [
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.8.63"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "863ad3ac83293fb4d740aedbfdc9240dd8d1a50c1099acd76ce80ce7c7230c7f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.110",
 ]
 
 [[package]]
