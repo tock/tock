@@ -19,7 +19,7 @@ edition = "2024"
 travis-ci = { repository = "tock/tock", branch = "master" }
 
 [dependencies]
-tock-registers.workspace = true
+tock-registers-v0.workspace = true
 
 [lints]
 workspace = true

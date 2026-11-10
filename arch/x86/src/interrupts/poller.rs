@@ -5,7 +5,7 @@
 use core::cell::Cell;
 use core::ptr;
 
-use tock_registers::LocalRegisterCopy;
+use tock_registers_v0::LocalRegisterCopy;
 
 use crate::support;
 
