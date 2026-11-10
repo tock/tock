@@ -48,195 +48,133 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 use nrf5x::constants::TxPower;
 
-#[repr(C)]
-pub struct RadioRegisters {
-    /// Enable Radio in TX mode
-    /// - Address: 0x000 - 0x004
-    task_txen: WriteOnly<u32, Task::Register>,
-    /// Enable Radio in RX mode
-    /// - Address: 0x004 - 0x008
-    task_rxen: WriteOnly<u32, Task::Register>,
-    /// Start Radio
-    /// - Address: 0x008 - 0x00c
-    task_start: WriteOnly<u32, Task::Register>,
-    /// Stop Radio
-    /// - Address: 0x00c - 0x010
-    task_stop: WriteOnly<u32, Task::Register>,
-    /// Disable Radio
-    /// - Address: 0x010 - 0x014
-    task_disable: WriteOnly<u32, Task::Register>,
-    /// Start the RSSI and take one single sample of the receive signal strength
-    /// - Address: 0x014- 0x018
-    task_rssistart: WriteOnly<u32, Task::Register>,
-    /// Stop the RSSI measurement
-    /// - Address: 0x018 - 0x01c
-    task_rssistop: WriteOnly<u32, Task::Register>,
-    /// Start the bit counter
-    /// - Address: 0x01c - 0x020
-    task_bcstart: WriteOnly<u32, Task::Register>,
-    /// Stop the bit counter
-    /// - Address: 0x020 - 0x024
-    task_bcstop: WriteOnly<u32, Task::Register>,
-    /// Reserved
-    _reserved1: [u32; 55],
-    /// Radio has ramped up and is ready to be started
-    /// - Address: 0x100 - 0x104
-    event_ready: ReadWrite<u32, Event::Register>,
-    /// Address sent or received
-    /// - Address: 0x104 - 0x108
-    event_address: ReadWrite<u32, Event::Register>,
-    /// Packet payload sent or received
-    /// - Address: 0x108 - 0x10c
-    event_payload: ReadWrite<u32, Event::Register>,
-    /// Packet sent or received
-    /// - Address: 0x10c - 0x110
-    event_end: ReadWrite<u32, Event::Register>,
-    /// Radio has been disabled
-    /// - Address: 0x110 - 0x114
-    event_disabled: ReadWrite<u32, Event::Register>,
-    /// A device address match occurred on the last received packet
-    /// - Address: 0x114 - 0x118
-    event_devmatch: ReadWrite<u32>,
-    /// No device address match occurred on the last received packet
-    /// - Address: 0x118 - 0x11c
-    event_devmiss: ReadWrite<u32, Event::Register>,
-    /// Sampling of receive signal strength complete
-    /// - Address: 0x11c - 0x120
-    event_rssiend: ReadWrite<u32, Event::Register>,
-    /// Reserved
-    _reserved2: [u32; 2],
-    /// Bit counter reached bit count value
-    /// - Address: 0x128 - 0x12c
-    event_bcmatch: ReadWrite<u32, Event::Register>,
-    /// Reserved
-    _reserved3: [u32; 1],
-    /// Packet received with CRC ok
-    /// - Address: 0x130 - 0x134
-    event_crcok: ReadWrite<u32, Event::Register>,
-    /// Packet received with CRC error
-    /// - Address: 0x134 - 0x138
-    crcerror: ReadWrite<u32, Event::Register>,
-    /// Reserved
-    _reserved4: [u32; 50],
-    /// Shortcut register
-    /// - Address: 0x200 - 0x204
-    shorts: ReadWrite<u32, Shortcut::Register>,
-    /// Reserved
-    _reserved5: [u32; 64],
-    /// Enable interrupt
-    /// - Address: 0x304 - 0x308
-    intenset: ReadWrite<u32, Interrupt::Register>,
-    /// Disable interrupt
-    /// - Address: 0x308 - 0x30c
-    intenclr: ReadWrite<u32, Interrupt::Register>,
-    /// Reserved
-    _reserved6: [u32; 61],
-    /// CRC status
-    /// - Address: 0x400 - 0x404
-    crcstatus: ReadOnly<u32, Event::Register>,
-    /// Reserved
-    _reserved7: [u32; 1],
-    /// Received address
-    /// - Address: 0x408 - 0x40c
-    rxmatch: ReadOnly<u32, ReceiveMatch::Register>,
-    /// CRC field of previously received packet
-    /// - Address: 0x40c - 0x410
-    rxcrc: ReadOnly<u32, ReceiveCrc::Register>,
-    /// Device address match index
-    /// - Address: 0x410 - 0x414
-    dai: ReadOnly<u32, DeviceAddressIndex::Register>,
-    /// Reserved
-    _reserved8: [u32; 60],
-    /// Packet pointer
-    /// - Address: 0x504 - 0x508
-    packetptr: ReadWrite<u32, PacketPointer::Register>,
-    /// Frequency
-    /// - Address: 0x508 - 0x50c
-    frequency: ReadWrite<u32, Frequency::Register>,
-    /// Output power
-    /// - Address: 0x50c - 0x510
-    txpower: ReadWrite<u32, TransmitPower::Register>,
-    /// Data rate and modulation
-    /// - Address: 0x510 - 0x514
-    mode: ReadWrite<u32, Mode::Register>,
-    /// Packet configuration register 0
-    /// - Address 0x514 - 0x518
-    pcnf0: ReadWrite<u32, PacketConfiguration0::Register>,
-    /// Packet configuration register 1
-    /// - Address: 0x518 - 0x51c
-    pcnf1: ReadWrite<u32, PacketConfiguration1::Register>,
-    /// Base address 0
-    /// - Address: 0x51c - 0x520
-    base0: ReadWrite<u32, BaseAddress::Register>,
-    /// Base address 1
-    /// - Address: 0x520 - 0x524
-    base1: ReadWrite<u32, BaseAddress::Register>,
-    /// Prefix bytes for logical addresses 0-3
-    /// - Address: 0x524 - 0x528
-    prefix0: ReadWrite<u32, Prefix0::Register>,
-    /// Prefix bytes for logical addresses 4-7
-    /// - Address: 0x528 - 0x52c
-    prefix1: ReadWrite<u32, Prefix1::Register>,
-    /// Transmit address select
-    /// - Address: 0x52c - 0x530
-    txaddress: ReadWrite<u32, TransmitAddress::Register>,
-    /// Receive address select
-    /// - Address: 0x530 - 0x534
-    rxaddresses: ReadWrite<u32, ReceiveAddresses::Register>,
-    /// CRC configuration
-    /// - Address: 0x534 - 0x538
-    crccnf: ReadWrite<u32, CrcConfiguration::Register>,
-    /// CRC polynomial
-    /// - Address: 0x538 - 0x53c
-    crcpoly: ReadWrite<u32, CrcPolynomial::Register>,
-    /// CRC initial value
-    /// - Address: 0x53c - 0x540
-    crcinit: ReadWrite<u32, CrcInitialValue::Register>,
-    /// Reserved
-    _reserved9: [u32; 1],
-    /// Interframe spacing in microseconds
-    /// - Address: 0x544 - 0x548
-    tifs: ReadWrite<u32, InterFrameSpacing::Register>,
-    /// RSSI sample
-    /// - Address: 0x548 - 0x54c
-    rssisample: ReadWrite<u32, RssiSample::Register>,
-    /// Reserved
-    _reserved10: [u32; 1],
-    /// Current radio state
-    /// - Address: 0x550 - 0x554
-    state: ReadOnly<u32, State::Register>,
-    /// Data whitening initial value
-    /// - Address: 0x554 - 0x558
-    datawhiteiv: ReadWrite<u32, DataWhiteIv::Register>,
-    /// Reserved
-    _reserved11: [u32; 2],
-    /// Bit counter compare
-    /// - Address: 0x560 - 0x564
-    bcc: ReadWrite<u32, BitCounterCompare::Register>,
-    /// Reserved
-    _reserved12: [u32; 39],
-    /// Device address base segments
-    /// - Address: 0x600 - 0x620
-    dab: [ReadWrite<u32, DeviceAddressBase::Register>; 8],
-    /// Device address prefix
-    /// - Address: 0x620 - 0x640
-    dap: [ReadWrite<u32, DeviceAddressPrefix::Register>; 8],
-    /// Device address match configuration
-    /// - Address: 0x640 - 0x644
-    dacnf: ReadWrite<u32, DeviceAddressMatch::Register>,
-    /// Reserved
-    _reserved13: [u32; 3],
-    /// Radio mode configuration register
-    /// - Address: 0x650 - 0x654
-    modecnf0: ReadWrite<u32, RadioModeConfig::Register>,
-    /// Reserved
-    _reserved14: [u32; 618],
-    /// Peripheral power control
-    /// - Address: 0xFFC - 0x1000
-    power: ReadWrite<u32, Task::Register>,
+register_structs! {
+    pub RadioRegisters {
+        /// Enable Radio in TX mode
+        (0x000 => task_txen: WriteOnly<u32, Task::Register>),
+        /// Enable Radio in RX mode
+        (0x004 => task_rxen: WriteOnly<u32, Task::Register>),
+        /// Start Radio
+        (0x008 => task_start: WriteOnly<u32, Task::Register>),
+        /// Stop Radio
+        (0x00C => task_stop: WriteOnly<u32, Task::Register>),
+        /// Disable Radio
+        (0x010 => task_disable: WriteOnly<u32, Task::Register>),
+        /// Start the RSSI and take one single sample of the receive signal strength
+        (0x014 => task_rssistart: WriteOnly<u32, Task::Register>),
+        /// Stop the RSSI measurement
+        (0x018 => task_rssistop: WriteOnly<u32, Task::Register>),
+        /// Start the bit counter
+        (0x01C => task_bcstart: WriteOnly<u32, Task::Register>),
+        /// Stop the bit counter
+        (0x020 => task_bcstop: WriteOnly<u32, Task::Register>),
+        (0x024 => _reserved1),
+        /// Radio has ramped up and is ready to be started
+        (0x100 => event_ready: ReadWrite<u32, Event::Register>),
+        /// Address sent or received
+        (0x104 => event_address: ReadWrite<u32, Event::Register>),
+        /// Packet payload sent or received
+        (0x108 => event_payload: ReadWrite<u32, Event::Register>),
+        /// Packet sent or received
+        (0x10C => event_end: ReadWrite<u32, Event::Register>),
+        /// Radio has been disabled
+        (0x110 => event_disabled: ReadWrite<u32, Event::Register>),
+        /// A device address match occurred on the last received packet
+        (0x114 => event_devmatch: ReadWrite<u32>),
+        /// No device address match occurred on the last received packet
+        (0x118 => event_devmiss: ReadWrite<u32, Event::Register>),
+        /// Sampling of receive signal strength complete
+        (0x11C => event_rssiend: ReadWrite<u32, Event::Register>),
+        (0x120 => _reserved2),
+        /// Bit counter reached bit count value
+        (0x128 => event_bcmatch: ReadWrite<u32, Event::Register>),
+        (0x12C => _reserved3),
+        /// Packet received with CRC ok
+        (0x130 => event_crcok: ReadWrite<u32, Event::Register>),
+        /// Packet received with CRC error
+        (0x134 => crcerror: ReadWrite<u32, Event::Register>),
+        (0x138 => _reserved4),
+        /// Shortcut register
+        (0x200 => shorts: ReadWrite<u32, Shortcut::Register>),
+        (0x204 => _reserved5),
+        /// Enable interrupt
+        (0x304 => intenset: ReadWrite<u32, Interrupt::Register>),
+        /// Disable interrupt
+        (0x308 => intenclr: ReadWrite<u32, Interrupt::Register>),
+        (0x30C => _reserved6),
+        /// CRC status
+        (0x400 => crcstatus: ReadOnly<u32, Event::Register>),
+        (0x404 => _reserved7),
+        /// Received address
+        (0x408 => rxmatch: ReadOnly<u32, ReceiveMatch::Register>),
+        /// CRC field of previously received packet
+        (0x40C => rxcrc: ReadOnly<u32, ReceiveCrc::Register>),
+        /// Device address match index
+        (0x410 => dai: ReadOnly<u32, DeviceAddressIndex::Register>),
+        (0x414 => _reserved8),
+        /// Packet pointer
+        (0x504 => packetptr: ReadWrite<u32, PacketPointer::Register>),
+        /// Frequency
+        (0x508 => frequency: ReadWrite<u32, Frequency::Register>),
+        /// Output power
+        (0x50C => txpower: ReadWrite<u32, TransmitPower::Register>),
+        /// Data rate and modulation
+        (0x510 => mode: ReadWrite<u32, Mode::Register>),
+        /// Packet configuration register 0
+        (0x514 => pcnf0: ReadWrite<u32, PacketConfiguration0::Register>),
+        /// Packet configuration register 1
+        (0x518 => pcnf1: ReadWrite<u32, PacketConfiguration1::Register>),
+        /// Base address 0
+        (0x51C => base0: ReadWrite<u32, BaseAddress::Register>),
+        /// Base address 1
+        (0x520 => base1: ReadWrite<u32, BaseAddress::Register>),
+        /// Prefix bytes for logical addresses 0-3
+        (0x524 => prefix0: ReadWrite<u32, Prefix0::Register>),
+        /// Prefix bytes for logical addresses 4-7
+        (0x528 => prefix1: ReadWrite<u32, Prefix1::Register>),
+        /// Transmit address select
+        (0x52C => txaddress: ReadWrite<u32, TransmitAddress::Register>),
+        /// Receive address select
+        (0x530 => rxaddresses: ReadWrite<u32, ReceiveAddresses::Register>),
+        /// CRC configuration
+        (0x534 => crccnf: ReadWrite<u32, CrcConfiguration::Register>),
+        /// CRC polynomial
+        (0x538 => crcpoly: ReadWrite<u32, CrcPolynomial::Register>),
+        /// CRC initial value
+        (0x53C => crcinit: ReadWrite<u32, CrcInitialValue::Register>),
+        (0x540 => _reserved9),
+        /// Interframe spacing in microseconds
+        (0x544 => tifs: ReadWrite<u32, InterFrameSpacing::Register>),
+        /// RSSI sample
+        (0x548 => rssisample: ReadWrite<u32, RssiSample::Register>),
+        (0x54C => _reserved10),
+        /// Current radio state
+        (0x550 => state: ReadOnly<u32, State::Register>),
+        /// Data whitening initial value
+        (0x554 => datawhiteiv: ReadWrite<u32, DataWhiteIv::Register>),
+        (0x558 => _reserved11),
+        /// Bit counter compare
+        (0x560 => bcc: ReadWrite<u32, BitCounterCompare::Register>),
+        (0x564 => _reserved12),
+        /// Device address base segments
+        (0x600 => dab: [ReadWrite<u32, DeviceAddressBase::Register>; 8]),
+        /// Device address prefix
+        (0x620 => dap: [ReadWrite<u32, DeviceAddressPrefix::Register>; 8]),
+        /// Device address match configuration
+        (0x640 => dacnf: ReadWrite<u32, DeviceAddressMatch::Register>),
+        (0x644 => _reserved13),
+        /// Radio mode configuration register
+        (0x650 => modecnf0: ReadWrite<u32, RadioModeConfig::Register>),
+        (0x654 => _reserved14),
+        /// Peripheral power control
+        (0xFFC => power: ReadWrite<u32, Task::Register>),
+        (0x1000 => @END),
+    }
 }
 
 register_bitfields! [u32,
