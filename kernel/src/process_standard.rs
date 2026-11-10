@@ -938,6 +938,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 }
             }
 
+            // if we get here, the region was set in the `mpu_config`, but there was
+            // no free region left in `mpu_regions`
+            let _ = self.chip.mpu().remove_memory_region(new_region, config);
+
             // Not enough room in Process struct to store the MPU region.
             None
         })
@@ -2407,6 +2411,10 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // number of available MPU configurations.
         let mut mpu_config = self.mpu_config.take().ok_or(ErrorCode::FAIL)?;
         self.chip.mpu().reset_config(&mut mpu_config);
+
+        for region in self.mpu_regions.iter() {
+            region.take();
+        }
 
         // Allocate MPU region for flash.
         let app_mpu_flash = self.chip.mpu().allocate_region(
