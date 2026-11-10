@@ -14,13 +14,14 @@ use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
+use tock_registers::Mmio32;
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;
 
 use crate::interrupts;
 
-use virtio::transports::mmio::VirtIOMMIODevice;
+use virtio::transports::mmio::{VirtIOMMIODevice, virtio_mmio_device_registers};
 
 type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
     5,
@@ -39,24 +40,28 @@ pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
 
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
     pub uart0: qemu_virt_chip::uart::Uart16550<'a>,
-    pub virtio_mmio: [VirtIOMMIODevice; 8],
+    pub virtio_mmio: [VirtIOMMIODevice<virtio_mmio_device_registers::Real<Mmio32>>; 8],
     pub pflash: crate::pflash::Pflash0<'a>,
 }
 
 impl QemuRv32VirtDefaultPeripherals<'_> {
-    pub fn new() -> Self {
+    /// # Safety:
+    /// 1. This may only be called on a QEMU-emulated riscv32 system with
+    ///    VirtIO.
+    /// 2. Nothing other than drivers retrieved through the returned object may
+    ///    interact with VirtIO's MMIO registers.
+    pub unsafe fn new() -> Self {
         Self {
             uart0: qemu_virt_chip::uart::Uart16550::new(crate::uart::UART0_BASE),
-            virtio_mmio: [
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_0_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_1_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_2_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_3_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_4_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_5_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_6_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_7_BASE),
-            ],
+            // Safety:
+            // 1. The caller guaranteed this is a QEMU-emulated riscv32 system.
+            //    virtio_mmio::addresses returns the correct addresses and bus
+            //    for that chip.
+            // 2. The caller guaranteed that no other code interacts with
+            //    VirtIO's registers.
+            virtio_mmio: crate::virtio_mmio::addresses().map(|m| unsafe {
+                VirtIOMMIODevice::<virtio_mmio_device_registers::Real<Mmio32>>::new(m)
+            }),
             pflash: crate::pflash::Pflash0::new(crate::pflash::PFLASH0_BASE),
         }
     }
