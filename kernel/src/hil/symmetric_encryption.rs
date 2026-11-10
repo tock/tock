@@ -59,15 +59,6 @@ pub trait AES<'a, K: AESKeySize> {
     /// Returns `INVAL` if length is not `AES_BLOCK_SIZE`
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode>;
 
-    /// Begin a new message (with the configured IV) when `crypt()` is
-    /// next called.  Multiple calls to `crypt()` may be made between
-    /// calls to `start_message()`, allowing the encryption context to
-    /// extend over non-contiguous extents of data.
-    ///
-    /// If an encryption operation is in progress, this method instead
-    /// has no effect.
-    fn start_message(&self);
-
     /// Request an encryption/decryption
     ///
     /// If the source buffer is not `None`, the encryption input

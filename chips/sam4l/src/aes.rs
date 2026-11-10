@@ -458,15 +458,6 @@ impl<'a> hil::symmetric_encryption::AES<'a, AES128> for Aes<'a> {
         Ok(())
     }
 
-    fn start_message(&self) {
-        if self.busy() {
-            return;
-        }
-        self.registers
-            .ctrl
-            .write(Control::NEWMSG.val(1) + Control::ENABLE.val(1));
-    }
-
     fn crypt(
         &self,
         source: Option<&'static mut [u8]>,

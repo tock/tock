@@ -484,8 +484,6 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a
         Ok(())
     }
 
-    fn start_message(&self) {}
-
     fn crypt(
         &self,
         source: Option<&'static mut [u8]>,
