@@ -2,6 +2,54 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
+//! Queued, cooperative access to a shared kernel resource.
+//!
+//! This module provides [`DriverMutex`], a general purpose data structure for synchronizing access
+//! to shared resources within the Tock kernel's event loop.
+//!
+//! Terminology:
+//!
+//! * **resource**: An object wrapped by `DriverMutex`. Typically a chip-specific HIL driver.
+//! * **client**: A kernel object which depends on a shared resource and implements the
+//!   [`DriverMutexClient`] trait. Typically a capsule.
+//!
+//! `DriverMutex` sits between the resource and its clients and provides an API for clients to
+//! request exclusive access to the resource.
+//!
+//! ## Lifecycle
+//!
+//! 1. During board init, an instance is created and handed a reference to the wrapped resource.
+//! 2. Later during board init, client capsules which depend on the resource should be passed a
+//!    reference to the mutex wrapper.
+//!    * Within the each client's `Component::finalize()` implementation, the client is expected to
+//!      register with the mutex by calling [`DriverMutex::add_client()`]. The client must store the
+//!      resulting handle value; this is used later to request resource access.
+//! 4. At runtime, clients may call [`DriverMutex::request()`] to initiate access to the underlying
+//!    resource. The client is added to an internal queue.
+//! 5. When the resource becomes available, the mutex will invoke the client's
+//!    [`DriverMutexClient::ready()`] method, passing it an RAII guard which can be used to access
+//!    the resource.
+//! 6. When the client finishes interacting with the resource, it drops the RAII guard. This
+//!    automatically triggers the mutex to advance to the next client from its queue.
+//!
+//! ## Tradeoffs
+//!
+//! `DriverMutex` fills a very similar niche to the "virtualizer" pattern, but there are some
+//! important tradeoffs. In general, `DriverMutex` is more flexible but also more error prone.
+//!
+//! Some pitfalls to watch out for:
+//!
+//! * The mutex stores a shared reference to the underlying resource, so other objects may still be
+//!   able to access the resource without going through the mutex for synchronization.
+//! * Clients must be careful to retain the RAII guard until they are **completely finished** with
+//!   the underlying resource. This includes waiting for pending operations to complete. Dropping
+//!   the RAII guard too early can result in the resource being dispatched to the next queued
+//!   client while an operation is still in flight, leading to unexpected failures.
+//! * Each client may only have one pending request or active RAII guard at one time.
+//! * Requests are served to clients in FIFO order, but there is no timeout, forced release, or
+//!   recovery if a client retains or forgets its guard indefinitely. In other words, a misbehaving
+//!   client **can** starve all other clients of the resource.
+
 use core::any::Any;
 use core::cell::RefCell;
 use core::mem::{self, MaybeUninit};
