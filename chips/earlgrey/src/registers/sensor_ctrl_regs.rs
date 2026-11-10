@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/top_earlgrey/ip/sensor_ctrl/data/sensor_ctrl.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of alert events from ast
 pub const SENSOR_CTRL_PARAM_NUM_ALERT_EVENTS: u32 = 11;
 /// Number of local events

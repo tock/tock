@@ -10,9 +10,10 @@ use kernel::ErrorCode;
 use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks64, Time};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::register_bitfields;
-use kernel::utilities::registers::{ReadWrite, register_structs};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::register_structs;
+use tock_registers_v0::registers::ReadWrite;
 
 pub const TIMG0_BASE: StaticRef<TimgRegisters> =
     unsafe { StaticRef::new(0x6001_F000 as *const TimgRegisters) };

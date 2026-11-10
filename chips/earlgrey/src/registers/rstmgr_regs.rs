@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/top_earlgrey/ip/rstmgr/data/autogen/rstmgr.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Read width for crash info
 pub const RSTMGR_PARAM_RD_WIDTH: u32 = 32;
 /// Index width for crash info

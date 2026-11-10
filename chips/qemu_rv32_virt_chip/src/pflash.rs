@@ -9,8 +9,8 @@
 //! is actually attached.
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::ReadWrite;
 use qemu_virt_chip::pflash::Pflash;
+use tock_registers_v0::registers::ReadWrite;
 
 /// Total size, in bytes, of `pflash` unit 0.
 pub const PFLASH0_SIZE: usize = 32 * 1024 * 1024;

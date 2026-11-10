@@ -8,8 +8,9 @@ use kernel::hil::time::{Alarm, AlarmClient, Counter, Freq16KHz, Frequency, Ticks
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
 
 use crate::clocks::{Stm32f4Clocks, phclk};
 use crate::nvic;

@@ -92,8 +92,8 @@ use kernel::hil::time::ConvertTicks;
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::io_write::IoWrite;
-use kernel::utilities::registers::InMemoryRegister;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::InMemoryRegister;
 
 /// Suggested length for the up buffer to pass to the Segger RTT capsule.
 pub const DEFAULT_UP_BUFFER_LENGTH: usize = 1024;

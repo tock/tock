@@ -8,10 +8,10 @@ use core::fmt::Write;
 use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::InterruptService;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{CSR, mcause, mie::mie};
 use rv32i::pmp::{PMPUserMPU, kernel_protection::KernelProtectionPMP};
 use rv32i::syscall::SysCall;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
 
 use crate::interrupt_controller::VexRiscvInterruptController;
 

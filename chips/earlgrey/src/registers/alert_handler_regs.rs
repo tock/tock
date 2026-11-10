@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/top_earlgrey/ip_autogen/alert_handler/data/alert_handler.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of alert channels.
 pub const ALERT_HANDLER_PARAM_N_ALERTS: u32 = 65;
 /// Number of LPGs.

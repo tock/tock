@@ -3,8 +3,9 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use tock_registers_v0::interfaces::ReadWriteable;
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
 
 /// Debug support
 #[repr(C)]

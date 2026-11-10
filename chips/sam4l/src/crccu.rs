@@ -60,10 +60,10 @@ use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    FieldValue, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
-};
+use tock_registers_v0::fields::FieldValue;
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{InMemoryRegister, ReadOnly, ReadWrite, WriteOnly};
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
 pub const BASE_ADDRESS: StaticRef<CrccuRegisters> =

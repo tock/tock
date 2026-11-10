@@ -8,8 +8,9 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use tock_registers_v0::interfaces::{ReadWriteable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
 
 /// DAC
 #[repr(C)]

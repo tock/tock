@@ -10,11 +10,11 @@ use core::cell::Cell;
 use core::fmt;
 use core::marker::PhantomData;
 use kernel::platform::mpu;
-use kernel::utilities::registers::FieldValue;
 use rv32i::csr;
 use rv32i::pmp::{
     NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG, format_pmp_entries, pmpcfg_octet,
 };
+use tock_registers_v0::fields::FieldValue;
 
 // ---------- EarlGrey ePMP implementation named constants ---------------------
 //
@@ -437,7 +437,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         mmio: MMIORegion,
         kernel_text: KernelTextRegion,
     ) -> Result<Self, EarlGreyEPMPError> {
-        use kernel::utilities::registers::interfaces::{Readable, Writeable};
+        use tock_registers_v0::interfaces::{Readable, Writeable};
 
         // --> We start with the "high-priority" ("lockdown") section of the
         // ePMP configuration:
@@ -540,7 +540,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         mmio: MMIORegion,
         kernel_text: KernelTextRegion,
     ) -> Result<Self, EarlGreyEPMPError> {
-        use kernel::utilities::registers::interfaces::{Readable, Writeable};
+        use tock_registers_v0::interfaces::{Readable, Writeable};
 
         if HANDOVER_CONFIG_CHECK {
             Self::check_initial_hardware_config()?;
@@ -699,7 +699,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         kernel_text: KernelTextRegion,
         debug_memory: RVDMRegion,
     ) -> Result<Self, EarlGreyEPMPError> {
-        use kernel::utilities::registers::interfaces::{Readable, Writeable};
+        use tock_registers_v0::interfaces::{Readable, Writeable};
 
         if HANDOVER_CONFIG_CHECK {
             Self::check_initial_hardware_config()?;
@@ -870,7 +870,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool, DBG: EPMPDebugConfig>
     EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, DBG>
 {
     fn check_initial_hardware_config() -> Result<(), EarlGreyEPMPError> {
-        use kernel::utilities::registers::interfaces::Readable;
+        use tock_registers_v0::interfaces::Readable;
 
         // This initialization code is written to work with 16 PMP entries. Add
         // an explicit assertion such that things break when the constant above
@@ -1193,7 +1193,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool, DBG: EPMPDebugConfig> fmt::Display
     for EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, DBG>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use kernel::utilities::registers::interfaces::Readable;
+        use tock_registers_v0::interfaces::Readable;
 
         write!(f, " EarlGrey ePMP configuration:\r\n")?;
         write!(

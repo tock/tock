@@ -9,6 +9,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+tock-registers-v0.workspace = true
 sifive = { path = "../sifive" }
 virtio = { path = "../virtio" }
 rv64i = { path = "../../arch/rv64i" }

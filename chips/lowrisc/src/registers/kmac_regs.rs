@@ -9,10 +9,10 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/kmac/data/kmac.hjson
-use kernel::utilities::registers::ReadOnly;
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::WriteOnly;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadOnly;
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::registers::WriteOnly;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of words for the secret key
 pub const KMAC_PARAM_NUM_WORDS_KEY: u32 = 16;
 /// Number of words for Encoded NsPrefix.

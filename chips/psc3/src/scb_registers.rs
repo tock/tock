@@ -5,10 +5,9 @@
 //! SCB (Serial Communication Block) registers and bitfields.
 //! In seperate file to avoid too large files.
 
-use kernel::utilities::{
-    StaticRef,
-    registers::{ReadWrite, register_bitfields, register_structs},
-};
+use kernel::utilities::StaticRef;
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// Serial Communications Block (SPI/UART/I2C)

@@ -9,6 +9,7 @@ authors.workspace = true
 edition = "2024"
 
 [dependencies]
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 nrf5x-unsafe = { path = "../nrf5x-unsafe" }
 kernel = { path = "../../kernel" }
 enum_primitive = { path = "../../libraries/enum_primitive" }

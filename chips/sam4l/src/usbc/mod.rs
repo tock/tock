@@ -18,11 +18,10 @@ use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
-    register_bitfields,
-};
+use tock_registers_v0::fields::FieldValue;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{InMemoryRegister, ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{LocalRegisterCopy, register_bitfields};
 
 // The following macros provide some diagnostics and panics(!)
 // while this module is experimental and should eventually be removed or

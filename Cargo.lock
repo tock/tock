@@ -9,6 +9,7 @@ dependencies = [
  "cortexm4f",
  "enum_primitive",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -32,6 +33,7 @@ dependencies = [
  "kernel",
  "rv32i",
  "sifive",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -73,6 +75,7 @@ dependencies = [
  "enum_primitive",
  "kernel",
  "tickv",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -114,6 +117,7 @@ dependencies = [
  "capsules-system",
  "kernel",
  "segger",
+ "tock-registers 0.11.0",
  "tock-tbf",
 ]
 
@@ -128,6 +132,7 @@ name = "cortexm"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -162,6 +167,7 @@ dependencies = [
  "cortexm",
  "cortexv7m",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -287,6 +293,7 @@ dependencies = [
  "kernel",
  "rv32i",
  "sifive",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -296,6 +303,7 @@ dependencies = [
  "kernel",
  "lowrisc",
  "rv32i",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -311,6 +319,7 @@ dependencies = [
  "kernel",
  "lowrisc",
  "rv32i",
+ "tock-registers 0.11.0",
  "tock-tbf",
  "tock_build_scripts",
 ]
@@ -364,6 +373,7 @@ name = "esp32"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -373,6 +383,7 @@ dependencies = [
  "esp32",
  "kernel",
  "rv32i",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -387,6 +398,7 @@ dependencies = [
  "esp32-c3",
  "kernel",
  "rv32i",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -402,6 +414,7 @@ dependencies = [
  "esp32-c3",
  "kernel",
  "rv32i",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -498,6 +511,7 @@ dependencies = [
  "kernel",
  "rv32i",
  "sifive",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -512,6 +526,7 @@ dependencies = [
  "kernel",
  "rv32i",
  "sifive",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -559,6 +574,7 @@ dependencies = [
  "cortexm7",
  "enum_primitive",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -595,6 +611,7 @@ dependencies = [
  "kernel",
  "litex_vexriscv",
  "rv32i",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -608,6 +625,7 @@ dependencies = [
  "kernel",
  "litex_vexriscv",
  "rv32i",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -618,6 +636,7 @@ dependencies = [
  "kernel",
  "litex",
  "rv32i",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -653,6 +672,7 @@ name = "lowrisc"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -666,6 +686,7 @@ dependencies = [
  "kernel",
  "lpc55s6x",
  "segger",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -676,6 +697,7 @@ dependencies = [
  "cortexm33",
  "enum_primitive",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -782,6 +804,7 @@ version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -839,6 +862,7 @@ dependencies = [
  "enum_primitive",
  "kernel",
  "nrf5x",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -894,6 +918,7 @@ dependencies = [
  "nrf52840",
  "nrf52_components",
  "segger",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -1145,6 +1170,7 @@ dependencies = [
  "enum_primitive",
  "kernel",
  "nrf5x-unsafe",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1153,6 +1179,7 @@ version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1291,6 +1318,7 @@ version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1312,6 +1340,7 @@ version = "0.2.4-dev"
 dependencies = [
  "cortexm0p",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1319,6 +1348,7 @@ name = "qemu_arm_mps2"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1371,6 +1401,7 @@ dependencies = [
  "kernel",
  "qemu_rv32_virt_chip",
  "rv32i",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -1434,6 +1465,7 @@ dependencies = [
  "qemu_virt_chip",
  "rv32i",
  "sifive",
+ "tock-registers 0.11.0",
  "virtio",
 ]
 
@@ -1448,6 +1480,7 @@ dependencies = [
  "kernel",
  "qemu_rv64_virt_chip",
  "rv64i",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -1475,6 +1508,7 @@ dependencies = [
  "qemu_virt_chip",
  "rv64i",
  "sifive",
+ "tock-registers 0.11.0",
  "virtio",
 ]
 
@@ -1483,6 +1517,7 @@ name = "qemu_virt_chip"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1584,6 +1619,7 @@ dependencies = [
  "kernel",
  "rv32i",
  "sifive",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -1621,6 +1657,7 @@ dependencies = [
  "enum_primitive",
  "kernel",
  "rp2xxx",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1631,6 +1668,7 @@ dependencies = [
  "enum_primitive",
  "kernel",
  "rp2xxx",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1638,6 +1676,7 @@ name = "rp2xxx"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1646,6 +1685,7 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1654,6 +1694,7 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1663,6 +1704,7 @@ dependencies = [
  "cortexm4",
  "enum_primitive",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1683,6 +1725,7 @@ name = "segger"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1702,6 +1745,7 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "rv32i",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1727,6 +1771,7 @@ dependencies = [
  "nrf52840",
  "nrf52_components",
  "segger",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
 ]
 
@@ -1737,6 +1782,7 @@ dependencies = [
  "cortexm4f",
  "enum_primitive",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1806,6 +1852,7 @@ dependencies = [
  "cortexm4f",
  "kernel",
  "stm32f4xx",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1824,6 +1871,7 @@ dependencies = [
  "cortexm4f",
  "enum_primitive",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1841,6 +1889,7 @@ dependencies = [
  "cortexm33",
  "kernel",
  "stm32u5xx-unsafe",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1849,6 +1898,7 @@ version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1867,6 +1917,7 @@ dependencies = [
  "cortexm4",
  "enum_primitive",
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1961,6 +2012,7 @@ dependencies = [
  "riscv-csr",
  "rv32i",
  "sifive",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1972,6 +2024,7 @@ dependencies = [
  "components",
  "kernel",
  "rv32i",
+ "tock-registers 0.11.0",
  "tock_build_scripts",
  "veer_el2",
 ]
@@ -1987,6 +2040,7 @@ name = "virtio"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1995,6 +2049,7 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "pci-x86",
+ "tock-registers 0.11.0",
  "virtio",
 ]
 

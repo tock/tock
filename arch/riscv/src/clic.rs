@@ -5,8 +5,9 @@
 //! Core Local Interrupt Control peripheral driver.
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::ReadWrite;
 
 /// CLIC Hart Specific Region
 #[repr(C)]

@@ -12,10 +12,10 @@ use cortexm4::support;
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::math::log_base_two_u64;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
-};
+use tock_registers_v0::fields::FieldValue;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 #[repr(C)]
 pub struct WdtRegisters {

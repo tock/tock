@@ -11,9 +11,10 @@ use kernel::ErrorCode;
 use kernel::hil::time::{self, Ticks64};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use rv32i::machine_timer::MachineTimer;
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 /// 10KHz `Frequency`
 #[derive(Debug)]

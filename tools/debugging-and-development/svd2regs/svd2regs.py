@@ -95,7 +95,8 @@ class CodeBlock(str):
 class Includes(CodeBlock):
     TEMPLATE = """
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::{{self, register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly}};
+use tock_registers_v0::registers::{{ReadOnly, ReadWrite, WriteOnly}};
+use tock_registers_v0::{{register_bitfields, register_structs}};
     """
 
 

@@ -13,8 +13,9 @@ use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
 
 use crate::clocks::phclk;
 use crate::dma;

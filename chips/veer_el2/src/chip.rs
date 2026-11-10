@@ -9,10 +9,10 @@ use crate::machine_timer::Clint;
 use core::fmt::Write;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
 use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 use rv32i::syscall::SysCall;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
 
 use crate::pic::Pic;
 use crate::pic::PicRegisters;

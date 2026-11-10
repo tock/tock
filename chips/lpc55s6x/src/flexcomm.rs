@@ -23,8 +23,9 @@
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::Writeable;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::flexcomm::PSELID::{LOCK, PERSEL};
 

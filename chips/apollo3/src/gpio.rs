@@ -10,8 +10,9 @@ use enum_primitive::enum_from_primitive;
 use kernel::hil::gpio;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 pub const GPIO_BASE_RAW: usize = 0x4001_0000; //safe to export outside crate
 

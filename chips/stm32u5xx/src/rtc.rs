@@ -15,9 +15,12 @@ use kernel::hil::date_time;
 use kernel::hil::date_time::{DateTimeClient, DateTimeValues, DayOfWeek, Month};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadOnly, WriteOnly, interfaces::Writeable, register_structs};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use tock_registers_v0::interfaces::Writeable;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::register_structs;
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::registers::{ReadOnly, WriteOnly};
 
 register_structs! {
 pub  RtcRegisters{
