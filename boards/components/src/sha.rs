@@ -14,7 +14,7 @@
 //!    let sha_driver = components::sha::ShaDriverComponent::new(
 //!        board_kernel,
 //!        capsules_extra::sha::DRIVER_NUM,
-//!        sha,
+//!        sha_mutex, // A DriverMutex wrapping the SHA implementation.
 //!    )
 //!    .finalize(components::sha_driver_component_static!(
 //!        Sha,
@@ -22,6 +22,7 @@
 //!    ));
 //! ```
 
+use capsules_core::driver_mutex::DriverMutex;
 use capsules_extra::sha256_driver::ShaDriver;
 use core::mem::MaybeUninit;
 use kernel::capabilities::MemoryAllocationCapability;
@@ -51,7 +52,7 @@ pub struct ShaDriverComponent<
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    sha: &'static A,
+    sha: &'static DriverMutex<A>,
     mem_cap: CAP,
 }
 
@@ -64,7 +65,7 @@ impl<
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        sha: &'static A,
+        sha: &'static DriverMutex<A>,
         mem_cap: CAP,
     ) -> Self {
         Self {
@@ -102,7 +103,11 @@ impl<
                 .create_grant(self.driver_num, &self.mem_cap),
         ));
 
-        self.sha.set_client(sha);
+        sha.set_mutex_handle(
+            self.sha
+                .add_client(sha)
+                .expect("SHA driver mutex has no client slots"),
+        );
 
         sha
     }

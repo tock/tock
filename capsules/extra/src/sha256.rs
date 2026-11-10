@@ -336,7 +336,7 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
         self.initialize();
     }
 
-    fn set_data_client(&'a self, client: &'a (dyn ClientData<32> + 'a)) {
+    fn set_data_client(&self, client: &'a (dyn ClientData<32> + 'a)) {
         self.client_data.set(client);
         self.client_hash.clear();
         self.client_verify.clear();
@@ -344,10 +344,7 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
 }
 
 impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
-    fn run(
-        &'a self,
-        digest: &'static mut [u8; 32],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+    fn run(&self, digest: &'static mut [u8; 32]) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         if self.busy() {
             Err((ErrorCode::BUSY, digest))
         } else {
@@ -366,7 +363,7 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
         }
     }
 
-    fn set_hash_client(&'a self, client: &'a (dyn ClientHash<32> + 'a)) {
+    fn set_hash_client(&self, client: &'a (dyn ClientHash<32> + 'a)) {
         self.client_data.clear();
         self.client_hash.set(client);
         self.client_verify.clear();
@@ -375,7 +372,7 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
 
 impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
     fn verify(
-        &'a self,
+        &self,
         compare: &'static mut [u8; 32],
     ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         if self.busy() {
@@ -389,7 +386,7 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
         }
     }
 
-    fn set_verify_client(&'a self, client: &'a (dyn ClientVerify<32> + 'a)) {
+    fn set_verify_client(&self, client: &'a (dyn ClientVerify<32> + 'a)) {
         self.client_data.clear();
         self.client_hash.clear();
         self.client_verify.set(client);
@@ -397,7 +394,7 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
 }
 
 impl<'a> Digest<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, client: &'a dyn Client<32>) {
+    fn set_client(&self, client: &'a dyn Client<32>) {
         self.client_data.set(client);
         self.client_hash.set(client);
         self.client_verify.set(client);
@@ -507,7 +504,7 @@ impl Sha256 for Sha256Software<'_> {
 }
 
 impl<'a> DigestDataHash<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, client: &'a dyn ClientDataHash<32>) {
+    fn set_client(&self, client: &'a dyn ClientDataHash<32>) {
         self.client_data.set(client);
         self.client_hash.set(client);
         self.client_verify.clear();
@@ -515,7 +512,7 @@ impl<'a> DigestDataHash<'a, 32> for Sha256Software<'a> {
 }
 
 impl<'a> DigestDataVerify<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, client: &'a dyn ClientDataVerify<32>) {
+    fn set_client(&self, client: &'a dyn ClientDataVerify<32>) {
         self.client_data.set(client);
         self.client_hash.clear();
         self.client_verify.set(client);
