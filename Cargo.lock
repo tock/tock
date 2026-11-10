@@ -443,7 +443,7 @@ source = "git+https://github.com/flux-rs/flux.git?rev=dab48f5c3dd50b7764db5bb5dd
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.110",
 ]
 
 [[package]]
@@ -1939,6 +1939,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ae9ccbea3a7b0b09443036490c8f34a8b1b760fd345e5c0dae0aac718faea79"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "teensy40"
 version = "0.2.4-dev"
 dependencies = [
@@ -1969,11 +1980,34 @@ name = "tock-registers"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "928f3adf9b9d80a5852412dcdd7be7a4bd762605fdefa3c413f9d9eba4c7c52d"
+dependencies = [
+ "tock-registers-macros",
+]
 
 [[package]]
 name = "tock-registers"
 version = "2.0.0-dev"
 source = "git+https://github.com/tock/tock-registers.git?rev=86008616e0082f4a75e2cf1b33c94b78cbaf7f5f#86008616e0082f4a75e2cf1b33c94b78cbaf7f5f"
+
+[[package]]
+name = "tock-registers-codegen"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3365b9edee49d8d9be4e5c8879bb04b9b84e10b1d3ccd57b4d43a49a12d9101"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
+]
+
+[[package]]
+name = "tock-registers-macros"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3136dc98c59bfe0f674306357576c1e2962d98897486c47c88bdfae9220beaf2"
+dependencies = [
+ "tock-registers-codegen",
+]
 
 [[package]]
 name = "tock-tbf"
