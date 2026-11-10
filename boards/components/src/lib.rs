@@ -36,6 +36,7 @@ pub mod dac;
 pub mod date_time;
 pub mod debug_writer;
 pub mod dfrobot_rainfall_sensor;
+pub mod driver_mutex;
 pub mod dynamic_binary_storage;
 pub mod eui64;
 pub mod flash;
