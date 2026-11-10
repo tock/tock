@@ -26,6 +26,12 @@ pub fn isb() {
     unsafe { asm!("isb", options(nomem, nostack, preserves_flags)) }
 }
 
+/// Data Synchronization Barrier with full system scope:
+/// Outer Shareable for Reads and writes as per ARM DDI 0487
+pub fn dsb_sy() {
+    unsafe { asm!("dsb sy", options(nomem, nostack, preserves_flags)) }
+}
+
 // Generic word irq is used but this is for FIQ!
 pub unsafe fn irq_enable() {
     // Enable FIQ in PSTATE
@@ -148,12 +154,25 @@ pub unsafe fn print_fault_frame() {
 
     let sp_fiq: u32 = ptr::read(stack_top.sub(28));
     let spsr_fiq: u32 = ptr::read(stack_top.sub(29));
-    sh::p!("   sp_fiq: {:8X} spsr_fiq: {:8X}", sp_fiq, spsr_fiq);
+    sh::p!("   sp_fiq: {:8X} spsr_fiq: {:8X}\n", sp_fiq, spsr_fiq);
+
+    let ifsr: u32 = ptr::read(stack_top.sub(30));
+    let ifar: u32 = ptr::read(stack_top.sub(31));
+    sh::p!("     ifsr: {:8X}     ifar: {:8X}", ifsr, ifar);
+
+    let dfsr: u32 = ptr::read(stack_top.sub(32));
+    let dfar: u32 = ptr::read(stack_top.sub(33));
+    sh::p!("     dfsr: {:8X}     dfar: {:8X}", dfsr, dfar);
+
+    let aifsr: u32 = ptr::read(stack_top.sub(34));
+    let adfsr: u32 = ptr::read(stack_top.sub(35));
+    sh::p!("    aifsr: {:8X}  adfsr: {:8X}", aifsr, adfsr);
 
     sh::p!("--- END ---\n");
 
     asm!("bkpt");
     loop {
+        asm!("cpsid aif");
         asm!("wfe");
     }
 }

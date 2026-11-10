@@ -47,9 +47,9 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-// FIQ + system + other stacks, check arch/x/vectors.rs for each size
+// system + FIQ + other stacks, check arch/x/vectors.rs for each size
 // TODO: dity code + need to check required size
-kernel::stack_size! {2048 + 256 + 256}
+kernel::stack_size! {4096 + 256 + 256}
 
 /// Top-level platform structure holding references to all active capsules.
 struct QemuMps3 {

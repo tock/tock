@@ -47,14 +47,22 @@ To run everything:
 `qemu-system-arm -smp 1 -machine mps3-an536 -serial none -serial none -serial mon:stdio -device loader,file=target/armv8r-none-eabihf/release/qemu_mps3an536.bin -nographic -semihosting`
 
 
+AUTHOR
+------
+Antoine Calando
+Ampère / Renault Group
+
+
 TODO next
 ---------
+- test on real HW
 - need more detailed debug prints (partly done)
-- need MPU driver
 - need dual timer driver for scheduler timer
 - need uart rx
 - ... some more ...
 
+- DONE: cache config
+- DONE: MPU driver
 - DONE: app crashing when many after a few minutes
 - DONE: app crashing when adding a few more basic stuff
 - DONE: cannot load more than 2 apps (tockloader)
