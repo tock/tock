@@ -17,6 +17,7 @@ stm32u545 = { path = "../../chips/stm32u545" }
 
 
 capsules-core = { path = "../../capsules/core" }
+capsules-crypto = { path = "../../capsules/crypto" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
