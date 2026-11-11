@@ -11,53 +11,59 @@ use kernel::hil::gpio;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_structs};
 
-#[repr(C)]
-struct Register {
-    val: ReadWrite<u32>,
-    set: WriteOnly<u32>,
-    clear: WriteOnly<u32>,
-    toggle: WriteOnly<u32>,
+register_structs! {
+    Register {
+        (0x000 => val: ReadWrite<u32>),
+        (0x004 => set: WriteOnly<u32>),
+        (0x008 => clear: WriteOnly<u32>),
+        (0x00C => toggle: WriteOnly<u32>),
+        (0x010 => @END),
+    }
 }
 
-#[repr(C)]
-struct RegisterRC {
-    val: ReadOnly<u32>,
-    reserved0: u32,
-    clear: WriteOnly<u32>,
-    reserved1: u32,
+register_structs! {
+    RegisterRC {
+        (0x000 => val: ReadOnly<u32>),
+        (0x004 => reserved0),
+        (0x008 => clear: WriteOnly<u32>),
+        (0x00C => reserved1),
+        (0x010 => @END),
+    }
 }
 
-#[repr(C)]
-struct GpioRegisters {
-    gper: Register,
-    pmr0: Register,
-    pmr1: Register,
-    pmr2: Register,
-    oder: Register,
-    ovr: Register,
-    pvr: ReadOnly<u32>,
-    _reserved0: [u32; 3],
-    puer: Register,
-    pder: Register,
-    ier: Register,
-    imr0: Register,
-    imr1: Register,
-    gfer: Register,
-    ifr: RegisterRC,
-    _reserved1: [u32; 8],
-    ocdr0: Register,
-    ocdr1: Register,
-    _reserved2: [u32; 4],
-    osrr0: Register,
-    _reserved3: [u32; 8],
-    ster: Register,
-    _reserved4: [u32; 4],
-    ever: Register,
-    _reserved5: [u32; 26],
-    parameter: u32,
-    version: u32,
+register_structs! {
+    GpioRegisters {
+        (0x000 => gper: Register),
+        (0x010 => pmr0: Register),
+        (0x020 => pmr1: Register),
+        (0x030 => pmr2: Register),
+        (0x040 => oder: Register),
+        (0x050 => ovr: Register),
+        (0x060 => pvr: ReadOnly<u32>),
+        (0x064 => _reserved0: [u32; 3]),
+        (0x070 => puer: Register),
+        (0x080 => pder: Register),
+        (0x090 => ier: Register),
+        (0x0A0 => imr0: Register),
+        (0x0B0 => imr1: Register),
+        (0x0C0 => gfer: Register),
+        (0x0D0 => ifr: RegisterRC),
+        (0x0E0 => _reserved1: [u32; 8]),
+        (0x100 => ocdr0: Register),
+        (0x110 => ocdr1: Register),
+        (0x120 => _reserved2: [u32; 4]),
+        (0x130 => osrr0: Register),
+        (0x140 => _reserved3: [u32; 8]),
+        (0x160 => ster: Register),
+        (0x170 => _reserved4),
+        (0x180 => ever: Register),
+        (0x190 => _reserved5),
+        (0x1F8 => parameter: u32),
+        (0x1FC => version: u32),
+        (0x200 => @END),
+    }
 }
 
 /// Peripheral functions that may be assigned to a `GPIOPin`.
