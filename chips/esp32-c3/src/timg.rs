@@ -14,12 +14,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::register_bitfields;
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_structs};
 
-pub const TIMG0_BASE: StaticRef<TimgRegisters> =
-    unsafe { StaticRef::new(0x6001_F000 as *const TimgRegisters) };
-
-pub const TIMG1_BASE: StaticRef<TimgRegisters> =
-    unsafe { StaticRef::new(0x6002_0000 as *const TimgRegisters) };
-
 /// 20MHz `Frequency`
 #[derive(Debug)]
 pub struct Freq20MHz;
