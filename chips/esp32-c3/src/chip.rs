@@ -28,6 +28,12 @@ pub const I2C0_BASE: StaticRef<i2c::I2cRegisters> =
 pub const INTC_BASE: StaticRef<IntcRegisters> =
     unsafe { StaticRef::new(0x600C_2000 as *const IntcRegisters) };
 
+pub const TIMG0_BASE: StaticRef<timg::TimgRegisters> =
+    unsafe { StaticRef::new(0x6001_F000 as *const timg::TimgRegisters) };
+
+pub const TIMG1_BASE: StaticRef<timg::TimgRegisters> =
+    unsafe { StaticRef::new(0x6002_0000 as *const timg::TimgRegisters) };
+
 pub const USB_SERIAL_JTAG_BASE: StaticRef<usb_serial_jtag::UsbSerialJtagRegisters> =
     unsafe { StaticRef::new(0x6004_3000 as *const usb_serial_jtag::UsbSerialJtagRegisters) };
 
@@ -87,8 +93,8 @@ impl Esp32C3DefaultPeripherals<'_> {
         Self {
             uart0: esp32::uart::Uart::new(esp32::uart::UART0_BASE),
             usb_serial_jtag: usb_serial_jtag::UsbSerialJtag::new(USB_SERIAL_JTAG_BASE),
-            timg0: timg::TimG::new(timg::TIMG0_BASE, timg::ClockSource::Pll),
-            timg1: timg::TimG::new(timg::TIMG1_BASE, timg::ClockSource::Pll),
+            timg0: timg::TimG::new(TIMG0_BASE, timg::ClockSource::Pll),
+            timg1: timg::TimG::new(TIMG1_BASE, timg::ClockSource::Pll),
             gpio: esp32::gpio::Port::new(),
             rtc_cntl: esp32::rtc_cntl::RtcCntl::new(esp32::rtc_cntl::RTC_CNTL_BASE),
             sysreg: sysreg::SysReg::new(),
