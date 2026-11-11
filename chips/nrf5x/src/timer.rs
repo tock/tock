@@ -32,45 +32,47 @@ use kernel::hil::time::{Alarm, Ticks, Time};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct TimerRegisters {
-    /// Start Timer
-    tasks_start: WriteOnly<u32, Task::Register>,
-    /// Stop Timer
-    tasks_stop: WriteOnly<u32, Task::Register>,
-    /// Increment Timer (Counter mode only)
-    tasks_count: WriteOnly<u32, Task::Register>,
-    /// Clear time
-    tasks_clear: WriteOnly<u32, Task::Register>,
-    /// Shut down timer
-    tasks_shutdown: WriteOnly<u32, Task::Register>,
-    _reserved0: [u8; 44],
-    /// Capture Timer value
-    tasks_capture: [WriteOnly<u32, Task::Register>; 4],
-    _reserved1: [u8; 240],
-    /// Compare event
-    events_compare: [ReadWrite<u32, Event::Register>; 4],
-    _reserved2: [u8; 176],
-    /// Shortcut register
-    shorts: ReadWrite<u32, Shorts::Register>,
-    _reserved3: [u8; 256],
-    /// Enable interrupt
-    intenset: ReadWrite<u32, Inte::Register>,
-    /// Disable interrupt
-    intenclr: ReadWrite<u32, Inte::Register>,
-    _reserved4: [u8; 504],
-    /// Timer mode selection
-    mode: ReadWrite<u32>,
-    /// Configure the number of bits used by the TIMER
-    bitmode: ReadWrite<u32, Bitmode::Register>,
-    _reserved5: [u8; 4],
-    /// Timer prescaler register
-    prescaler: ReadWrite<u32>,
-    _reserved6: [u8; 44],
-    /// Capture/Compare
-    cc: [ReadWrite<u32, CC::Register>; 4],
+register_structs! {
+    pub TimerRegisters {
+        /// Start Timer
+        (0x000 => tasks_start: WriteOnly<u32, Task::Register>),
+        /// Stop Timer
+        (0x004 => tasks_stop: WriteOnly<u32, Task::Register>),
+        /// Increment Timer (Counter mode only)
+        (0x008 => tasks_count: WriteOnly<u32, Task::Register>),
+        /// Clear time
+        (0x00C => tasks_clear: WriteOnly<u32, Task::Register>),
+        /// Shut down timer
+        (0x010 => tasks_shutdown: WriteOnly<u32, Task::Register>),
+        (0x014 => _reserved0: [u8; 44]),
+        /// Capture Timer value
+        (0x040 => tasks_capture: [WriteOnly<u32, Task::Register>; 4]),
+        (0x050 => _reserved1: [u8; 240]),
+        /// Compare event
+        (0x140 => events_compare: [ReadWrite<u32, Event::Register>; 4]),
+        (0x150 => _reserved2: [u8; 176]),
+        /// Shortcut register
+        (0x200 => shorts: ReadWrite<u32, Shorts::Register>),
+        (0x204 => _reserved3: [u8; 256]),
+        /// Enable interrupt
+        (0x304 => intenset: ReadWrite<u32, Inte::Register>),
+        /// Disable interrupt
+        (0x308 => intenclr: ReadWrite<u32, Inte::Register>),
+        (0x30C => _reserved4: [u8; 504]),
+        /// Timer mode selection
+        (0x504 => mode: ReadWrite<u32>),
+        /// Configure the number of bits used by the TIMER
+        (0x508 => bitmode: ReadWrite<u32, Bitmode::Register>),
+        (0x50C => _reserved5: [u8; 4]),
+        /// Timer prescaler register
+        (0x510 => prescaler: ReadWrite<u32>),
+        (0x514 => _reserved6: [u8; 44]),
+        /// Capture/Compare
+        (0x540 => cc: [ReadWrite<u32, CC::Register>; 4]),
+        (0x550 => @END),
+    }
 }
 
 register_bitfields![u32,
