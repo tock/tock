@@ -348,17 +348,14 @@ struct TransferSetup {
     dst_end: u32,
 }
 
-/// A memory buffer of a transfer. The controller accesses its active range.
-type Buffer = SubSliceMut<'static, u8>;
-
 /// What is left of a transfer stopped by [`DmaChannel::abort`].
 pub struct AbortedTransfer {
     /// Number of bytes moved before the transfer stopped.
     pub transferred: usize,
     /// Source buffer, if the source was memory.
-    pub source: Option<Buffer>,
+    pub source: Option<SubSliceMut<'static, u8>>,
     /// Destination buffer, if the destination was memory.
-    pub destination: Option<Buffer>,
+    pub destination: Option<SubSliceMut<'static, u8>>,
 }
 
 /// Receives the buffers of a finished transfer.
@@ -372,8 +369,8 @@ pub trait DmaClient {
     /// case `transferred` is the best available estimate.
     fn transfer_done(
         &self,
-        source: Option<Buffer>,
-        destination: Option<Buffer>,
+        source: Option<SubSliceMut<'static, u8>>,
+        destination: Option<SubSliceMut<'static, u8>>,
         transferred: usize,
         result: Result<(), ErrorCode>,
     );
@@ -560,13 +557,16 @@ impl<'a> DmaChannel<'a> {
         // must be visible to it before the channel is enabled. A completed
         // transfer clears the trigger of the channel (UM11126, Table 455), but
         // an aborted one may leave it set, and the channel would then start as
-        // soon as it is enabled, before `SWTRIG`. The buffers were released
-        // when their `DmaSubSliceMut`s were created.
+        // soon as it is enabled, before `SWTRIG`. The channel is disabled here,
+        // as every transfer ends through `disable`, so writing `XFERCFG`
+        // cannot start it. The interrupt is still enabled first, so that it
+        // is on before anything that could start the channel. The buffers
+        // were released when their `DmaSubSliceMut`s were created.
         self.fence
             .release(ptr::from_ref(core::slice::from_ref(self.descriptor)).cast_mut());
 
-        regs.xfercfg.write(xfercfg);
         self.registers.intenset0.set(self.mask());
+        regs.xfercfg.write(xfercfg);
         self.registers.enableset0.set(self.mask());
         regs.xfercfg.modify(XFERCFG::SWTRIG::SET);
     }
@@ -587,9 +587,16 @@ impl<'a> DmaChannel<'a> {
     pub fn transfer_mem_to_mem(
         &self,
         width: DmaWidth,
-        source: Buffer,
-        destination: Buffer,
-    ) -> Result<(), (ErrorCode, Buffer, Buffer)> {
+        source: SubSliceMut<'static, u8>,
+        destination: SubSliceMut<'static, u8>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+        ),
+    > {
         let len = source.len();
         let items = match self.validate(
             width,
@@ -655,8 +662,8 @@ impl<'a> DmaChannel<'a> {
     pub fn transfer_mem_to_periph(
         &self,
         width: DmaWidth,
-        buffer: Buffer,
-    ) -> Result<(), (ErrorCode, Buffer)> {
+        buffer: SubSliceMut<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         let fifo = match flexcomm_base(self.index) {
             Some(base) if self.is_tx() => base + FLEXCOMM_FIFOWR,
             _ => return Err((ErrorCode::NOSUPPORT, buffer)),
@@ -715,8 +722,8 @@ impl<'a> DmaChannel<'a> {
     pub fn transfer_periph_to_mem(
         &self,
         width: DmaWidth,
-        buffer: Buffer,
-    ) -> Result<(), (ErrorCode, Buffer)> {
+        buffer: SubSliceMut<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         let fifo = match flexcomm_base(self.index) {
             Some(base) if !self.is_tx() => base + FLEXCOMM_FIFORD,
             _ => return Err((ErrorCode::NOSUPPORT, buffer)),
@@ -757,7 +764,12 @@ impl<'a> DmaChannel<'a> {
     /// The controller must no longer access the buffers: the channel has been
     /// stopped with [`disable`](Self::disable), which waits until its pipeline
     /// has drained.
-    unsafe fn take_buffers(&self) -> (Option<Buffer>, Option<Buffer>) {
+    unsafe fn take_buffers(
+        &self,
+    ) -> (
+        Option<SubSliceMut<'static, u8>>,
+        Option<SubSliceMut<'static, u8>>,
+    ) {
         // SAFETY: The caller guarantees that the controller no longer accesses
         // either buffer.
         let source = self.source.take().map(|b| unsafe { b.take(self.fence) });
