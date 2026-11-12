@@ -13,15 +13,25 @@ use cortexm4f::{CortexM4F, CortexMVariant, initialize_ram_jump_to_main, scb, unh
  * Copyright 2016, Michael Andersen <m.andersen@eecs.berkeley.edu>
  */
 
-extern "C" {
+// # Safety
+//
+// This is only used to get an address and must not be called.
+// See https://github.com/tock/tock/issues/5314 for more information.
+unsafe extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
 }
 
+// # Safety
+//
+// ## `link_section`
+//
+// `link_section` allows us to place data and code in arbitrary locations.
+// .vectors is intended for the vector table and the vectors are not mutable.
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
+    unsafe(link_section = ".vectors")
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
@@ -61,9 +71,16 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM4F::SYSTICK_HANDLER,
 ];
 
+// # Safety
+//
+// ## `link_section`
+//
+// `link_section` allows us to place data and code in arbitrary locations.
+// .vectors is intended for the vector and interrupt tables and the interrupt
+// handler table is not mutable.
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
+    unsafe(link_section = ".vectors")
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
