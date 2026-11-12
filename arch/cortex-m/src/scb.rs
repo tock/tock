@@ -346,6 +346,12 @@ pub unsafe fn set_vector_table_offset(offset: *const ()) {
 }
 
 /// Disable the FPU
+///
+/// # Safety
+///
+/// This requires that the compiled code does not include any floating point
+/// instructions that may incorrectly access memory if executed with floating
+/// point disabled.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn disable_fpca() {
     use core::arch::asm;
