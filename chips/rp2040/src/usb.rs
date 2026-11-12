@@ -15,7 +15,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    InMemoryRegister, ReadWrite, register_bitfields, register_structs,
+    InMemoryRegister, LocalRegisterCopy, ReadWrite, register_bitfields, register_structs,
 };
 
 macro_rules! internal_err {
@@ -1247,10 +1247,12 @@ pub enum CtrlState {
     Init,
     /// Control endpoint has started an IN transfer.
     ReadIn,
-    /// Control endpoint has moved to the status phase.
+    /// The last control IN packet is pending, followed by an OUT status packet.
     ReadStatus,
     /// Control endpoint is handling a control write (OUT) transfer.
     WriteOut,
+    /// Control endpoint is waiting for the IN status packet to be acknowledged.
+    WriteStatus,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -1556,14 +1558,15 @@ impl<'a> UsbCtrl<'a> {
         // happened to be in the register, and kept ownership of the buffer while
         // transmit_in_ep0() was filling it, which violates usb 2.0 spec
         self.dpsram.ep_buf_ctrl[0].ep_in_buf_ctrl.set(0);
-        self.registers.buff_status.set(0);
+        // BUFF_STATUS is write-one-to-clear, including on bus reset.
+        self.registers.buff_status.set(u32::MAX);
         self.registers.addr_endp.modify(ADDR_ENDP::ADDRESS.val(0));
 
         self.address.set(0);
         self.client.map(|client| {
             client.bus_reset();
         });
-        self.registers.sie_status.modify(SIE_STATUS::BUS_RESET::SET);
+        self.registers.sie_status.write(SIE_STATUS::BUS_RESET::SET);
     }
 
     pub fn handle_interrupt(&self) {
@@ -1578,195 +1581,149 @@ impl<'a> UsbCtrl<'a> {
         self.process_requests();
 
         if self.registers.ints.is_set(INTS::SETUP_REQ) {
-            self.registers.sie_status.modify(SIE_STATUS::SETUP_REC::SET);
+            // A status packet can complete after the snapshot above and be
+            // followed immediately by the next SETUP. Finish the previous
+            // transfer before replacing its control state and shared buffer.
+            while self.registers.buff_status.get() != 0 {
+                self.handle_buff_status();
+                self.process_requests();
+            }
+            self.registers.sie_status.write(SIE_STATUS::SETUP_REC::SET);
             self.usb_handle_setup_packet();
         }
     }
 
     fn handle_buff_status(&self) {
+        // Acknowledge the snapshot before any handler can rearm a buffer.
+        // Clearing it afterwards could erase a completion of the new packet on
+        // the same endpoint. Other endpoints that complete after this read keep
+        // their status bits set for the next interrupt.
+        let status: LocalRegisterCopy<u32, BUFF_STATUS::Register> =
+            LocalRegisterCopy::new(self.registers.buff_status.get());
+        self.registers.buff_status.set(status.get());
+
         // Endpoint 0
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP0_IN) {
+        if status.is_set(BUFF_STATUS::EP0_IN) {
             self.handle_ep0datadone();
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP0_OUT) {
+        if status.is_set(BUFF_STATUS::EP0_OUT) {
             self.handle_endepout(0);
         }
         // Endpoint 1
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP1_IN) {
-            self.handle_endepin(1);
+        if status.is_set(BUFF_STATUS::EP1_IN) {
+            self.handle_epdata_in(1);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP1_OUT) {
+        if status.is_set(BUFF_STATUS::EP1_OUT) {
             self.handle_epdata_out(1);
         }
         // Endpoint 2
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP2_IN) {
+        if status.is_set(BUFF_STATUS::EP2_IN) {
             self.handle_epdata_in(2);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP2_OUT) {
+        if status.is_set(BUFF_STATUS::EP2_OUT) {
             self.handle_epdata_out(2);
         }
         // Endpoint 3
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP3_IN) {
-            self.handle_endepin(3);
+        if status.is_set(BUFF_STATUS::EP3_IN) {
+            self.handle_epdata_in(3);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP3_OUT) {
+        if status.is_set(BUFF_STATUS::EP3_OUT) {
             self.handle_epdata_out(3);
         }
         // Endpoint 4
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP4_IN) {
+        if status.is_set(BUFF_STATUS::EP4_IN) {
             self.handle_epdata_in(4);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP4_OUT) {
+        if status.is_set(BUFF_STATUS::EP4_OUT) {
             self.handle_epdata_out(4);
         }
         // Endpoint 5
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP5_IN) {
+        if status.is_set(BUFF_STATUS::EP5_IN) {
             self.handle_epdata_in(5);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP5_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP5_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP5_OUT) {
             self.handle_epdata_out(5);
         }
         // Endpoint 6
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP6_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP6_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP6_IN) {
             self.handle_epdata_in(6);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP6_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP6_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP6_OUT) {
             self.handle_epdata_out(6);
         }
         // Endpoint 7
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP7_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP7_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP7_IN) {
             self.handle_epdata_in(7);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP7_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP7_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP7_OUT) {
             self.handle_epdata_out(7);
         }
         // Endpoint 8
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP8_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP8_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP8_IN) {
             self.handle_epdata_in(8);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP8_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP8_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP8_OUT) {
             self.handle_epdata_out(8);
         }
         // Endpoint 9
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP9_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP9_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP9_IN) {
             self.handle_epdata_in(9);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP9_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP9_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP9_OUT) {
             self.handle_epdata_out(9);
         }
         // Endpoint 10
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP10_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP10_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP10_IN) {
             self.handle_epdata_in(10);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP10_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP10_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP10_OUT) {
             self.handle_epdata_out(10);
         }
         // Endpoint 11
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP11_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP11_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP11_IN) {
             self.handle_epdata_in(11);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP11_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP11_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP11_OUT) {
             self.handle_epdata_out(11);
         }
         // Endpoint 12
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP12_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP12_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP12_IN) {
             self.handle_epdata_in(12);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP12_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP12_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP12_OUT) {
             self.handle_epdata_out(12);
         }
         // Endpoint 13
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP13_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP13_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP13_IN) {
             self.handle_epdata_in(13);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP13_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP13_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP13_OUT) {
             self.handle_epdata_out(13);
         }
         // Endpoint 14
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP14_IN) {
+        if status.is_set(BUFF_STATUS::EP14_IN) {
             self.handle_epdata_in(14);
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP14_IN::CLEAR);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP14_OUT) {
+        if status.is_set(BUFF_STATUS::EP14_OUT) {
             self.handle_epdata_out(14);
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP14_OUT::CLEAR);
         }
         // Endpoint 15
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP15_IN) {
+        if status.is_set(BUFF_STATUS::EP15_IN) {
             self.handle_epdata_in(15);
         }
-        self.registers
-            .buff_status
-            .modify(BUFF_STATUS::EP15_IN::CLEAR);
-
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP15_OUT) {
+        if status.is_set(BUFF_STATUS::EP15_OUT) {
             self.handle_epdata_out(15);
         }
-        self.registers
-            .buff_status
-            .modify(BUFF_STATUS::EP15_OUT::CLEAR);
-
-        self.registers.buff_status.set(0);
     }
 
     fn process_requests(&self) {
         for (endpoint, desc) in self.descriptors.iter().enumerate() {
-            if desc.request_transmit_in.take() {
+            let ready_in = match desc.state.get() {
+                EndpointState::Ctrl(_) => true,
+                EndpointState::Bulk(_, in_state, _) => in_state == Some(BulkInState::Init),
+                EndpointState::Disabled => false,
+            };
+            if ready_in && desc.request_transmit_in.take() {
                 if endpoint == 0 {
                     self.transmit_in_ep0();
                 } else {
@@ -1822,14 +1779,16 @@ impl<'a> UsbCtrl<'a> {
         assert!(in_state.is_some());
         match in_state.unwrap() {
             BulkInState::InData => {
-                // Totally expected state. Nothing to do.
-                self.client
-                    .map(|client| client.packet_transmitted(endpoint));
+                // The client may resume the endpoint from packet_transmitted().
+                // Publish the idle state first so that a newly armed packet's
+                // InData state is not overwritten after the callback returns.
                 self.descriptors[endpoint].state.set(EndpointState::Bulk(
                     transfer_type,
                     Some(BulkInState::Init),
                     out_state,
                 ));
+                self.client
+                    .map(|client| client.packet_transmitted(endpoint));
             }
             BulkInState::Init => {}
         }
@@ -1868,27 +1827,30 @@ impl<'a> UsbCtrl<'a> {
                     match client.ctrl_setup(endpoint) {
                         hil::usb::CtrlSetupResult::OkSetAddress => {
                             self.should_set_address.set(true);
-                            self.send_empty_in(endpoint);
-                            self.descriptors[0]
+                            self.descriptors[endpoint]
                                 .state
-                                .set(EndpointState::Ctrl(CtrlState::ReadStatus));
+                                .set(EndpointState::Ctrl(CtrlState::WriteStatus));
+                            client.ctrl_status(endpoint);
+                            self.send_empty_in(endpoint);
                         }
                         hil::usb::CtrlSetupResult::Ok => {
                             // Setup request is successful.
                             if size == 0 {
                                 // Directly handle a 0 length setup request.
-                                self.send_empty_in(endpoint);
-                                // we have to move to ReadStatus here to have
-                                // handle_ep0datadone() complete the transfer as the only
-                                // transaction left in this transfer is the IN status stage
                                 self.descriptors[endpoint]
                                     .state
-                                    .set(EndpointState::Ctrl(CtrlState::ReadStatus));
+                                    .set(EndpointState::Ctrl(CtrlState::WriteStatus));
+                                client.ctrl_status(endpoint);
+                                self.send_empty_in(endpoint);
                             } else {
                                 match self.dpsram.setup_h.read(SETUP_H::BM_REQUEST_TYPE) >> 7 {
                                     0 => {
-                                        self.send_empty_in(endpoint);
-
+                                        // Receive the data before making the IN status
+                                        // packet available to the host.
+                                        self.descriptors[endpoint]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::WriteOut));
+                                        self.next_pid_out[endpoint].set(1);
                                         self.transmit_out_ep0();
                                     }
                                     1 => {
@@ -1918,7 +1880,10 @@ impl<'a> UsbCtrl<'a> {
                 });
             }
 
-            CtrlState::ReadIn | CtrlState::ReadStatus | CtrlState::WriteOut => {
+            CtrlState::ReadIn
+            | CtrlState::ReadStatus
+            | CtrlState::WriteOut
+            | CtrlState::WriteStatus => {
                 // Unexpected state to receive a SETUP packet. Let's STALL the endpoint.
                 self.registers.sie_ctrl.write(SIE_CTRL::EP0_INT_STALL::SET);
             }
@@ -1927,91 +1892,62 @@ impl<'a> UsbCtrl<'a> {
 
     fn handle_ep0datadone(&self) {
         let endpoint = 0;
-        let state = self.descriptors[endpoint].state.get().ctrl_state();
-
-        match state {
-            CtrlState::ReadIn => {
-                self.transmit_in_ep0();
-            }
-
+        match self.descriptors[endpoint].state.get().ctrl_state() {
+            CtrlState::ReadIn => self.transmit_in_ep0(),
             CtrlState::ReadStatus => {
-                self.complete_ctrl_status();
-            }
-
-            CtrlState::WriteOut => {
-                // We just completed the Setup stage for a CTRL WRITE transfer.
+                // The final data packet has been acknowledged. The status
+                // packet is always DATA1 and travels in the opposite direction.
+                self.client.map(|client| client.ctrl_status(endpoint));
+                self.next_pid_out[endpoint].set(1);
                 self.transmit_out_ep0();
             }
-
-            CtrlState::Init => {
-                // the transfer that this IN packet belonged to is already completed
-                // (transmit_in_ep0() finishes a control read the moment it hands over the last packer)
-                // so we can safely ignore this IN token and move on
-                // for the data stage of the next control transfer
-            }
+            CtrlState::WriteStatus => self.complete_ctrl_status(),
+            CtrlState::Init | CtrlState::WriteOut => {}
         }
-
-        self.nop_wait();
-
-        self.dpsram.ep_buf_ctrl[0]
-            .ep_in_buf_ctrl
-            .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
-    }
-
-    fn handle_endepin(&self, endpoint: usize) {
-        match endpoint {
-            0 => {}
-            1..=N_ENDPOINTS => {
-                let (transfer_type, _in_state, out_state) =
-                    self.descriptors[endpoint].state.get().bulk_state();
-                self.descriptors[endpoint].state.set(EndpointState::Bulk(
-                    transfer_type,
-                    Some(BulkInState::InData),
-                    out_state,
-                ));
-            }
-            _ => panic!("unexisting endpoint"),
-        }
-
-        // Nothing else to do. Wait for the EPDATA event.
     }
 
     fn handle_endepout(&self, endpoint: usize) {
         match endpoint {
             0 => {
-                // We got data on the control endpoint during a CTRL WRITE
-                // transfer. Let the client handle the data, and then finish up
-                // the control write by moving to the status stage.
-
-                // Now we can handle it and pass it to the client to see
-                // what the client returns.
-
-                self.transmit_out_ep0();
-                self.client.map(|client| {
-                    match client.ctrl_out(
-                        endpoint,
-                        self.dpsram.ep_buf_ctrl[endpoint]
-                            .ep_out_buf_ctrl
-                            .read(EP_BUFFER_CONTROL::TRANSFER_LENGTH0),
-                    ) {
-                        hil::usb::CtrlOutResult::Ok => {
-                            // We only handle the simple case where we have
-                            // received all of the data we need to.
-                            self.complete_ctrl_status();
-                        }
-                        hil::usb::CtrlOutResult::Delay => {}
-                        _ => {
-                            // Respond with STALL to any following transactions
-                            // in this request
-                            self.registers
-                                .ep_stall_arm
-                                .modify(EP_STALL_ARM::EP0_OUT::SET);
-                            self.dpsram.ep_buf_ctrl[0]
-                                .ep_in_buf_ctrl
-                                .modify(EP_BUFFER_CONTROL::STALL::SET);
-                        }
+                match self.descriptors[endpoint].state.get().ctrl_state() {
+                    CtrlState::ReadStatus => {
+                        // This is the OUT status packet of a control read, not
+                        // control-write data. Do not call ctrl_out() for it.
+                        self.complete_ctrl_status();
                     }
-                });
+                    CtrlState::WriteOut => {
+                        let size = self.dpsram.ep_buf_ctrl[endpoint]
+                            .ep_out_buf_ctrl
+                            .read(EP_BUFFER_CONTROL::TRANSFER_LENGTH0);
+                        let slice = self.descriptors[endpoint].slice_out.unwrap_or_panic();
+                        for idx in 0..size as usize {
+                            slice[idx].set(self.dpsram.ep0_buffer0[idx].get());
+                        }
+                        self.client
+                            .map(|client| match client.ctrl_out(endpoint, size) {
+                                hil::usb::CtrlOutResult::Ok => {
+                                    // The client has consumed the data. Complete the
+                                    // control write only after the IN status packet
+                                    // has actually been acknowledged by the host.
+                                    self.descriptors[endpoint]
+                                        .state
+                                        .set(EndpointState::Ctrl(CtrlState::WriteStatus));
+                                    client.ctrl_status(endpoint);
+                                    self.send_empty_in(endpoint);
+                                }
+                                hil::usb::CtrlOutResult::Delay => {}
+                                hil::usb::CtrlOutResult::Halted => {
+                                    self.registers
+                                        .ep_stall_arm
+                                        .modify(EP_STALL_ARM::EP0_IN::SET);
+                                    self.dpsram.ep_buf_ctrl[endpoint]
+                                        .ep_in_buf_ctrl
+                                        .modify(EP_BUFFER_CONTROL::STALL::SET);
+                                }
+                            });
+                    }
+                    CtrlState::Init | CtrlState::ReadIn | CtrlState::WriteStatus => {}
+                }
             }
             1..=N_ENDPOINTS => {
                 // Notify the client about the new packet.
@@ -2085,9 +2021,6 @@ impl<'a> UsbCtrl<'a> {
         self.client.map(|client| {
             match client.ctrl_in(endpoint) {
                 hil::usb::CtrlInResult::Packet(size, last) => {
-                    if size == 0 {
-                        internal_err!("Empty ctrl packet?");
-                    }
                     let slice = self.descriptors[endpoint].slice_in.unwrap_or_panic();
 
                     for idx in 0..size {
@@ -2109,14 +2042,15 @@ impl<'a> UsbCtrl<'a> {
                         );
                         self.next_pid_in[endpoint].set(1);
                     }
+                    if last {
+                        self.descriptors[endpoint]
+                            .state
+                            .set(EndpointState::Ctrl(CtrlState::ReadStatus));
+                    }
                     self.nop_wait();
                     self.dpsram.ep_buf_ctrl[endpoint]
                         .ep_in_buf_ctrl
                         .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
-                    if last {
-                        self.transmit_out_ep0();
-                        self.complete_ctrl_status();
-                    }
                 }
 
                 hil::usb::CtrlInResult::Delay => {
@@ -2142,54 +2076,32 @@ impl<'a> UsbCtrl<'a> {
 
         let slice = self.descriptors[endpoint].slice_out.unwrap_or_panic();
 
-        for idx in 0..self.dpsram.ep_buf_ctrl[endpoint]
-            .ep_out_buf_ctrl
-            .read(EP_BUFFER_CONTROL::TRANSFER_LENGTH0) as usize
-        {
-            slice[idx].set(self.dpsram.ep0_buffer0[idx].get());
-        }
-
-        if self.dpsram.ep_buf_ctrl[endpoint]
-            .ep_out_buf_ctrl
-            .read(EP_BUFFER_CONTROL::DATA_PID0)
-            == 0
-        {
-            self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.modify(
-                EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(slice.len() as u32)
-                    + EP_BUFFER_CONTROL::DATA_PID0::SET
-                    + EP_BUFFER_CONTROL::BUFFER0_FULL::CLEAR,
-            );
-            self.next_pid_out[endpoint].set(0);
-            self.nop_wait();
-            self.dpsram.ep_buf_ctrl[endpoint]
-                .ep_out_buf_ctrl
-                .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
+        // Arming a receive buffer must not also consume its previous contents.
+        // The completion handler copies data before returning ownership to USB.
+        let size = if self.descriptors[endpoint].state.get().ctrl_state() == CtrlState::ReadStatus {
+            0
         } else {
-            self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.modify(
-                EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(slice.len() as u32)
-                    + EP_BUFFER_CONTROL::DATA_PID0::CLEAR
-                    + EP_BUFFER_CONTROL::BUFFER0_FULL::CLEAR,
-            );
-            self.next_pid_out[endpoint].set(1);
-            self.nop_wait();
-            self.dpsram.ep_buf_ctrl[endpoint]
-                .ep_out_buf_ctrl
-                .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
-        }
+            slice.len() as u32
+        };
+        self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.write(
+            EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(size)
+                + EP_BUFFER_CONTROL::DATA_PID0.val(self.next_pid_out[endpoint].get() as u32),
+        );
+        self.next_pid_out[endpoint].set(self.next_pid_out[endpoint].get() ^ 1);
+        self.nop_wait();
+        self.dpsram.ep_buf_ctrl[endpoint]
+            .ep_out_buf_ctrl
+            .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
     }
 
     fn complete_ctrl_status(&self) {
         let endpoint = 0;
-        self.client.map(|client| {
-            client.ctrl_status(endpoint);
-            if self.should_set_address.get() {
-                self.should_set_address.set(false);
-            }
-            client.ctrl_status_complete(endpoint);
-            self.descriptors[endpoint]
-                .state
-                .set(EndpointState::Ctrl(CtrlState::Init));
-        });
+        self.descriptors[endpoint]
+            .state
+            .set(EndpointState::Ctrl(CtrlState::Init));
+        self.should_set_address.set(false);
+        self.client
+            .map(|client| client.ctrl_status_complete(endpoint));
     }
 
     fn transmit_in(&self, endpoint: usize) {
