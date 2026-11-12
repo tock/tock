@@ -27,6 +27,7 @@ use kernel::hil::uart::{
 };
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
@@ -680,38 +681,71 @@ impl<'a> Uart<'a> {
         self.rx_dma.set(rx);
     }
 
-    fn transmit_dma(
-        &self,
-        channel: &DmaChannel<'a>,
-        buffer: &'static mut [u8],
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    /// Try to transmit the first `len` bytes of `buffer` with DMA
+    ///
+    /// The TX FIFO raises a DMA request while it is not full (UM11126, Table
+    /// 656), so the FIFO level interrupts stay disabled.
+    ///
+    /// Returns `None` if the DMA transfer started. Otherwise returns the
+    /// buffer, and the caller must use the interrupt-driven path: DMA is not
+    /// enabled, `len` does not fit in one descriptor, or the channel could not
+    /// start. The error code of the channel is not reported, as the transmit
+    /// can still go ahead without DMA.
+    fn try_transmit_dma(&self, buffer: &'static mut [u8], len: usize) -> Option<&'static mut [u8]> {
+        let Some(channel) = self.tx_dma.get().filter(|_| fits_dma(len)) else {
+            return Some(buffer);
+        };
+        let mut buffer = SubSliceMut::new(buffer);
+        buffer.slice(..len);
+
+        self.disable_all_tx_interrupts();
         self.registers.fifocfg.modify(FIFOCFG::DMATX::SET);
-        if let Err(error) = channel.transfer_mem_to_periph(DmaWidth::Bits8, buffer, len) {
-            self.registers.fifocfg.modify(FIFOCFG::DMATX::CLEAR);
-            return Err(error);
+        match channel.transfer_mem_to_periph(DmaWidth::Bits8, buffer) {
+            Ok(()) => {
+                self.tx_status.set(UARTStateTX::Transmitting);
+                None
+            }
+            Err((_, buffer)) => {
+                self.registers.fifocfg.modify(FIFOCFG::DMATX::CLEAR);
+                Some(buffer.take())
+            }
         }
-        self.tx_status.set(UARTStateTX::Transmitting);
-        Ok(())
     }
 
-    fn receive_dma(
-        &self,
-        channel: &DmaChannel<'a>,
-        buffer: &'static mut [u8],
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    /// Try to receive into the first `len` bytes of `buffer` with DMA
+    ///
+    /// The RX FIFO raises a DMA request while it is not empty (UM11126, Table
+    /// 656), so the RXLVL interrupt stays disabled. Its handler would read
+    /// bytes from the FIFO that belong to the DMA.
+    ///
+    /// Returns `None` if the DMA transfer started, or the buffer for the
+    /// interrupt-driven path otherwise, as for
+    /// [`try_transmit_dma`](Self::try_transmit_dma).
+    fn try_receive_dma(&self, buffer: &'static mut [u8], len: usize) -> Option<&'static mut [u8]> {
+        let Some(channel) = self.rx_dma.get().filter(|_| fits_dma(len)) else {
+            return Some(buffer);
+        };
+        let mut buffer = SubSliceMut::new(buffer);
+        buffer.slice(..len);
+
         self.registers.fifocfg.modify(FIFOCFG::DMARX::SET);
-        if let Err(error) = channel.transfer_periph_to_mem(DmaWidth::Bits8, buffer, len) {
-            self.registers.fifocfg.modify(FIFOCFG::DMARX::CLEAR);
-            return Err(error);
+        match channel.transfer_periph_to_mem(DmaWidth::Bits8, buffer) {
+            Ok(()) => {
+                self.rx_status.set(UARTStateRX::Receiving);
+                self.enable_receive_error_interrupts();
+                None
+            }
+            Err((_, buffer)) => {
+                self.registers.fifocfg.modify(FIFOCFG::DMARX::CLEAR);
+                Some(buffer.take())
+            }
         }
-        self.rx_status.set(UARTStateRX::Receiving);
-        self.enable_receive_error_interrupts();
-        Ok(())
     }
 
     /// The DMA channel has moved the transmit buffer into the FIFO.
+    ///
+    /// This turns off the TX DMA request and waits for TXIDLE,
+    /// because the last bytes are still in the FIFO.
     fn transmit_dma_done(
         &self,
         buffer: &'static mut [u8],
@@ -836,6 +870,11 @@ impl<'a> Uart<'a> {
         let framing_error = self.registers.stat.is_set(STAT::FRAMERRINT);
         let parity_error = self.registers.stat.is_set(STAT::PARITYERRINT);
         let rx_fifo_error = self.registers.fifostat.is_set(FIFOSTAT::RXERR);
+        if self.registers.fifostat.is_set(FIFOSTAT::TXERR) {
+            // TXERR is R/W1C and stays set until cleared, so the interrupt
+            // would otherwise fire again forever (UM11126, Table 657).
+            self.registers.fifostat.write(FIFOSTAT::TXERR::SET);
+        }
 
         if framing_error || parity_error || rx_fifo_error {
             // Clear RX-related status bits; DO NOT touch TX FIFO or TX interrupts here.
@@ -851,8 +890,7 @@ impl<'a> Uart<'a> {
             if self.rx_status.get() != UARTStateRX::Receiving {
                 self.disable_receive_interrupt();
             }
-            // Return; TX remains untouched so the process console can still print.
-            return;
+            // Fall through, so a pending TX event is still handled.
         }
 
         // --- Handle Transmit ---
@@ -1018,10 +1056,15 @@ impl Configure for Uart<'_> {
         self.registers
             .fifocfg
             .modify(FIFOCFG::ENABLETX::SET + FIFOCFG::ENABLERX::SET);
-        // Set interrupt trigger levels.
-        self.registers
-            .fifotrig
-            .write(FIFOTRIG::TXLVL.val(1) + FIFOTRIG::RXLVL.val(0));
+        // Set interrupt trigger levels. The FIFOINTENSET level interrupts only
+        // fire with TXLVLENA and RXLVLENA set (UM11126, Table 658).
+        // DMA requests ignore these.
+        self.registers.fifotrig.write(
+            FIFOTRIG::TXLVLENA::SET
+                + FIFOTRIG::TXLVL.val(1)
+                + FIFOTRIG::RXLVLENA::SET
+                + FIFOTRIG::RXLVL.val(0),
+        );
 
         // --- Re-enable USART ---
         self.registers.cfg.modify(CFG::ENABLE::SET);
@@ -1051,11 +1094,9 @@ impl<'a> Transmit<'a> for Uart<'a> {
                 self.tx_position.set(0);
                 self.tx_len.set(tx_len);
 
-                if fits_dma(tx_len) {
-                    if let Some(channel) = self.tx_dma.get() {
-                        return self.transmit_dma(channel, tx_buffer, tx_len);
-                    }
-                }
+                let Some(tx_buffer) = self.try_transmit_dma(tx_buffer, tx_len) else {
+                    return Ok(());
+                };
 
                 self.tx_buffer.replace(tx_buffer);
                 self.tx_status.set(UARTStateTX::Transmitting);
@@ -1089,7 +1130,7 @@ impl<'a> Transmit<'a> for Uart<'a> {
             self.disable_all_tx_interrupts();
             self.tx_dma.map(|channel| {
                 let aborted = channel.abort();
-                if let Some(buffer) = aborted.source {
+                if let Some(buffer) = aborted.source.map(SubSliceMut::take) {
                     self.tx_buffer.replace(buffer);
                     self.tx_position.set(aborted.transferred);
                 }
@@ -1128,11 +1169,9 @@ impl<'a> Receive<'a> for Uart<'a> {
         self.rx_position.set(0);
         self.rx_len.set(rx_len);
 
-        if fits_dma(rx_len) {
-            if let Some(channel) = self.rx_dma.get() {
-                return self.receive_dma(channel, rx_buffer, rx_len);
-            }
-        }
+        let Some(rx_buffer) = self.try_receive_dma(rx_buffer, rx_len) else {
+            return Ok(());
+        };
 
         // Set up the state for the interrupt handler.
         self.rx_buffer.replace(rx_buffer);
@@ -1153,7 +1192,7 @@ impl<'a> Receive<'a> for Uart<'a> {
             self.disable_receive_interrupt();
             self.rx_dma.map(|channel| {
                 let aborted = channel.abort();
-                if let Some(buffer) = aborted.destination {
+                if let Some(buffer) = aborted.destination.map(SubSliceMut::take) {
                     self.rx_buffer.replace(buffer);
                     self.rx_position.set(aborted.transferred);
                 }
@@ -1172,18 +1211,20 @@ impl<'a> Receive<'a> for Uart<'a> {
 impl DmaClient for Uart<'_> {
     fn transfer_done(
         &self,
-        source: Option<&'static mut [u8]>,
-        destination: Option<&'static mut [u8]>,
+        source: Option<SubSliceMut<'static, u8>>,
+        destination: Option<SubSliceMut<'static, u8>>,
         transferred: usize,
         result: Result<(), ErrorCode>,
     ) {
         // Both channels share this client. The TX channel only has a source
         // buffer and the RX channel only a destination buffer.
+        // `take` returns the whole buffer the client passed in, not only the
+        // active range given to the DMA.
         if let Some(buffer) = source {
-            self.transmit_dma_done(buffer, transferred, result);
+            self.transmit_dma_done(buffer.take(), transferred, result);
         }
         if let Some(buffer) = destination {
-            self.receive_dma_done(buffer, transferred, result);
+            self.receive_dma_done(buffer.take(), transferred, result);
         }
     }
 }
