@@ -7,6 +7,9 @@
 
 #![no_std]
 #![no_main]
+// The ESP32-C3 `timg` driver uses a pre-release of tock-registers, while the
+// rest of the kernel uses its latest release.
+#![allow(clippy::multiple_crate_versions)]
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
