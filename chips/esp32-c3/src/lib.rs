@@ -12,6 +12,7 @@ pub mod i2c;
 pub mod intc;
 pub mod interrupts;
 pub mod rng;
+pub mod spi;
 pub mod sysreg;
 pub mod usb_serial_jtag;
 pub mod ws2812;
