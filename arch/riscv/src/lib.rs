@@ -51,7 +51,7 @@ pub const XLEN_LOG2: usize = usize::BITS.trailing_zeros() as usize;
 ///
 /// - INPUTS: This does not use any input registers.
 /// - OUTPUTS: This writes to four caller-saved registers: a0, a1, a2, and a3
-///   and no caller-saved registers.
+///   and no callee-saved registers.
 /// - This does not fall-through. It unconditionally jumps to main().
 ///
 /// ## `no_mangle`
