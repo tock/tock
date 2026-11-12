@@ -290,8 +290,7 @@ pub unsafe fn switch_to_user_arm_v7m(
     process_regs: &mut [usize; 8],
 ) -> *const usize {
     use core::arch::asm;
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS:
     //   - This uses `r0`, which is specified as an input from `user_stack`.
     //   - This uses `r1`, which is specified as an input from `process_regs`.
@@ -406,9 +405,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 
         // Get the stacked copies of caller-saved registers and other state.
         //
-        // # Safety
-        //
-        // Because we verified there was not a stack overflow when the hardware
+        // SAFETY: Because we verified there was not a stack overflow when the hardware
         // pushed these values to the stack, these are valid pointers to
         // allocated memory.
         let (
@@ -437,9 +434,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 
         // Extract symbols from the linker script
         let (estack, sstack) = {
-            // # Safety
-            //
-            // Linker script symbols are value-less entities, a concept that
+            // SAFETY: Linker script symbols are value-less entities, a concept that
             // does not map onto any actual Rust type (as of July 2026). The
             // only valid operation on these "types" is taking their address.
             // We scope the declaration to a dedicated block here to ensure no
@@ -455,9 +450,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 
         // Read system status registers.
         //
-        // # Safety
-        //
-        // These are the valid locations of 32-bit registers.
+        // SAFETY: These are the valid locations of 32-bit registers.
         let (shcsr, cfsr, hfsr, mmfar, bfar) = unsafe {
             let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
             let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);

@@ -129,8 +129,7 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 
     // IPSR[8:0] holds the currently active interrupt
     //
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS: This does not use the existing value of any registers.
     // - OUTPUTS: This only writes `r0` which is marked as an output.
     // - Options set:
