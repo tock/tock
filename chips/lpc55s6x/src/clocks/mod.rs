@@ -14,7 +14,7 @@ use crate::clocks::syscon::{AHBCLKCTRL2, PRESETCTRL2, SYSCON_BASE};
 
 use self::syscon::SysconRegisters;
 use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
-use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
 pub enum Peripheral {
     Flexcomm0,
@@ -106,6 +106,50 @@ impl Clock {
             .modify(syscon::AHBCLKCTRL1::TIMER0::SET);
 
         self.syscon.clkoutsel.modify(syscon::CLKOUTSEL::SEL::SET);
+    }
+
+    /// Enable the clocks of both DMA controllers and reset them.
+    pub fn start_dma_clocks(&self) {
+        self.syscon
+            .ahbclkctrl0
+            .modify(syscon::AHBCLKCTRL0::DMA0::SET);
+        self.syscon
+            .ahbclkctrl2
+            .modify(syscon::AHBCLKCTRL2::DMA1::SET);
+
+        self.syscon
+            .presetctrl0
+            .modify(syscon::PRESETCTRL0::DMA0_RST::SET);
+        while !self
+            .syscon
+            .presetctrl0
+            .is_set(syscon::PRESETCTRL0::DMA0_RST)
+        {}
+        self.syscon
+            .presetctrl0
+            .modify(syscon::PRESETCTRL0::DMA0_RST::CLEAR);
+        while self
+            .syscon
+            .presetctrl0
+            .is_set(syscon::PRESETCTRL0::DMA0_RST)
+        {}
+
+        self.syscon
+            .presetctrl2
+            .modify(syscon::PRESETCTRL2::DMA1_RST::SET);
+        while !self
+            .syscon
+            .presetctrl2
+            .is_set(syscon::PRESETCTRL2::DMA1_RST)
+        {}
+        self.syscon
+            .presetctrl2
+            .modify(syscon::PRESETCTRL2::DMA1_RST::CLEAR);
+        while self
+            .syscon
+            .presetctrl2
+            .is_set(syscon::PRESETCTRL2::DMA1_RST)
+        {}
     }
 
     pub fn set_frg_clock_source(&self, frg_id: FrgId, source: FrgClockSource) {
