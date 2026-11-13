@@ -93,4 +93,23 @@ static TESTS: &[TestCase] = &[
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
     },
+    TestCase {
+        name: "pconsole-hardfault",
+        description: "Use the process console to hardfault the MCU.",
+        apps: &[],
+        steps: &[
+            TestStep::Sleep(Duration::from_millis(10)),
+            TestStep::SendSerial("hardfault\n\r"),
+            TestStep::WaitSerialInOrder {
+                needles: &[
+                    "fatal exception",
+                    "Kernel version",
+                    "Panic Resources are not available.",
+                ],
+                timeout: Duration::from_secs(1),
+            },
+        ],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
 ];
