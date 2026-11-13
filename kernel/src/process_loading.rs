@@ -12,7 +12,6 @@
 //! This module provides multiple process loader options depending on which
 //! features a particular board requires.
 
-use core::cell::Cell;
 use core::fmt;
 
 use crate::capabilities::ProcessManagementCapability;
@@ -142,7 +141,7 @@ impl fmt::Debug for ProcessLoadError {
 // however, these functions require a rather large stack frame, which may be an
 // issue for boards small kernel stacks.
 #[inline(always)]
-pub fn load_processes<C: Chip>(
+pub unsafe fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: *const [u8],
@@ -553,9 +552,9 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     /// Array to store `ProcessBinary`s after checking credentials.
     proc_binaries: MapCell<&'static mut [Option<ProcessBinary>]>,
     /// Total available flash for process binaries on this board.
-    flash_bank: Cell<*const [u8]>,
+    flash_bank: OptionalCell<*const [u8]>,
     /// Flash memory region to load processes from.
-    flash: Cell<*const [u8]>,
+    flash: OptionalCell<*const [u8]>,
     /// Memory available to assign to applications.
     app_memory: MapCell<*mut [u8]>,
     /// Mechanism for generating async callbacks.
@@ -586,7 +585,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         proc_binaries: &'static mut [Option<ProcessBinary>],
         kernel: &'static Kernel,
         chip: &'static C,
-        flash: *const [u8],
         app_memory: *mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
         storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
@@ -602,14 +600,27 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             proc_binaries: MapCell::new(proc_binaries),
             kernel,
             chip,
-            flash_bank: Cell::new(flash),
-            flash: Cell::new(flash),
+            flash_bank: OptionalCell::empty(),
+            flash: OptionalCell::empty(),
             app_memory: MapCell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
             storage_policy,
             state: OptionalCell::empty(),
         }
+    }
+
+    /// Set the region of flash used to discover and load process binaries on the
+    /// board.
+    ///
+    /// # Safety
+    ///
+    /// The slice pointed to by the `flash` pointer will be used to read flash to
+    /// discover process binaries. Therefore, the pointer must be non-null and the
+    /// slice must be valid to read for all of its values.
+    pub unsafe fn set_flash(&self, flash: *const [u8]) {
+        self.flash.set(flash);
+        self.flash_bank.set(flash);
     }
 
     /// Set the runtime client to receive callbacks about process loading and when
@@ -680,8 +691,11 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
-        let flash = self.flash.get();
+        let flash = self.flash.get().ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
+        // SAFETY: The safety requirement for providing a flash region to this
+        // loader requires that the flash region is valid and readable, which
+        // matches the requirements for discovering process binaries.
         let load_binary_result = unsafe { discover_process_binary(flash) };
         match load_binary_result {
             Ok((remaining_flash, pb)) => {
@@ -1174,7 +1188,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         pb_start_address: &mut [usize],
         pb_end_address: &mut [usize],
     ) -> Result<usize, ProcessBinaryError> {
-        let total_flash = self.flash_bank.get();
+        let total_flash = self
+            .flash_bank
+            .get()
+            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
         let total_flash_start = total_flash.addr();
         let total_flash_end = total_flash_start + total_flash.len() - 1;
 
@@ -1201,7 +1218,9 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     /// Function to check if the object with address `offset` of size `length` lies
     /// within flash bounds.
     pub fn check_if_within_flash_bounds(&self, offset: usize, length: usize) -> bool {
-        let flash = self.flash_bank.get();
+        let Some(flash) = self.flash_bank.get() else {
+            return false;
+        };
         let flash_end = flash.addr() + flash.len() - 1;
 
         (flash_end - offset) >= length
@@ -1243,7 +1262,9 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
     /// Function to check if the app binary at address `app_address` is valid.
     fn check_new_binary_validity(&self, app_address: usize) -> bool {
-        let flash = self.flash_bank.get();
+        let Some(flash) = self.flash_bank.get() else {
+            return false;
+        };
         // Pass the first eight bytes of the tbfheader to parse out the
         // length of the tbf header and app. We then use those values to see
         // if we have enough flash remaining to parse the remainder of the
@@ -1280,7 +1301,9 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         app_address: usize,
         app_size: usize,
     ) -> Result<(), ProcessLoadError> {
-        let flash = self.flash_bank.get();
+        let flash = self.flash_bank.get().ok_or(ProcessLoadError::BinaryError(
+            ProcessBinaryError::NotEnoughFlash,
+        ))?;
         let process_address = app_address - flash.addr();
         let process_flash = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
             flash,
@@ -1319,7 +1342,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         &self,
         app_handle: usize,
     ) -> Result<u32, ProcessBinaryError> {
-        let flash = self.flash_bank.get();
+        let flash = self
+            .flash_bank
+            .get()
+            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
         let application_binary_address = app_handle - flash.addr();
 
         // Might want to verify if the app is valid with check_new_binary_validity() either here, or before returning the size
