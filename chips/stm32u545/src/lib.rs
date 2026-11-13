@@ -5,7 +5,7 @@
 #![no_std]
 
 pub use stm32u5xx::{
-    adc, aes, chip, crc, dma, exti, gpio, hash, i2c, pwr, rcc, rtc, spi, tim, usart,
+    adc, aes, chip, crc, dma, exti, gpio, hash, i2c, pkc, pwr, rcc, rtc, spi, tim, usart,
 };
 
 use cortexm33::{CortexM33, CortexMVariant};
