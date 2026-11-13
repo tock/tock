@@ -5,6 +5,7 @@
 #![no_std]
 
 pub mod startup;
+pub mod usb_panic_writer;
 
 pub use self::startup::{
     NrfClockComponent, NrfStartupComponent, UartChannel, UartChannelComponent, UartPins,

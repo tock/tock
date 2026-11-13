@@ -16,6 +16,7 @@ nrf52 = { path = "../../../chips/nrf52" }
 segger = { path = "../../../chips/segger" }
 
 capsules-core = { path = "../../../capsules/core" }
+capsules-extra = { path = "../../../capsules/extra" }
 
 [lints]
 workspace = true
