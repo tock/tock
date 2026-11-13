@@ -33,7 +33,7 @@
 //! through a reference to the flash's own mapped address range. This
 //! mimics that: every access here goes through a raw pointer derived from
 //! the stored `*mut [u8]`, copied via [`core::ptr::copy_nonoverlapping`],
-//! and no `&`/`&mut` over the target range is ever created. [`Self::new()`]
+//! and no `&`/`&mut` over the target range is ever created. `new()`
 //! uses the same representation for the (non-aliased) case of owning a
 //! private buffer outright, so there is one implementation either way.
 
