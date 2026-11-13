@@ -478,7 +478,8 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
     // - Options not set:
     //   - nomem: The debugger could read and write memory?
     //   - nostack: The debugger could use the stack?
-    //   - preserves_flags: no meaning on RISC-V
+    //   - preserves_flags: no meaning on RISC-V without floating-point or
+    //     vector extensions
     //   - pure: not required
     //   - readonly: implied by nomem
     //   - noreturn: we do fall-through

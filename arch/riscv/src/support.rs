@@ -18,9 +18,9 @@ pub fn nop() {
     // - Options set:
     //   - nomem: We do not read or write memory.
     //   - nostack: This does not use the stack.
-    //   - preserves_flags: This does not change flags.
     // - Options not set:
-    //   - preserves_flags: no meaning on RISC-V
+    //   - preserves_flags: no meaning on RISC-V without floating-point or
+    //     vector extensions
     //   - pure: not required
     //   - readonly: implied by nomem
     //   - noreturn: we do fall-through
@@ -44,7 +44,8 @@ pub unsafe fn wfi() {
     //   - nomem: We do not read or write memory.
     //   - nostack: This does not use the stack.
     // - Options not set:
-    //   - preserves_flags: no meaning on RISC-V
+    //   - preserves_flags: no meaning on RISC-V without floating-point or
+    //     vector extensions
     //   - pure: not required
     //   - readonly: implied by nomem
     //   - noreturn: we do fall-through
