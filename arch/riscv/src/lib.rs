@@ -38,43 +38,40 @@ pub const XLEN_LOG2: usize = usize::BITS.trailing_zeros() as usize;
 ///    any Rust code runs. See <https://github.com/tock/tock/issues/2222> for more
 ///    information.
 /// 3. Finally it calls `main()`, the main entry point for Tock boards.
-///
-/// # Safety
-///
-/// ## `link_section`
-///
-/// `link_section` allows us to place data and code in arbitrary locations. We
-/// ensure that the .riscv.start is intended for this purpose and is valid for
-/// executable code.
-///
-/// ## `naked`
-///
-/// - INPUTS: This does not use any input registers.
-/// - OUTPUTS: This writes to four caller-saved registers: a0, a1, a2, and a3
-///   and no callee-saved registers.
-/// - This does not fall-through. It unconditionally jumps to main().
-///
-/// ## `no_mangle`
-///
-/// We use `initialize_ram_jump_to_main` as a symbol in the linker file. This is
-/// the only user of the name `initialize_ram_jump_to_main` and no other symbol
-/// may use the same name.
-///
-/// Note: this requires a global/uniqueness guarantee.
-/// See <https://github.com/tock/tock/issues/5250>.
 #[cfg(riscv_bare_metal)]
 // Only apply the `link_section` attribute when actually targeting bare-metal
 // RISC-V. Host builds (e.g. tests, clippy on macOS, Windows, Linux, ...) use
 // object formats (Mach-O, PE, ...) that reject a bare section name like
 // this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
+//
+// # Safety
+//
+// `link_section` allows us to place data and code in arbitrary locations. We
+// ensure that the .riscv.start is intended for this purpose and is valid for
+// executable code.
 #[cfg_attr(riscv_bare_metal, unsafe(link_section = ".riscv.start"))]
+// # Safety
+//
+// - INPUTS: This does not use any input registers.
+// - OUTPUTS: This writes to four caller-saved registers: a0, a1, a2, and a3
+//   and no callee-saved registers.
+// - This does not fall-through. It unconditionally jumps to main().
 #[unsafe(naked)]
 // We don't want the function name symbol to be mangled in order to be able to refer to
 // it the linker script. It is not currently being used in the provided linker script
 // for the supported boards, however it might be needed in the future or for downstream developers
 // providing their own linker scripts, where this symbol might be used to point to the entry point
 // (i.e. ENTRY(_start), or verify the placement via asserts or perform memory layout calculations).
+//
+// # Safety
+//
+// We use `initialize_ram_jump_to_main` as a symbol in the linker file. This is
+// the only user of the name `initialize_ram_jump_to_main` and no other symbol
+// may use the same name.
+//
+// Note: this requires a global/uniqueness guarantee.
+// See <https://github.com/tock/tock/issues/5250>.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     use core::arch::naked_asm;
@@ -267,41 +264,44 @@ pub enum PermissionMode {
 /// invoked, it may, for instance, choose to ignore a certain trap, access
 /// global state (subject to synchronization), etc. It must still abide to
 /// the contract as stated above.
-///
-/// # Safety
-///
-/// ## `export_name`
-///
-/// `export_name` allows us to choose a custom name for this symbol which could
-/// collide with another symbol with the same name. We use `start_trap` as a
-/// symbol in the linker file to ensure alignment. This is the only use of the
-/// name `start_trap` and no other symbol may use the same name.
-///
-/// Note: this requires a global/uniqueness guarantee.
-/// See <https://github.com/tock/tock/issues/5250>.
-///
-/// ## `naked`
-///
-/// - INPUTS: This does not assume anything about the contents of any registers.
-///   It reads all registers to store their values.
-/// - OUTPUTS: This writes two callee-saved registers, s0 and s1. s0 is saved to
-///   mscratch and restored. s1 is only written if a custom trap handler is in
-///   use, and the custom trap handler must restore s1.
-/// - This does not fall-through. If there is no custom trap handler it calls
-///   `mret`. If there is a custom trap handler, it jumps to that handler.
 #[cfg(riscv_bare_metal)]
 // Only apply the `link_section` attribute when actually targeting bare-metal
 // RISC-V. Host builds (e.g. tests, clippy on macOS, Windows, Linux, ...) use
 // object formats (Mach-O, PE, ...) that reject a bare section name like
 // this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
+//
+// # Safety
+//
+// `link_section` allows us to place data and code in arbitrary locations. We
+// ensure that the .riscv.trap is intended for this purpose and is valid for
+// executable code.
 #[cfg_attr(riscv_bare_metal, unsafe(link_section = ".riscv.trap"))]
 // We need the `start_trap` function to be 256 byte aligned. The linker script
 // includes a check for whether a symbol named `start_trap` exists. If it does,
 // it makes sure to align the `.riscv.trap` section on a 256 byte
 // boundary. Thus, ensure that this function is exported under this stable
 // symbol name.
+//
+// # Safety
+//
+// `export_name` allows us to choose a custom name for this symbol which could
+// collide with another symbol with the same name. We use `start_trap` as a
+// symbol in the linker file to ensure alignment. This is the only use of the
+// name `start_trap` and no other symbol may use the same name.
+//
+// Note: this requires a global/uniqueness guarantee.
+// See <https://github.com/tock/tock/issues/5250>.
 #[unsafe(export_name = "start_trap")]
+// # Safety
+//
+// - INPUTS: This does not assume anything about the contents of any registers.
+//   It reads all registers to store their values.
+// - OUTPUTS: This writes two callee-saved registers, s0 and s1. s0 is saved to
+//   mscratch and restored. s1 is only written if a custom trap handler is in
+//   use, and the custom trap handler must restore s1.
+// - This does not fall-through. If there is no custom trap handler it calls
+//   `mret`. If there is a custom trap handler, it jumps to that handler.
 #[unsafe(naked)]
 pub extern "C" fn start_trap() -> ! {
     use core::arch::naked_asm;
