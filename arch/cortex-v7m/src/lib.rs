@@ -599,21 +599,6 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
-    // These constants are defined in the linker script.
-    //
-    // # Safety
-    //
-    // Linker script symbols are value-less entities, a concept that does not
-    // map onto any actual Rust type (as of July 2026).  This method only uses
-    // these declarations to pass their address to the assembly. By declaring
-    // these variables within this naked fn, we ensure that no Rust code
-    // attempts to access them, and assert that the assembly will take only the
-    // address, which is well-defined.
-    unsafe extern "C" {
-        static _estack: u8;
-        static _sstack: u8;
-    }
-
     use core::arch::naked_asm;
     // First need to determine if this a kernel fault or a userspace fault, and store
     // the unmodified stack pointer. Place these values in registers, then call
@@ -652,7 +637,7 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     // kernel's original stack. This should in theory leave the bottom
     // of the stack where the problem occurred untouched should one want
     // to further debug.
-    ldreq  r3, ={estack} // load _estack into r3
+    ldreq  r3, =_estack  // load _estack into r3
     moveq  sp, r3        // Set the stack pointer to _estack
     // finally, if the fault occurred in privileged mode (r2 == 1), branch
     // to non-naked handler.
@@ -697,7 +682,6 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
 
     bx lr
         ",
-        estack = sym _estack,
         kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
         app_hard_fault = sym cortexm::syscall::APP_HARD_FAULT,
         scb_registers = sym cortexm::syscall::SCB_REGISTERS,
