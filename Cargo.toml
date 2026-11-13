@@ -152,7 +152,27 @@ authors = ["Tock Project Developers <devel@lists.tockos.org>"]
 edition = "2021"
 
 [workspace.dependencies]
-tock-registers = { version = "0.11.0", default-features = false }
+# TODO: This will be the workspace dependency used by most of our crates, but at
+# the moment every crate that wants default features to be enabled still uses
+# the old APIs. Uncomment this when a crate has been migrated off the old APIs.
+#tock-registers = {
+#    git = "https://github.com/tock/tock-registers.git",
+#    rev = "86008616e0082f4a75e2cf1b33c94b78cbaf7f5f",
+#}
+# TODO: Once tock-registers 2.0 has been released, remove
+# tock-registers-nodefault and have each crate that used it specify their
+# tock-registers dependency individually.
+tock-registers-nodefault = {
+    default-features = false,
+    git = "https://github.com/tock/tock-registers.git",
+    package = "tock-registers",
+    rev = "86008616e0082f4a75e2cf1b33c94b78cbaf7f5f",
+}
+tock-registers-v0 = {
+    default-features = false,
+    package = "tock-registers",
+    version = "0.11.0"
+}
 
 [profile.dev]
 panic = "abort"
