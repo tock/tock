@@ -22,6 +22,7 @@ pub trait Curve<const P_SIZE: usize> {
 pub struct NistP256Constants;
 pub const P_256_P_SIZE: usize = 32;
 
+// Source of these constants: https://std.neuromancer.sk/nist/P-256
 impl Curve<P_256_P_SIZE> for NistP256Constants {
     const GENERATOR: ([u8; P_256_P_SIZE], [u8; P_256_P_SIZE]) = (
         [
