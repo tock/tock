@@ -7,6 +7,9 @@
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::dma_slice::DmaSubSliceMutImmut;
+use kernel::utilities::leasable_buffer::SubSliceMutImmut;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
@@ -168,20 +171,109 @@ register_bitfields![u32,
     ]
 ];
 
-/// `DUTY_CYCLES` is a static array that must be passed to the PWM hardware.
+/// State management for the buffer used by DMA.
 ///
-/// The nRF52 hardware uses this static array in memory to enable switching
-/// between multiple duty cycles automatically while generating the PWM output.
-/// This isn't ideal from a Rust perspective, but the peripheral hardware must
-/// be passed a pointer.
-static mut DUTY_CYCLES: [u16; 4] = [0; 4];
+/// The buffer contents describe the PWM configuration. While a DMA transaction
+/// is active, the buffer is held in a `DmaSubSliceMutImmut` to uphold
+/// soundness requirements.
+enum DutyCyclesBuffer {
+    Idle(&'static mut [u16]),
+    DmaActive(DmaSubSliceMutImmut<'static, u16>),
+}
+
+/// Wrapper for managing MMIO for the PWM peripheral.
+pub struct PwmRegistersManager {
+    /// MMIO registers for the PWM peripheral.
+    registers: StaticRef<PwmRegisters>,
+    /// Buffer that describes the PWM configuration.
+    duty_cycles: OptionalCell<DutyCyclesBuffer>,
+}
+
+impl PwmRegistersManager {
+    /// Create a DMA-enabled register manager for the PWM peripheral.
+    ///
+    /// # Safety
+    ///
+    /// This controls DMA hardware. As such, it must be unique. This requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - No other code accesses DMA-related registers.
+    pub unsafe fn new(
+        registers: StaticRef<PwmRegisters>,
+        duty_cycles: &'static mut [u16; 4],
+    ) -> Self {
+        Self {
+            registers,
+            duty_cycles: OptionalCell::new(DutyCyclesBuffer::Idle(duty_cycles)),
+        }
+    }
+
+    /// Start PWM using the DMA hardware.
+    pub fn start(&self, dc_out: u16) {
+        // Make sure hardware is idle first (no-op if already idle); the check
+        // is in the start of the `stop` method, no reason to check active
+        // state twice by looking here first.
+        self.stop();
+
+        if let Some(DutyCyclesBuffer::Idle(buf)) = self.duty_cycles.take() {
+            // Setup the duty cycles.
+            buf[0] = dc_out;
+
+            // SAFETY: The architecture-provided version is correct for the nRF52.
+            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+            // Create the dma slice for the duty cycle buffer. This ensures
+            // that we can soundly share it with the DMA hardware.
+            //
+            // TODO: This is a bit awkward; ideally we would just pass `buf` to
+            // a `DmaSliceMutImmut`, but it has no `take` method currently to
+            // retrieve the underlying buffer, so we go through the sub slice
+            // path so that we can get it back out.
+            let dma_slice = DmaSubSliceMutImmut::new(SubSliceMutImmut::from(buf), fence);
+
+            // Provide the buffer pointer to the hardware DMA engine.
+            self.registers.seq0.seq_ptr.set(dma_slice.ptr_addr() as u32);
+            self.registers.seq0.seq_cnt.write(SEQ_CNT::CNT.val(1));
+            self.registers
+                .seq0
+                .seq_refresh
+                .write(SEQ_REFRESH::CNT.val(0));
+            self.registers
+                .seq0
+                .seq_enddelay
+                .write(SEQ_ENDDELAY::CNT.val(0));
+
+            // Clear any stale STOPPED event.
+            self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
+
+            // Save the dma slice while the DMA hardware may access it.
+            self.duty_cycles.set(DutyCyclesBuffer::DmaActive(dma_slice));
+
+            // Start PWM.
+            self.registers.tasks_seqstart[0].write(TASK::TASK::SET);
+        }
+    }
+
+    /// Stop PWM pulse generation and reclaim the duty cycle buffer.
+    pub fn stop(&self) {
+        if let Some(DutyCyclesBuffer::DmaActive(dma_slice)) = self.duty_cycles.take() {
+            // Stop the PWM hardware.
+            self.registers.tasks_stop.write(TASK::TASK::SET);
+
+            // n.b., this never fails, we only store a `Mutable` slice in here
+            if let SubSliceMutImmut::Mutable(ssm) = dma_slice.take() {
+                self.duty_cycles.set(DutyCyclesBuffer::Idle(ssm.take()));
+            }
+        }
+    }
+}
 
 pub struct Pwm {
-    registers: StaticRef<PwmRegisters>,
+    registers: PwmRegistersManager,
 }
 
 impl Pwm {
-    pub const fn new(registers: StaticRef<PwmRegisters>) -> Pwm {
+    pub fn new(registers: PwmRegistersManager) -> Pwm {
         Pwm { registers }
     }
 
@@ -209,51 +301,39 @@ impl Pwm {
         let dc_out = counter_top - ((3 * duty_cycle) / frequency_hz);
 
         // Configure the pin
-        self.registers.psel_out[0].set((*pin).into());
+        self.registers.registers.psel_out[0].set((*pin).into());
 
         // Start by enabling the peripheral.
-        self.registers.enable.write(ENABLE::ENABLE::SET);
+        self.registers.registers.enable.write(ENABLE::ENABLE::SET);
         // Want count up mode.
-        self.registers.mode.write(MODE::UPDOWN::Up);
+        self.registers.registers.mode.write(MODE::UPDOWN::Up);
         // Disable loop (repeat) mode.
-        self.registers.loopreg.write(LOOP::CNT.val(0));
+        self.registers.registers.loopreg.write(LOOP::CNT.val(0));
         // Set the decoder settings.
         self.registers
+            .registers
             .decoder
             .write(DECODER::LOAD::Common + DECODER::MODE::RefreshCount);
         // Set the prescaler.
-        self.registers.prescaler.write(PRESCALER::PRESCALER::DIV_1);
+        self.registers
+            .registers
+            .prescaler
+            .write(PRESCALER::PRESCALER::DIV_1);
         // Set the value to count to.
         self.registers
+            .registers
             .countertop
             .write(COUNTERTOP::COUNTERTOP.val(counter_top as u32));
 
-        // Setup the duty cycles
-        unsafe {
-            DUTY_CYCLES[0] = dc_out as u16;
-        }
-        let duty_cycles: *const [u16; 4] = core::ptr::addr_of!(DUTY_CYCLES);
-        let duty_cycles: *const u16 = duty_cycles.cast();
-        self.registers.seq0.seq_ptr.set(duty_cycles as u32);
-        self.registers.seq0.seq_cnt.write(SEQ_CNT::CNT.val(1));
-        self.registers
-            .seq0
-            .seq_refresh
-            .write(SEQ_REFRESH::CNT.val(0));
-        self.registers
-            .seq0
-            .seq_enddelay
-            .write(SEQ_ENDDELAY::CNT.val(0));
-
-        // Start
-        self.registers.tasks_seqstart[0].write(TASK::TASK::SET);
+        // Configure the PWM hardware through the DMA manager.
+        self.registers.start(dc_out as u16);
 
         Ok(())
     }
 
     fn stop_pwm(&self, _pin: &nrf5x::pinmux::Pinmux) -> Result<(), ErrorCode> {
-        self.registers.tasks_stop.write(TASK::TASK::SET);
-        self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+        self.registers.stop();
+        self.registers.registers.enable.write(ENABLE::ENABLE::CLEAR);
         Ok(())
     }
 }
