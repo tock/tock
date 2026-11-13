@@ -28,6 +28,7 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "syscall-return",
@@ -39,6 +40,7 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "isolated_nonvolatile_storage_read_write",
@@ -52,6 +54,7 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "sha256",
@@ -63,6 +66,7 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "rng",
@@ -74,6 +78,7 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "restart",
@@ -92,5 +97,6 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
 ];

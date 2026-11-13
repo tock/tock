@@ -28,6 +28,7 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "led-odd",
@@ -41,6 +42,7 @@ static TESTS: &[TestCase] = &[
         expected_screen_hash: Some(
             "c4d49a185592f23074ae5b83caa7d506967fbe8f93a547fa60de93bc2ddd282f",
         ),
+        needs_serial1: false,
     },
     TestCase {
         name: "tock-logo",
@@ -54,6 +56,7 @@ static TESTS: &[TestCase] = &[
         expected_screen_hash: Some(
             "4150b38c3cf468a388c0a09eb309ac8c480f692599cc0fc3e2684e0fafb5463d",
         ),
+        needs_serial1: false,
     },
     TestCase {
         name: "led-odd-logo",
@@ -70,6 +73,7 @@ static TESTS: &[TestCase] = &[
         expected_screen_hash: Some(
             "bfec0b5a3c5b72edb6128c7c9b6690b56d7ac93e1047d9ef45a22be0c9b4d4fa",
         ),
+        needs_serial1: false,
     },
     TestCase {
         name: "button_print",
@@ -78,7 +82,7 @@ static TESTS: &[TestCase] = &[
         steps: &[
             TestStep::WaitSerialInOrder {
                 needles: &["[TEST] Button Press"],
-                timeout: Duration::from_secs(30)
+                timeout: Duration::from_secs(30),
             },
             TestStep::Sleep(Duration::from_millis(100)),
             TestStep::SendKey("up"),
@@ -89,6 +93,7 @@ static TESTS: &[TestCase] = &[
         ],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "console",
@@ -114,6 +119,7 @@ static TESTS: &[TestCase] = &[
         ],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "hello-pconsole",
@@ -129,6 +135,7 @@ static TESTS: &[TestCase] = &[
         ],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "pconsole-help",
@@ -146,6 +153,7 @@ static TESTS: &[TestCase] = &[
         ],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "pconsole-list",
@@ -161,6 +169,7 @@ static TESTS: &[TestCase] = &[
         ],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "exit",
@@ -180,6 +189,7 @@ static TESTS: &[TestCase] = &[
         ],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "unexpected-rx",
@@ -194,6 +204,7 @@ static TESTS: &[TestCase] = &[
         ],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "syscall-return",
@@ -205,5 +216,6 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
 ];
