@@ -78,7 +78,7 @@ static TESTS: &[TestCase] = &[
         steps: &[
             TestStep::WaitSerialInOrder {
                 needles: &["[TEST] Button Press"],
-                timeout: Duration::from_secs(30)
+                timeout: Duration::from_secs(30),
             },
             TestStep::Sleep(Duration::from_millis(100)),
             TestStep::SendKey("up"),
@@ -139,7 +139,7 @@ static TESTS: &[TestCase] = &[
             TestStep::SendSerial("help\n\r"),
             TestStep::WaitSerialInOrder {
                 needles: &[
-                    "Valid commands are: help status list stop start fault boot terminate process kernel reset panic console-start console-stop",
+                    "Valid commands are: help status list stop start fault boot terminate process kernel reset hardfault panic console-start console-stop",
                 ],
                 timeout: Duration::from_secs(10),
             },
