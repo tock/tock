@@ -150,6 +150,7 @@ impl Lpc55s69DefaultPeripherals<'_> {
     }
 
     pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.uart);
         kernel::deferred_call::DeferredCallClient::register(&self.rng);
     }
 }
