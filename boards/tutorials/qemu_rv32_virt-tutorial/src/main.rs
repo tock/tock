@@ -400,14 +400,13 @@ pub unsafe fn main() {
         .expect("App RAM region is invalid");
 
     // Create and start the asynchronous process loader.
-    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+    let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
         board_kernel,
         chip,
         &FAULT_RESPONSE,
         assigner,
         storage_permissions_policy,
-        app_flash_region,
         app_ram_region,
         create_capability!(capabilities::ProcessManagementCapability),
     )
@@ -416,6 +415,7 @@ pub unsafe fn main() {
         kernel::process::ProcessStandardDebugFull,
         NUM_PROCS
     ));
+    loader.set_flash(app_flash_region);
 
     debug!("Starting main kernel loop.");
 
