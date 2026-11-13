@@ -77,35 +77,6 @@ pub const XLEN_LOG2: usize = usize::BITS.trailing_zeros() as usize;
 // (i.e. ENTRY(_start), or verify the placement via asserts or perform memory layout calculations).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
-    // These constants are defined in the linker script.
-    //
-    // SAFETY: Linker script symbols are value-less entities, a concept that
-    // does not map onto any actual Rust type (as of July 2026).  This method
-    // only uses these declarations to pass their address to the assembly. By
-    // declaring these variables within this naked fn, we ensure that no Rust
-    // code attempts to access them, and assert that the assembly will take only
-    // the address, which is well-defined.
-    unsafe extern "C" {
-        // Where the end of the stack region is (and hence where the stack should
-        // start).
-        static _estack: usize;
-
-        // Boundaries of the .bss section.
-        static mut _szero: usize;
-        static mut _ezero: usize;
-
-        // Where the .data section is stored in flash.
-        static mut _etext: usize;
-
-        // Boundaries of the .data section.
-        static mut _srelocate: usize;
-        static mut _erelocate: usize;
-
-        // The global pointer, value set in the linker script
-        #[link_name = "__global_pointer$"]
-        static __global_pointer: usize;
-    }
-
     use core::arch::naked_asm;
     naked_asm!(
         "
@@ -124,14 +95,14 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     .option push
     .option norelax
 
-    la gp, {gp}                 // Set the global pointer from linker script.
+    la gp, __global_pointer$    // Set the global pointer from linker script.
 
     // Re-enable linker relaxations.
     .option pop
 
     // Initialize the stack pointer register. This comes directly from
     // the linker script.
-    la sp, {estack}             // Set the initial stack pointer.
+    la sp, _estack              // Set the initial stack pointer.
 
     // Set s0 (the frame pointer) to the start of the stack.
     add  s0, sp, zero           // s0 = sp
@@ -144,8 +115,8 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 
     // Start by initializing .bss memory. The Tock linker script defines
     // `_szero` and `_ezero` to mark the .bss segment.
-    la a0, {sbss}               // a0 = first address of .bss
-    la a1, {ebss}               // a1 = first address after .bss
+    la a0, _szero               // a0 = first address of .bss
+    la a1, _ezero               // a1 = first address after .bss
 
 100: // bss_init_loop
     beq  a0, a1, 101f           // If a0 == a1, we are done.
@@ -157,9 +128,9 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 
     // Now initialize .data memory. This involves coping the values right at the
     // end of the .text section (in flash) into the .data section (in RAM).
-    la a0, {sdata}              // a0 = first address of data section in RAM
-    la a1, {edata}              // a1 = first address after data section in RAM
-    la a2, {etext}              // a2 = address of stored data initial values
+    la a0, _srelocate           // a0 = first address of data section in RAM
+    la a1, _erelocate           // a1 = first address after data section in RAM
+    la a2, _etext               // a2 = address of stored data initial values
 
 200: // data_init_loop
     beq  a0, a1, 201f           // If we have reached the end of the .data
@@ -176,14 +147,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     // With that initial setup out of the way, we now branch to the main
     // code, likely defined in a board's main.rs.
     j main
-        ",
-        gp = sym __global_pointer,
-        estack = sym _estack,
-        sbss = sym _szero,
-        ebss = sym _ezero,
-        sdata = sym _srelocate,
-        edata = sym _erelocate,
-        etext = sym _etext,
+        "
     );
 }
 
@@ -340,21 +304,6 @@ pub enum PermissionMode {
 #[unsafe(export_name = "start_trap")]
 #[unsafe(naked)]
 pub extern "C" fn start_trap() -> ! {
-    // These constants are defined in the linker script.
-    //
-    // SAFETY: Linker script symbols are value-less entities, a concept that
-    // does not map onto any actual Rust type (as of July 2026).  This method
-    // only uses these declarations to pass their address to the assembly. By
-    // declaring these variables within this naked fn, we ensure that no Rust
-    // code attempts to access them, and assert that the assembly will take only
-    // the address, which is well-defined.
-    unsafe extern "C" {
-        // Where the end of the stack region is (and hence where the stack should
-        // start), and the start of the stack region.
-        static _estack: usize;
-        static _sstack: usize;
-    }
-
     use core::arch::naked_asm;
     naked_asm!(
         xlen_macros!(),
@@ -394,7 +343,7 @@ pub extern "C" fn start_trap() -> ! {
 
     // Load the address of the bottom of the stack (`_sstack`) into our
     // newly freed-up s0 register.
-    la s0, {sstack}               // s0 = _sstack
+    la s0, _sstack                // s0 = _sstack
 
     // Compare the kernel stack pointer to the bottom of the stack. If
     // the stack pointer is above the bottom of the stack, then continue
@@ -406,7 +355,7 @@ pub extern "C" fn start_trap() -> ! {
     // valid stack to run the panic code. We do this by just starting
     // over with the kernel stack and placing the stack pointer at the
     // top of the original stack.
-    la sp, {estack}               // sp = _estack
+    la sp, _estack                // sp = _estack
 
 200: // _start_kernel_trap_continue
 
@@ -491,8 +440,6 @@ pub extern "C" fn start_trap() -> ! {
     // mepc we will return to where the exception occurred.
     mret
         ",
-        estack = sym _estack,
-        sstack = sym _sstack,
         XLEN = const XLEN,
         XLEN_LOG2 = const XLEN_LOG2,
     );
