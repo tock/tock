@@ -5,6 +5,8 @@
 //! Generic support for all Cortex-M platforms.
 
 #![no_std]
+#![deny(clippy::missing_safety_doc)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 // The `cortexm` crate is only referenced through `sym` operands in our asm
 // blocks, which are compiled only for ARM targets. On host (non-ARM) builds
@@ -276,14 +278,19 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
 ///
 /// For documentation of this function, please see
 /// `CortexMVariant::switch_to_user`.
+///
+/// # Safety
+///
+/// This context switches to an application. The MPU must be correctly
+/// configured before running this. The symbol
+/// `cortexm::syscall::SVC_SWITCH_TO_APP` must be a register-sized data type.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn switch_to_user_arm_v7m(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
     use core::arch::asm;
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS:
     //   - This uses `r0`, which is specified as an input from `user_stack`.
     //   - This uses `r1`, which is specified as an input from `process_regs`.
@@ -386,6 +393,11 @@ pub unsafe fn switch_to_user_arm_v7m(
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 /// Continue the hardfault handler for all hard-faults that occurred
 /// during kernel execution. This function must never return.
+///
+/// # Safety
+///
+/// If `stack_overflow` is 0, the `faulting_stack` pointer must be valid and
+/// point to allocated memory with at least an 8-word exception stack frame.
 unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
     faulting_stack: *mut u32,
     stack_overflow: u32,
@@ -398,9 +410,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 
         // Get the stacked copies of caller-saved registers and other state.
         //
-        // # Safety
-        //
-        // Because we verified there was not a stack overflow when the hardware
+        // SAFETY: Because we verified there was not a stack overflow when the hardware
         // pushed these values to the stack, these are valid pointers to
         // allocated memory.
         let (
@@ -429,9 +439,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 
         // Extract symbols from the linker script
         let (estack, sstack) = {
-            // # Safety
-            //
-            // Linker script symbols are value-less entities, a concept that
+            // SAFETY: Linker script symbols are value-less entities, a concept that
             // does not map onto any actual Rust type (as of July 2026). The
             // only valid operation on these "types" is taking their address.
             // We scope the declaration to a dedicated block here to ensure no
@@ -447,9 +455,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 
         // Read system status registers.
         //
-        // # Safety
-        //
-        // These are the valid locations of 32-bit registers.
+        // SAFETY: These are the valid locations of 32-bit registers.
         let (shcsr, cfsr, hfsr, mmfar, bfar) = unsafe {
             let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
             let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
@@ -733,21 +739,33 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
 // ARM assembly since it will not compile.
 ///////////////////////////////////////////////////////////////////
 
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn systick_handler_arm_v7m() {
     unimplemented!()
 }
 
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
     unimplemented!()
 }
 
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn generic_isr_arm_v7m() {
     unimplemented!()
 }
 
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn switch_to_user_arm_v7m(
     _user_stack: *const u8,
@@ -756,6 +774,9 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     unimplemented!()
 }
 
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     unimplemented!()

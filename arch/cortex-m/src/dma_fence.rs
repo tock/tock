@@ -34,10 +34,26 @@ impl CortexMDmaFence {
     }
 }
 
+// SAFETY: To the best of our understanding this implementation correctly
+// implements the required properties of the [`DmaFence`] interface on Cortex-M
+// MCUs.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 unsafe impl DmaFence for CortexMDmaFence {
     fn release<T>(self, slice_ptr: *mut [T]) {
         let slice_start_ptr: *mut T = slice_ptr.cast();
+        // SAFETY: This complies with the asm safety requirements:
+        // - INPUTS: This does not use the existing value of any registers.
+        // - OUTPUTS: This does not write any registers.
+        // - Options set:
+        // - Options not set:
+        //   - nomem: We do not read or write memory anyway.
+        //   - nostack: This does not use the stack anyway.
+        //   - preserves_flags: This does not change flags anyway.
+        //   - pure: not required
+        //   - readonly: implied by nomem
+        //   - noreturn: we do fall-through
+        //   - att_syntax: not on arm
+        //   - raw: not required
         unsafe {
             core::arch::asm!(
                 "
@@ -56,6 +72,19 @@ unsafe impl DmaFence for CortexMDmaFence {
 
     fn acquire<T>(self, slice_ptr: *mut [T]) {
         let slice_start_ptr: *mut T = slice_ptr.cast();
+        // SAFETY: This complies with the asm safety requirements:
+        // - INPUTS: This does not use the existing value of any registers.
+        // - OUTPUTS: This does not write any registers.
+        // - Options set:
+        // - Options not set:
+        //   - nomem: We do not read or write memory anyway.
+        //   - nostack: This does not use the stack anyway.
+        //   - preserves_flags: This does not change flags anyway.
+        //   - pure: not required
+        //   - readonly: implied by nomem
+        //   - noreturn: we do fall-through
+        //   - att_syntax: not on arm
+        //   - raw: not required
         unsafe {
             core::arch::asm!(
                 "
@@ -73,6 +102,7 @@ unsafe impl DmaFence for CortexMDmaFence {
     }
 }
 
+// SAFETY: Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe impl DmaFence for CortexMDmaFence {
     fn release<T>(self, _buf: *mut [T]) {

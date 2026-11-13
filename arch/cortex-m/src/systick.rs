@@ -13,6 +13,10 @@ use core::num::NonZeroU32;
 
 /// The `SysTickFrequencyCapability` allows the holder to change the Cortex-M
 /// SysTick `hertz` field.
+///
+/// # Safety
+///
+/// Capabilities can only be created in trusted crates that can use `unsafe`.
 pub unsafe trait SysTickFrequencyCapability {}
 
 #[repr(C)]
@@ -68,8 +72,12 @@ pub struct SysTick {
     external_clock: bool,
 }
 
-const BASE_ADDR: *const SystickRegisters = 0xE000E010 as *const SystickRegisters;
-const SYSTICK_BASE: StaticRef<SystickRegisters> = unsafe { StaticRef::new(BASE_ADDR) };
+/// Address of SysTick registers.
+///
+/// SAFETY: The CSR register of the SysTick peripheral is at this address per
+/// the ARM architecture documentation.
+const SYSTICK_BASE: StaticRef<SystickRegisters> =
+    unsafe { StaticRef::new(0xE000E010 as *const SystickRegisters) };
 
 impl SysTick {
     /// Initialize the `SysTick` with default values.

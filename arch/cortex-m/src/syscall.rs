@@ -82,9 +82,7 @@ pub static mut SCB_REGISTERS: UnsafeCell<[u32; 5]> = UnsafeCell::new([0; 5]);
 pub fn get_global_app_hard_fault() -> usize {
     let app_fault: usize;
 
-    // # Safety
-    //
-    // This is safe as long as the static memory is defined, of the correct
+    // SAFETY: This is safe as long as the static memory is defined, of the correct
     // size, and aligned correctly. We ensure these conditions are met by
     // creating the variable as an Rust type in an `UnsafeCell`.
     unsafe {
@@ -115,9 +113,7 @@ pub fn get_global_app_hard_fault() -> usize {
 pub fn get_global_syscall_fired() -> usize {
     let syscall_fired: usize;
 
-    // # Safety
-    //
-    // This is safe as long as the static memory is defined, of the correct
+    // SAFETY: This is safe as long as the static memory is defined, of the correct
     // size, and aligned correctly. We ensure these conditions are met by
     // creating the variable as an Rust type in an `UnsafeCell`.
     unsafe {
@@ -159,9 +155,7 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     // "error: out of range pc-relative fixup value". So, instead, we pass in a
     // pointer based on the symbol.
     //
-    // # Safety
-    //
-    // This is safe as long as the static memory is defined, of the correct
+    // SAFETY: This is safe as long as the static memory is defined, of the correct
     // size, and aligned correctly. We ensure these conditions are met by
     // creating the variable as an Rust type in an `UnsafeCell`.
     unsafe {
@@ -344,16 +338,12 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         }
 
         let sp = state.psp as *mut u32;
-        // # Safety
-        //
-        // To offset the pointer there must be valid memory pointed to by `sp`.
+        // SAFETY: To offset the pointer there must be valid memory pointed to by `sp`.
         // We verified that there is space for four u32s on the stack before
         // hitting the `app_brk`.
         let (r0, r1, r2, r3) = unsafe { (sp.add(0), sp.add(1), sp.add(2), sp.add(3)) };
 
-        // # Safety
-        //
-        // These operations are only safe so long as
+        // SAFETY: These operations are only safe so long as
         // - the pointers are properly aligned. This is guaranteed because the
         //   pointers are all offset multiples of 4 bytes from the stack
         //   pointer, which is guaranteed to be properly aligned after
@@ -446,6 +436,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         app_brk: *const u8,
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
+        // SAFETY: The caller of `switch_to_process()` ensures the MPU is
+        // correctly configured so we can switch to a process.
         let new_stack_pointer =
             unsafe { A::switch_to_user(state.psp as *const usize, &mut state.regs) };
 
