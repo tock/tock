@@ -20,7 +20,7 @@ use cortexm4f::{CortexM4F, CortexMVariant, initialize_ram_jump_to_main, scb, unh
 unsafe extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
-    fn _estack();
+    unsafe fn _estack();
 }
 
 // # Safety
