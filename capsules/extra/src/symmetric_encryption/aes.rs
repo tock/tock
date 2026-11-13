@@ -369,22 +369,23 @@ impl<
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
-            let started_command = appiter.enter(|app, _| {
-                // If an app is already running let it complete
-                if self.processid.is_some() {
-                    return true;
-                }
-
-                // If this app has a pending command let's use it.
-                app.pending_run_app.take().is_some_and(|processid| {
-                    // Mark this driver as being in use.
-                    self.processid.set(processid);
-                    // Actually make the buzz happen.
-                    self.run() == Ok(())
-                })
-            });
-            if started_command {
+            // If an app is already running let it complete
+            if self.processid.is_some() {
                 break;
+            }
+
+            // If this app has a pending command let's use it.
+            if let Some(processid) = appiter.enter(|app, _| app.pending_run_app.take()) {
+                // Mark this driver as being in use.
+                self.processid.set(processid);
+                // Actually make the buzz happen.
+                if let Err(e) = self.run() {
+                    self.aes.disable();
+                    self.processid.clear();
+                    let _ = self.apps.enter(processid, |_, kernel_data| {
+                        kernel_data.schedule_upcall(0, (e as usize, 0, 0))
+                    });
+                }
             }
         }
     }
