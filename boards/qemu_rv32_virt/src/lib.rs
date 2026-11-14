@@ -289,6 +289,10 @@ pub unsafe fn start(
 
     let peripherals = static_init!(
         QemuRv32VirtDefaultPeripherals,
+        // Safety:
+        // 1. This board is a QEMU-emulated riscv32 system with VirtIO.
+        // 2. No other code used by the board interacts with the VirtIO
+        //    peripherals.
         QemuRv32VirtDefaultPeripherals::new(),
     );
     peripherals.init();

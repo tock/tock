@@ -10,6 +10,7 @@ edition = "2024"
 
 [dependencies]
 kernel = { path = "../../kernel" }
+tock-registers = { features = ["proc_macros", "register_types"], workspace = true }
 
 [lints]
 workspace = true

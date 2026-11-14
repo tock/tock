@@ -4,12 +4,9 @@
 
 //! VirtIO memory mapped device driver
 
-use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers::{LocalRegisterCopy, Mmio32, Mmio64, Read, Write};
+use tock_registers::{register_bitfields, register_map};
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::super::queues::Virtqueue;
@@ -18,68 +15,68 @@ use super::super::transports::{VirtIOInitializationError, VirtIOTransport};
 // Magic string "virt" every device has to expose
 const VIRTIO_MAGIC_VALUE: [u8; 4] = [0x76, 0x69, 0x72, 0x74];
 
-register_structs! {
-    pub VirtIOMMIODeviceRegisters {
+register_map! {
+    #![buses(Mmio32, Mmio64)]
+    pub virtio_mmio_device_registers {
         /// 0x000 Magic string "virt" for identification
-        (0x000 => magic_value: ReadOnly<u32>),
+        0x000 => magic_value: u32 { Read },
         /// 0x004 Device version number
-        (0x004 => device_version: ReadOnly<u32>),
+        0x004 => device_version: u32 { Read },
         /// 0x008 VirtIO Subsystem Device ID
-        (0x008 => device_id: ReadOnly<u32>),
+        0x008 => device_id: u32 { Read },
         /// 0x00C VirtIO Subsystem Vendor ID
-        (0x00C => vendor_id: ReadOnly<u32>),
+        0x00C => vendor_id: u32 { Read },
         /// 0x010 Flags representing features the device supports
-        (0x010 => device_features: ReadOnly<u32, DeviceFeatures::Register>),
+        0x010 => device_features: DeviceFeatures::Register { Read },
         /// 0x014 Device (host) features word selection
-        (0x014 => device_features_sel: WriteOnly<u32, DeviceFeatures::Register>),
-        (0x018 => _reversed0: [u32; 2]),
+        0x014 => device_features_sel: DeviceFeatures::Register { Write },
+        0x018 => _: 8,
         /// 0x020 Flags representing features understood and activated by the driver
-        (0x020 => driver_features: WriteOnly<u32>),
+        0x020 => driver_features: u32 { Write },
         /// 0x024 Activated (guest) features word selection
-        (0x024 => driver_features_sel: WriteOnly<u32>),
-        (0x028 => _reserved1),
+        0x024 => driver_features_sel: u32 { Write },
+        0x028 => _,
         /// 0x030 Virtual queue index
-        (0x030 => queue_sel: WriteOnly<u32>),
+        0x030 => queue_sel: u32 { Write },
         /// 0x034 Maximum virtual queue size
-        (0x034 => queue_num_max: ReadOnly<u32>),
+        0x034 => queue_num_max: u32 { Read },
         /// 0x038 Virtual queue size
-        (0x038 => queue_num: WriteOnly<u32>),
-        (0x03C => _reserved2),
+        0x038 => queue_num: u32 { Write },
+        0x03C => _,
         /// 0x044 Virtual queue ready bit
-        (0x044 => queue_ready: ReadWrite<u32>),
-        (0x048 => _reserved3),
+        0x044 => queue_ready: u32 { Read, Write },
+        0x048 => _,
         /// 0x050 Queue notifier
-        (0x050 => queue_notify: WriteOnly<u32>),
-        (0x054 => _reserved4),
+        0x050 => queue_notify: u32 { Write },
+        0x054 => _,
         /// 0x060 Interrupt status
-        (0x060 => interrupt_status: ReadOnly<u32, InterruptStatus::Register>),
+        0x060 => interrupt_status: InterruptStatus::Register { Read },
         /// 0x064 Interrupt acknowledge
-        (0x064 => interrupt_ack: WriteOnly<u32, InterruptStatus::Register>),
-        (0x068 => _reserved5),
+        0x064 => interrupt_ack: InterruptStatus::Register { Write },
+        0x068 => _,
         /// 0x070 Device status
-        (0x070 => device_status: ReadWrite<u32, DeviceStatus::Register>),
-        (0x074 => _reserved6),
+        0x070 => device_status: DeviceStatus::Register { Read, Write },
+        0x074 => _,
         /// 0x080 - 0x084 Virtual queue's Descriptor Area 64-bit long physical address
-        (0x080 => queue_desc_low: WriteOnly<u32>),
-        (0x084 => queue_desc_high: WriteOnly<u32>),
-        (0x088 => _reserved7),
+        0x080 => queue_desc_low: u32 { Write },
+        0x084 => queue_desc_high: u32 { Write },
+        0x088 => _,
         /// 0x090 - 0x094 Virtual queue's Driver Area 64-bit long physical address
-        (0x090 => queue_driver_low: WriteOnly<u32>),
-        (0x094 => queue_driver_high: WriteOnly<u32>),
-        (0x098 => _reserved8),
+        0x090 => queue_driver_low: u32 { Write },
+        0x094 => queue_driver_high: u32 { Write },
+        0x098 => _,
         /// 0x0A0 - 0x0A4 Virtual queue's Device Area 64-bit long physical address
-        (0x0A0 => queue_device_low: WriteOnly<u32>),
-        (0x0A4 => queue_device_high: WriteOnly<u32>),
-        (0x0A8 => _reserved9),
+        0x0A0 => queue_device_low: u32 { Write },
+        0x0A4 => queue_device_high: u32 { Write },
+        0x0A8 => _,
         /// 0x0FC Configuration atomicity value
-        (0x0FC => config_generation: ReadOnly<u32>),
+        0x0FC => config_generation: u32 { Read },
         /// 0x100 - 0x19C device configuration space
         ///
         /// This is individually defined per device, with a variable
         /// size. TODO: How to address this properly? Just hand around
         /// addresses to this?
-        (0x100 => config: [u32; 40]),
-        (0x1A0 => @END),
+        0x100 => config: [u32; 40] {},
     }
 }
 
@@ -115,27 +112,54 @@ register_bitfields![u64,
     ]
 ];
 
-pub struct VirtIOMMIODevice {
-    regs: StaticRef<VirtIOMMIODeviceRegisters>,
+pub struct VirtIOMMIODevice<R: virtio_mmio_device_registers::Interface> {
+    regs: R,
     device_type: OptionalCell<VirtIODeviceType>,
     queues: OptionalCell<&'static [&'static dyn Virtqueue]>,
 }
 
-impl VirtIOMMIODevice {
-    pub const fn new(regs: StaticRef<VirtIOMMIODeviceRegisters>) -> VirtIOMMIODevice {
-        VirtIOMMIODevice {
-            regs,
-            device_type: OptionalCell::empty(),
-            queues: OptionalCell::empty(),
+macro_rules! new_impl {
+    (#[$arch_comment:meta] $mmio:ident) => {
+        impl VirtIOMMIODevice<virtio_mmio_device_registers::Real<$mmio>> {
+            /// Safety:
+            /// 1. `mmio` point to a MMIO VirtIO instance on a
+            #[$arch_comment]
+            ///    bus.
+            /// 2. Nothing other than the returned object interacts with this
+            ///    VirtIO instance's registers.
+            pub unsafe fn new(mmio: $mmio) -> Self {
+                VirtIOMMIODevice {
+                    // Safety:
+                    // 1. The caller guaranteed that `address` points to a MMIO
+                    //    VirtIO instance on the correct bus.
+                    // 2. virtio_mmio_device_registers was defined correctly.
+                    // 3. The caller guaranteed that nothing other than the
+                    //    returned object uses this peripheral.
+                    regs: unsafe { virtio_mmio_device_registers::Real::new(mmio) },
+                    device_type: OptionalCell::empty(),
+                    queues: OptionalCell::empty(),
+                }
+            }
         }
-    }
+    };
+}
 
+new_impl! {
+    /// 32-bit
+    Mmio32
+}
+new_impl! {
+    /// 64-bit
+    Mmio64
+}
+
+impl<R: virtio_mmio_device_registers::Interface> VirtIOMMIODevice<R> {
     pub fn handle_interrupt(&self) {
         assert!(self.queues.is_some());
 
-        let isr = self.regs.interrupt_status.extract();
+        let isr = self.regs.interrupt_status().extract();
         // Acknowledge all interrupts immediately so that the interrupts is deasserted
-        self.regs.interrupt_ack.set(isr.get());
+        self.regs.interrupt_ack().set(isr.get());
 
         if isr.is_set(InterruptStatus::UsedBuffer) {
             // Iterate over all queues, checking for new buffers in
@@ -164,20 +188,20 @@ impl VirtIOMMIODevice {
     /// is present at this MMIO address currently.
     pub fn query(&self) -> Result<VirtIODeviceType, u32> {
         // Verify that we are talking to a VirtIO MMIO device...
-        if self.regs.magic_value.get() != u32::from_le_bytes(VIRTIO_MAGIC_VALUE) {
+        if self.regs.magic_value().get() != u32::from_le_bytes(VIRTIO_MAGIC_VALUE) {
             panic!("Not a VirtIO MMIO device");
         }
 
         // with version 2
-        if self.regs.device_version.get() != 0x0002 {
+        if self.regs.device_version().get() != 0x0002 {
             panic!(
                 "Unknown VirtIO MMIO device version: {}",
-                self.regs.device_version.get()
+                self.regs.device_version().get()
             );
         }
 
         // Extract the device type
-        let device_id = self.regs.device_id.get();
+        let device_id = self.regs.device_id().get();
 
         // Try to decode the device ID into a `VirtIODeviceType`, and otherwise
         // return the raw device ID number in the `Err` variant.
@@ -185,7 +209,7 @@ impl VirtIOMMIODevice {
     }
 }
 
-impl VirtIOTransport for VirtIOMMIODevice {
+impl<R: virtio_mmio_device_registers::Interface> VirtIOTransport for VirtIOMMIODevice<R> {
     fn initialize(
         &self,
         driver: &dyn VirtIODeviceDriver,
@@ -195,18 +219,18 @@ impl VirtIOTransport for VirtIOMMIODevice {
         // initialization
 
         // Verify that we are talking to a VirtIO MMIO device...
-        if self.regs.magic_value.get() != u32::from_le_bytes(VIRTIO_MAGIC_VALUE) {
+        if self.regs.magic_value().get() != u32::from_le_bytes(VIRTIO_MAGIC_VALUE) {
             return Err(VirtIOInitializationError::NotAVirtIODevice);
         }
 
         // with version 2
-        if self.regs.device_version.get() != 0x0002 {
+        if self.regs.device_version().get() != 0x0002 {
             return Err(VirtIOInitializationError::InvalidTransportVersion);
         }
 
         // Extract the device type, which will later function as an indicator
         // for initialized
-        let device_id = self.regs.device_id.get();
+        let device_id = self.regs.device_id().get();
         let device_type = VirtIODeviceType::from_device_id(device_id)
             .ok_or(VirtIOInitializationError::UnknownDeviceType(device_id))?;
 
@@ -219,19 +243,19 @@ impl VirtIOTransport for VirtIOMMIODevice {
         // All further initialization as per 3.1 Device Initialization
 
         // 1. Reset the device (by writing 0x0 to the device status register)
-        self.regs.device_status.set(0x0000);
+        self.regs.device_status().set(0x0000);
 
         // 2. Set the ACKNOWLEDGE status bit: the guest OS has noticed the
         // device
         self.regs
-            .device_status
+            .device_status()
             .modify(DeviceStatus::Acknowledge::SET);
 
         // 3. Set the DRIVER status bit: the guest OS knows how to drive the
         // device
         //
         // TODO: Maybe not always the case?
-        self.regs.device_status.modify(DeviceStatus::Driver::SET);
+        self.regs.device_status().modify(DeviceStatus::Driver::SET);
 
         // 4. Read device feature bits, write the subset of feature bits
         // understood by OS & driver to the device
@@ -248,10 +272,10 @@ impl VirtIOTransport for VirtIOMMIODevice {
         //
         // This is guaranteed to be consistent, the device MUST NOT change
         // its features during operation
-        self.regs.device_features_sel.set(0);
-        let mut device_features_reg: u64 = self.regs.device_features.get() as u64;
-        self.regs.device_features_sel.set(1);
-        device_features_reg |= (self.regs.device_features.get() as u64) << 32;
+        self.regs.device_features_sel().set(0);
+        let mut device_features_reg: u64 = self.regs.device_features().get() as u64;
+        self.regs.device_features_sel().set(1);
+        device_features_reg |= (self.regs.device_features().get() as u64) << 32;
 
         // Negotiate the transport features
         let offered_transport_features: LocalRegisterCopy<u64, TransportFeatures::Register> =
@@ -276,7 +300,7 @@ impl VirtIOTransport for VirtIOMMIODevice {
             } else {
                 // The driver does not like the offered features, indicate this
                 // failure to the device and report an error:
-                self.regs.device_status.modify(DeviceStatus::Failed::SET);
+                self.regs.device_status().modify(DeviceStatus::Failed::SET);
                 return Err(VirtIOInitializationError::FeatureNegotiationFailed {
                     offered: offered_transport_features.get(),
                     accepted: None,
@@ -286,28 +310,28 @@ impl VirtIOTransport for VirtIOMMIODevice {
         let selected_features = selected_transport_features.get() | driver_negotiated;
 
         // Write the virtual 64-bit register
-        self.regs.driver_features_sel.set(0);
+        self.regs.driver_features_sel().set(0);
         self.regs
-            .driver_features
+            .driver_features()
             .set((selected_features & 0xFFFF) as u32);
-        self.regs.driver_features_sel.set(1);
+        self.regs.driver_features_sel().set(1);
         self.regs
-            .driver_features
+            .driver_features()
             .set((selected_features >> 32 & 0xFFFF) as u32);
 
         // 5. Set the FEATURES_OK status bit. We MUST NOT accept new feature
         // bits after this step.
         self.regs
-            .device_status
+            .device_status()
             .modify(DeviceStatus::FeaturesOk::SET);
 
         // 6. Re-read device status to ensure that FEATURES_OK is still set,
         // otherwise the drive does not support the subset of features & is
         // unusable.
-        if !self.regs.device_status.is_set(DeviceStatus::FeaturesOk) {
+        if !self.regs.device_status().is_set(DeviceStatus::FeaturesOk) {
             // The device does not like the accepted features, indicate
             // this failure to the device and report an error:
-            self.regs.device_status.modify(DeviceStatus::Failed::SET);
+            self.regs.device_status().modify(DeviceStatus::Failed::SET);
             return Err(VirtIOInitializationError::FeatureNegotiationFailed {
                 offered: offered_transport_features.get(),
                 accepted: Some(selected_features),
@@ -326,21 +350,21 @@ impl VirtIOTransport for VirtIOMMIODevice {
         // Implementation of the algorithms of 4.2.3.2
         for (index, queue) in queues.iter().enumerate() {
             // Select the queue
-            self.regs.queue_sel.set(index as u32);
+            self.regs.queue_sel().set(index as u32);
 
             // Verify that the queue is not already in use (shouldn't be, since
             // we've just reset)
-            if self.regs.queue_ready.get() != 0 {
-                self.regs.device_status.modify(DeviceStatus::Failed::SET);
+            if self.regs.queue_ready().get() != 0 {
+                self.regs.device_status().modify(DeviceStatus::Failed::SET);
                 return Err(VirtIOInitializationError::DeviceError);
             }
 
             // Read the maximum queue size (number of elements) from
             // QueueNumMax. If the returned value is zero, the queue is not
             // available
-            let queue_num_max = self.regs.queue_num_max.get() as usize;
+            let queue_num_max = self.regs.queue_num_max().get() as usize;
             if queue_num_max == 0 {
-                self.regs.device_status.modify(DeviceStatus::Failed::SET);
+                self.regs.device_status().modify(DeviceStatus::Failed::SET);
                 return Err(VirtIOInitializationError::VirtqueueNotAvailable(index));
             }
 
@@ -353,25 +377,25 @@ impl VirtIOTransport for VirtIOMMIODevice {
             queue.initialize(index as u32, queue_num);
 
             // Notify the device about the queue size
-            self.regs.queue_num.set(queue_num as u32);
+            self.regs.queue_num().set(queue_num as u32);
 
             // Write the physical queue addresses
             let addrs = queue.physical_addresses();
-            self.regs.queue_desc_low.set(addrs.descriptor_area as u32);
+            self.regs.queue_desc_low().set(addrs.descriptor_area as u32);
             self.regs
-                .queue_desc_high
+                .queue_desc_high()
                 .set((addrs.descriptor_area >> 32) as u32);
-            self.regs.queue_driver_low.set(addrs.driver_area as u32);
+            self.regs.queue_driver_low().set(addrs.driver_area as u32);
             self.regs
-                .queue_driver_high
+                .queue_driver_high()
                 .set((addrs.driver_area >> 32) as u32);
-            self.regs.queue_device_low.set(addrs.device_area as u32);
+            self.regs.queue_device_low().set(addrs.device_area as u32);
             self.regs
-                .queue_device_high
+                .queue_device_high()
                 .set((addrs.device_area >> 32) as u32);
 
             // Set queue to ready
-            self.regs.queue_ready.set(0x0001);
+            self.regs.queue_ready().set(0x0001);
         }
 
         // Store the queue references for later usage
@@ -383,7 +407,9 @@ impl VirtIOTransport for VirtIOMMIODevice {
             .map_err(VirtIOInitializationError::DriverPreInitializationError)?;
 
         // 8. Set the DRIVER_OK status bit
-        self.regs.device_status.modify(DeviceStatus::DriverOk::SET);
+        self.regs
+            .device_status()
+            .modify(DeviceStatus::DriverOk::SET);
 
         // The device is now "live"
         self.device_type.set(device_type);
@@ -407,6 +433,6 @@ impl VirtIOTransport for VirtIOMMIODevice {
                     .len() as u32
         );
 
-        self.regs.queue_notify.set(queue_id);
+        self.regs.queue_notify().set(queue_id);
     }
 }
