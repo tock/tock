@@ -1,0 +1,17 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+include = [
+  "../../cargo/tock_flags.toml",
+  "../../cargo/unstable_flags.toml",
+]
+
+[build]
+# Cortex-R52 is ARMv8-R; use the bare-metal hard-float ABI target.
+# NOTE: This target may require a custom target JSON until it is stabilised
+# in upstream Rust. Verify availability with `rustup target list`.
+target = "armv8r-none-eabihf"
+
+[unstable]
+#config-include = true

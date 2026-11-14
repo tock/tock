@@ -5,6 +5,78 @@
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 [![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
 
+
+Temporary README for Cortex R52 port - Official README below
+------------------------------------------------------------
+
+This port adds the support for the QEMU virtual board MPS3 AN536 variant.
+
+It implements the main following parts:
+ - arch/cortexr52
+ - chips/xcku115an536
+ - boards/qemu_mps3an536
+
+This is a work in progress with very few testing. It can currently boot and run 6 basic apps with uart 
+output and sleep without bugging while running for hours.
+
+Applications need the following forks:
+https://github.com/calandoa/libtock-rs/tree/dev/cortexr52_mps3an536
+https://github.com/calandoa/tockloader/tree/dev/cortexr52_mps3an536
+
+To test it you will also need QEMU for ARM.
+
+It also rely on the aarch32-cpu/aarch32-rt crates.
+
+To compile the OS:
+`make -C boards/qemu_mps3an536`
+
+To compile the test apps (lib dir linked in current dir):
+`make -C libtock-rs tab EXAMPLE=color_cyan`
+`make -C libtock-rs tab EXAMPLE=color_yellow`
+
+For all color apps with `zsh`:
+`for f in libtock-rs/examples/color_* ; { make -C libtock-rs tab EXAMPLE=$f:t:r }`
+
+To set the right board path (replace $TOCKOS_PATH; from loader dir):
+`python3 -m tockloader.main local-board set --binary-path $TOCKOS_PATH/target/armv8r-none-eabihf/release/qemu_mps3an536.bin qemu_mps3an536`
+
+To load the apps (from loader dir):
+`python3 -m tockloader.main install libtock-rs/target/tab/color_*`
+
+To run everything:
+`qemu-system-arm -smp 1 -machine mps3-an536 -serial none -serial none -serial mon:stdio -device loader,file=target/armv8r-none-eabihf/release/qemu_mps3an536.bin -nographic -semihosting`
+
+
+AUTHOR
+------
+Antoine Calando
+Ampère / Renault Group
+
+
+TODO next
+---------
+- test on real HW
+- need more detailed debug prints (partly done)
+- need dual timer driver for scheduler timer
+- need uart rx
+- ... some more ...
+
+- DONE: cache config
+- DONE: MPU driver
+- DONE: app crashing when many after a few minutes
+- DONE: app crashing when adding a few more basic stuff
+- DONE: cannot load more than 2 apps (tockloader)
+
+...
+
+...
+
+...
+
+
+Official README
+---------------
+
 Tock is an embedded operating system designed for running multiple concurrent,
 mutually distrustful applications on Cortex-M and RISC-V based embedded
 platforms. Tock's design centers around protection, both from potentially
