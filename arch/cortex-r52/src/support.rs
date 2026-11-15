@@ -33,39 +33,35 @@ pub fn dsb_sy() {
 }
 
 // Generic word irq is used but this is for FIQ!
-pub unsafe fn irq_enable() {
+pub fn irq_enable() {
     // Enable FIQ in PSTATE
-    asm!("cpsie f", options(nomem, nostack));
+    unsafe { asm!("cpsie f", options(nomem, nostack)); }
 }
 
 // Generic word irq is used but this is for FIQ!
-pub unsafe fn is_irq_enabled() -> bool {
+pub fn is_irq_enabled() -> bool {
     let mut cpsr: u32;
-    asm!(
+    unsafe { asm!(
         "mrs {0}, cpsr",
         out(reg) cpsr,
         options(nomem, nostack, preserves_flags)
-    );
+    ); }
     (cpsr & (1 << 6)) == 0
 }
 
 /// Generic word irq is used but this is for FIQ!
-pub unsafe fn irq_disable() {
+pub fn irq_disable() {
     // Disable FIQ in PSTATE
-    asm!("cpsid f", options(nomem, nostack));
+    unsafe {asm!("cpsid f", options(nomem, nostack)); }
 }
 
 pub fn with_interrupts_disabled<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    unsafe {
-        irq_disable();
-    }
+    irq_disable();
     let res = f();
-    unsafe {
-        irq_enable();
-    }
+    irq_enable();
     res
 }
 
@@ -115,7 +111,7 @@ pub unsafe fn print_state(_writer: &mut dyn Write) {
 }
 
 
-extern "C" {
+unsafe extern "C" {
     static _estack: usize;
 }
 
@@ -124,55 +120,57 @@ pub unsafe fn print_fault_frame() {
 
     sh::p!("\n--- EXCEPTION ---");
 
-    let stack_top = core::ptr::addr_of!(_estack).cast::<u32>();
-    //sh::p!("estack: {:8X}  sp: {:8X}", stack_top as u32, sp);
+    unsafe {
+        let stack_top = core::ptr::addr_of!(_estack).cast::<u32>();
+        //sh::p!("estack: {:8X}  sp: {:8X}", stack_top as u32, sp);
 
-    for i in 0..7 {
-        let a : u32 = ptr::read(stack_top.sub(14 - i - 0));
-        let b : u32 = ptr::read(stack_top.sub(14 - i - 7));
-        sh::p!("      R{:2}: {:8X}      R{:2}: {:8X}", i, a, i + 7, b);
-    }
+        for i in 0..7 {
+            let a : u32 = ptr::read(stack_top.sub(14 - i - 0));
+            let b : u32 = ptr::read(stack_top.sub(14 - i - 7));
+            sh::p!("      R{:2}: {:8X}      R{:2}: {:8X}", i, a, i + 7, b);
+        }
 
-    let cpsr: u32 = ptr::read(stack_top.sub(15));
-    let spsr: u32 = ptr::read(stack_top.sub(16));
-    sh::p!("     cpsr: {:8X}     spsr: {:8X}\n", cpsr, spsr);
+        let cpsr: u32 = ptr::read(stack_top.sub(15));
+        let spsr: u32 = ptr::read(stack_top.sub(16));
+        sh::p!("     cpsr: {:8X}     spsr: {:8X}\n", cpsr, spsr);
 
-    let lr_svc: u32 = ptr::read(stack_top.sub(17));
-    let sp_svc: u32 = ptr::read(stack_top.sub(18));
-    let spsr_svc: u32 = ptr::read(stack_top.sub(19));
-    sh::p!("   lr_svc: {:8X}   sp_svc: {:8X}\n spsr_svc: {:8X}\n", lr_svc, sp_svc, spsr_svc);
+        let lr_svc: u32 = ptr::read(stack_top.sub(17));
+        let sp_svc: u32 = ptr::read(stack_top.sub(18));
+        let spsr_svc: u32 = ptr::read(stack_top.sub(19));
+        sh::p!("   lr_svc: {:8X}   sp_svc: {:8X}\n spsr_svc: {:8X}\n", lr_svc, sp_svc, spsr_svc);
 
-    let lr_usr: u32 = ptr::read(stack_top.sub(20));
-    let sp_usr: u32 = ptr::read(stack_top.sub(21));
-    sh::p!("   lr_usr: {:8X}   sp_usr: {:8X}\n", lr_usr, sp_usr);
+        let lr_usr: u32 = ptr::read(stack_top.sub(20));
+        let sp_usr: u32 = ptr::read(stack_top.sub(21));
+        sh::p!("   lr_usr: {:8X}   sp_usr: {:8X}\n", lr_usr, sp_usr);
 
-    for i in 8..11 {
-        let a : u32 = ptr::read(stack_top.sub(27 - i - 0));
-        let b : u32 = ptr::read(stack_top.sub(27 - i - 3));
-        sh::p!("  R{:2}_fiq: {:8X}  R{:2}_fiq: {:8X}", i, a, i + 3, b);
-    }
+        for i in 8..11 {
+            let a : u32 = ptr::read(stack_top.sub(27 - i - 0));
+            let b : u32 = ptr::read(stack_top.sub(27 - i - 3));
+            sh::p!("  R{:2}_fiq: {:8X}  R{:2}_fiq: {:8X}", i, a, i + 3, b);
+        }
 
-    let sp_fiq: u32 = ptr::read(stack_top.sub(28));
-    let spsr_fiq: u32 = ptr::read(stack_top.sub(29));
-    sh::p!("   sp_fiq: {:8X} spsr_fiq: {:8X}\n", sp_fiq, spsr_fiq);
+        let sp_fiq: u32 = ptr::read(stack_top.sub(28));
+        let spsr_fiq: u32 = ptr::read(stack_top.sub(29));
+        sh::p!("   sp_fiq: {:8X} spsr_fiq: {:8X}\n", sp_fiq, spsr_fiq);
 
-    let ifsr: u32 = ptr::read(stack_top.sub(30));
-    let ifar: u32 = ptr::read(stack_top.sub(31));
-    sh::p!("     ifsr: {:8X}     ifar: {:8X}", ifsr, ifar);
+        let ifsr: u32 = ptr::read(stack_top.sub(30));
+        let ifar: u32 = ptr::read(stack_top.sub(31));
+        sh::p!("     ifsr: {:8X}     ifar: {:8X}", ifsr, ifar);
 
-    let dfsr: u32 = ptr::read(stack_top.sub(32));
-    let dfar: u32 = ptr::read(stack_top.sub(33));
-    sh::p!("     dfsr: {:8X}     dfar: {:8X}", dfsr, dfar);
+        let dfsr: u32 = ptr::read(stack_top.sub(32));
+        let dfar: u32 = ptr::read(stack_top.sub(33));
+        sh::p!("     dfsr: {:8X}     dfar: {:8X}", dfsr, dfar);
 
-    let aifsr: u32 = ptr::read(stack_top.sub(34));
-    let adfsr: u32 = ptr::read(stack_top.sub(35));
-    sh::p!("    aifsr: {:8X}  adfsr: {:8X}", aifsr, adfsr);
+        let aifsr: u32 = ptr::read(stack_top.sub(34));
+        let adfsr: u32 = ptr::read(stack_top.sub(35));
+        sh::p!("    aifsr: {:8X}  adfsr: {:8X}", aifsr, adfsr);
 
-    sh::p!("--- END ---\n");
+        sh::p!("--- END ---\n");
 
-    asm!("bkpt");
-    loop {
-        asm!("cpsid aif");
-        asm!("wfe");
+        asm!("bkpt");
+        loop {
+            asm!("cpsid aif");
+            asm!("wfe");
+        }
     }
 }

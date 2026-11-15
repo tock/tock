@@ -6,7 +6,7 @@
 name = "cortexr52"
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 semihosting = { version = "0.1.18", features = ["stdio"] }

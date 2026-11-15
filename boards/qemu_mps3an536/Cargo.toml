@@ -17,8 +17,6 @@ path = "src/main.rs"
 semihosting = { version = "0.1.18", features = ["stdio"] }
 sh = { path = "../../capsules/sh" }
 
-aarch32-cpu = { version = ">= 0.4.0" }
-
 # kernel = { path = "../../kernel", features = ["debug_load_processes"] }
 kernel = { path = "../../kernel"}
 capsules-core = { path = "../../capsules/core" }
@@ -28,7 +26,7 @@ components = { path = "../components" }
 
 an536_inst = { path = "../../chips/xcku115an536/an536_inst" }
 cortexr52 = { path = "../../arch/cortex-r52" }
-xcku = { path = "../../chips/xcku115an536" }
+xcku115an536 = { path = "../../chips/xcku115an536" }
 
 [features]
 # Check alarm_mux file for more details about this (useless) feature

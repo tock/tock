@@ -4,10 +4,13 @@
 
 #![no_std]
 #![allow(dead_code)]
+#![deny(clippy::missing_safety_doc)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 pub mod gentimer;
 pub mod gic;
 pub mod mpu;
+pub mod reg;
 pub mod support;
 pub mod syscall;
 pub mod vectors;

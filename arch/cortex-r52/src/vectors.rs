@@ -39,7 +39,7 @@ const NO_INT: u16 = NO_IRQ | NO_FIQ; /* mask to disable IRQ and FIQ     */
 const THUMB_STATE: u16 = 0x20;
 
 // These constants are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     static _szero: *const u32;
     static _ezero: *const u32;
     static _etext: *const u32;
@@ -204,7 +204,7 @@ EL1_RST_Handler:
 
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".atcm"
+    unsafe(link_section = ".atcm")
 )]
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
@@ -383,7 +383,7 @@ pub unsafe extern "C" fn IRQ_Handler() {
 
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors_atcm"
+    unsafe(link_section = ".vectors_atcm")
 )]
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]

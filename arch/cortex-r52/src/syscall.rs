@@ -83,8 +83,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         state.sp_usr -= SVC_FRAME_SIZE;
 
-        // Color with 0xBB for debugging purposes
-        ptr::write_bytes(state.sp_usr as *mut usize, 0xBB, SVC_FRAME_SIZE);
+        // Color with 0xBB for debugging purpose
+        unsafe { ptr::write_bytes(state.sp_usr as *mut usize, 0xBB, SVC_FRAME_SIZE); }
 
         Ok(())
     }
@@ -104,18 +104,19 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         }
 
         // Get register values from the right place in the user stack frame
-        let sp = state.sp_usr as *mut u32;
-        let (r0, r1, r2, r3) = (sp.add(3), sp.add(4), sp.add(5), sp.add(6));
+        unsafe {
+            let sp = state.sp_usr as *mut u32;
+            let (r0, r1, r2, r3) = (sp.add(3), sp.add(4), sp.add(5), sp.add(6));
 
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
-            //&kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value,),
-            &return_value.into(),
-            &mut *r0,
-            &mut *r1,
-            &mut *r2,
-            &mut *r3,
-        );
-
+            kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+                //&kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value,),
+                &return_value.into(),
+                &mut *r0,
+                &mut *r1,
+                &mut *r2,
+                &mut *r3,
+            );
+        }
         Ok(())
     }
 
@@ -135,14 +136,16 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         }
 
         // Set register values to the right place in the user stack frame
-        let stack_bottom = state.sp_usr as *mut usize;
-        ptr::write(stack_bottom.add(0), *stack_bottom.add(2)); // Set LR with previous PC
-        ptr::write(stack_bottom.add(1), SPSR_USR_DEF); // Default PSTATE
-        ptr::write(stack_bottom.add(2), callback.pc.addr()); // Set PC withc callback
-        ptr::write(stack_bottom.add(3), callback.argument0); // R0...
-        ptr::write(stack_bottom.add(4), callback.argument1);
-        ptr::write(stack_bottom.add(5), callback.argument2);
-        ptr::write(stack_bottom.add(6), callback.argument3.as_usize()); // ...R3
+        unsafe {
+            let stack_bottom = state.sp_usr as *mut usize;
+            ptr::write(stack_bottom.add(0), *stack_bottom.add(2)); // Set LR with previous PC
+            ptr::write(stack_bottom.add(1), SPSR_USR_DEF); // Default PSTATE
+            ptr::write(stack_bottom.add(2), callback.pc.addr()); // Set PC withc callback
+            ptr::write(stack_bottom.add(3), callback.argument0); // R0...
+            ptr::write(stack_bottom.add(4), callback.argument1);
+            ptr::write(stack_bottom.add(5), callback.argument2);
+            ptr::write(stack_bottom.add(6), callback.argument3.as_usize()); // ...R3
+        }
 
         Ok(())
     }
@@ -155,8 +158,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
 
         // Big stuff occuring here: call the asm context switch and run user code
-        let new_stack_pointer =
-            crate::vectors::switch_to_user_arm_cr52(state.sp_usr as *const usize);
+        let new_stack_pointer = unsafe {
+            crate::vectors::switch_to_user_arm_cr52(state.sp_usr as *const usize)
+        };
         // when we return via SVC or FIQ handlers, we are back in the kernel context
 
         // Save the user stack pointer returned by the handler.
@@ -173,28 +177,30 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         }
 
         // Consume the SVC marker set by the assembly handler.
-        let syscall_fired = read_volatile(&*addr_of!(SYSCALL_FIRED));
-        write_volatile(&mut *addr_of_mut!(SYSCALL_FIRED), 0);
+        let syscall_fired = unsafe { read_volatile(&*addr_of!(SYSCALL_FIRED)) };
+        unsafe { write_volatile(&mut *addr_of_mut!(SYSCALL_FIRED), 0); }
 
         let switch_reason = if syscall_fired == 1 {
             // Get the SVC arguments from user stack frame
-            let r0 = ptr::read(new_stack_pointer.add(3));
-            let r1 = ptr::read(new_stack_pointer.add(4));
-            let r2 = ptr::read(new_stack_pointer.add(5));
-            let r3 = ptr::read(new_stack_pointer.add(6));
+            let syscall = unsafe {
+                let r0 = ptr::read(new_stack_pointer.add(3));
+                let r1 = ptr::read(new_stack_pointer.add(4));
+                let r2 = ptr::read(new_stack_pointer.add(5));
+                let r3 = ptr::read(new_stack_pointer.add(6));
 
-            // Get the SVC num from the very instruction
-            let lr = ptr::read(new_stack_pointer.add(2)) as *const u32;
-            let svc_instr = ptr::read(lr.sub(1));
-            let svc_num = (svc_instr & 0xff) as u8;
+                // Get the SVC num from the very instruction
+                let lr = ptr::read(new_stack_pointer.add(2)) as *const u32;
+                let svc_instr = ptr::read(lr.sub(1));
+                let svc_num = (svc_instr & 0xff) as u8;
 
-            let syscall = kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
-                svc_num,
-                r0,
-                r1.into(),
-                r2.into(),
-                r3.into(),
-            );
+                kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
+                    svc_num,
+                    r0,
+                    r1.into(),
+                    r2.into(),
+                    r3.into(),
+                )
+            };
 
             match syscall {
                 Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },

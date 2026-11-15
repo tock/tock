@@ -14,7 +14,7 @@ use core::panic::PanicInfo;
 
 use kernel::debug;
 use kernel::utilities::io_write::IoWrite;
-use xcku::uart;
+use xcku115an536::uart;
 
 struct Writer {}
 
@@ -41,19 +41,19 @@ impl IoWrite for Writer {
 /// Prints panic information to UART2 and then halts the core.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
 
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
     sh::p!("##### Panic occurred: {:?} ####", pi);
 
-    debug::panic_print_old(
+    unsafe { debug::panic_print_old(
         writer,
         pi,
         &cortexr52::support::nop,
         crate::PANIC_RESOURCES.get(),
-    );
+    ); }
 
     // Halt the core by looping with WFI to reduce power consumption.
     loop {

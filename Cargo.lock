@@ -711,8 +711,6 @@ name = "kernel"
 version = "0.2.4-dev"
 dependencies = [
  "flux-rs",
- "semihosting",
- "sh",
  "tock-cells",
  "tock-registers 0.11.0",
  "tock-tbf",
@@ -1552,7 +1550,6 @@ dependencies = [
 name = "qemu_mps3an536"
 version = "0.2.4-dev"
 dependencies = [
- "aarch32-cpu",
  "an536_inst",
  "capsules-core",
  "capsules-extra",
@@ -1563,7 +1560,7 @@ dependencies = [
  "semihosting",
  "sh",
  "tock_build_scripts",
- "xcku",
+ "xcku115an536",
 ]
 
 [[package]]
@@ -2212,10 +2209,6 @@ source = "git+https://github.com/tock/tock-registers.git?rev=86008616e0082f4a75e
 [[package]]
 name = "tock-tbf"
 version = "0.1.0"
-dependencies = [
- "semihosting",
- "sh",
-]
 
 [[package]]
 name = "tock_build_scripts"
@@ -2340,7 +2333,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xcku"
+name = "xcku115an536"
 version = "0.2.4-dev"
 dependencies = [
  "an536_inst",
