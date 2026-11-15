@@ -8,8 +8,6 @@
 //! Implented as as separate crate to avoid cyclic package dependency
 
 #![no_std]
-use arm_gic::IntId;
-use arm_gic::Trigger::{self, Edge, Level};
 use kernel::hil::time::Frequency;
 
 //
@@ -66,10 +64,21 @@ pub const BASE_DUALTIMER2: u32 = 0xE010_1020;
 
 /// Representation of a GIC interrupt (IRQ) with its ID and trigger type
 /// to allow easy definition.
-pub struct GicIrq {
-    pub id: IntId,
-    pub trig: Trigger,
+const TRIG_LEVEL: u16 = 0;
+const TRIG_EDGE: u16 = 1;
+
+macro_rules! spi {
+    ($id:expr, $trig:expr, $prio:expr) => {
+        (($id + 32) << 8)| (($prio >> 3) & 0xF8) | $trig 
+    };
 }
+
+macro_rules! ppi {
+    ($id:expr, $trig:expr, $prio:expr) => {
+        (($id + 16)<< 8) | (($prio >> 3) & 0xF8) | $trig 
+    };
+}
+
 
 // Note: Internal PPI is Cortex 52 specific and defined in gic.rs; Also,
 // "External" PPI is different from "Extended". Extended PPI are not used with An536
@@ -104,95 +113,50 @@ pub struct GicIrq {
 // 25   HDCLCD Interrupt
 // 26   GPIO 0 Combined Interrupt
 
-//pub const IRQ_WDG:            GicIrq = GicIrq { id: IntId::spi(0), trig: todo };
-pub const IRQ_DUALTIMER1: GicIrq = GicIrq {
-    id: IntId::spi(1),
-    trig: Edge,
-};
-pub const IRQ_DUALTIMER2: GicIrq = GicIrq {
-    id: IntId::spi(2),
-    trig: Edge,
-};
-pub const IRQ_DUALTIMER_CMB: GicIrq = GicIrq {
-    id: IntId::spi(3),
-    trig: Edge,
-};
-//pub const IRQ_RTC:              GicIrq = GicIrq { id: IntId::spi(4), trig: todo }                       ;
-pub const IRQ_UART2_RX: GicIrq = GicIrq {
-    id: IntId::spi(5),
-    trig: Level,
-};
-pub const IRQ_UART2_TX: GicIrq = GicIrq {
-    id: IntId::spi(6),
-    trig: Level,
-};
-pub const IRQ_UART3_RX: GicIrq = GicIrq {
-    id: IntId::spi(7),
-    trig: Level,
-};
-pub const IRQ_UART3_TX: GicIrq = GicIrq {
-    id: IntId::spi(8),
-    trig: Level,
-};
-pub const IRQ_UART4_RX: GicIrq = GicIrq {
-    id: IntId::spi(9),
-    trig: Level,
-};
-pub const IRQ_UART4_TX: GicIrq = GicIrq {
-    id: IntId::spi(10),
-    trig: Level,
-};
-pub const IRQ_UART5_RX: GicIrq = GicIrq {
-    id: IntId::spi(11),
-    trig: Level,
-};
-pub const IRQ_UART5_TX: GicIrq = GicIrq {
-    id: IntId::spi(12),
-    trig: Level,
-};
-pub const IRQ_UART2_CMB: GicIrq = GicIrq {
-    id: IntId::spi(13),
-    trig: Level,
-};
-pub const IRQ_UART3_CMB: GicIrq = GicIrq {
-    id: IntId::spi(14),
-    trig: Level,
-};
-pub const IRQ_UART4_CMB: GicIrq = GicIrq {
-    id: IntId::spi(15),
-    trig: Level,
-};
-pub const IRQ_UART5_CMB: GicIrq = GicIrq {
-    id: IntId::spi(16),
-    trig: Level,
-};
-pub const IRQ_UART_OVF: GicIrq = GicIrq {
-    id: IntId::spi(17),
-    trig: Level,
-};
-//pub const IRQ_ETHERNET:         GicIrq = GicIrq { id: IntId::spi(18), trig: todo };
-//pub const IRQ_USB:              GicIrq = GicIrq { id: IntId::spi(19), trig: todo };
-//pub const IRQ_FPGA_AUDIO_I2S:   GicIrq = GicIrq { id: IntId::spi(20), trig: todo };
-//pub const IRQ_TOUCH_SCREEN:     GicIrq = GicIrq { id: IntId::spi(21), trig: todo };
-//pub const IRQ_SPI_ADC:          GicIrq = GicIrq { id: IntId::spi(22), trig: todo };
-//pub const IRQ_SPI_SHIELD0:      GicIrq = GicIrq { id: IntId::spi(23), trig: todo };
-//pub const IRQ_SPI_SHIELD1:      GicIrq = GicIrq { id: IntId::spi(24), trig: todo };
-//pub const IRQ_HDCLCD:           GicIrq = GicIrq { id: IntId::spi(25), trig: todo };
-//pub const IRQ_GPIO0_COMB:       GicIrq = GicIrq { id: IntId::spi(26), trig: todo };
+//pub const IRQ_WDG = spi!(0, todo);
+pub const IRQ_DUALTIMER1: u16 = spi!(1, TRIG_EDGE, 0x20);
+pub const IRQ_DUALTIMER2: u16 = spi!(2, TRIG_EDGE, 0x20);
+pub const IRQ_DUALTIMER_CMB: u16 = spi!(3, TRIG_EDGE, 0x20);
 
-pub const IRQ_UART01_RX: GicIrq = GicIrq {
-    id: IntId::ppi(0),
-    trig: Level,
-};
-pub const IRQ_UART01_TX: GicIrq = GicIrq {
-    id: IntId::ppi(1),
-    trig: Level,
-};
-pub const IRQ_UART01_CMB: GicIrq = GicIrq {
-    id: IntId::ppi(2),
-    trig: Level,
-};
-pub const IRQ_UART01_OVF: GicIrq = GicIrq {
-    id: IntId::ppi(3),
-    trig: Level,
-};
+//pub const IRQ_RTC:              GicIrq = GicIrq { id: IntId::spi(4), trig: todo }                       ;
+pub const IRQ_UART2_RX: u16 = spi!(5, TRIG_LEVEL, 0x40);
+pub const IRQ_UART2_TX: u16 = spi!(6, TRIG_LEVEL, 0x40);
+pub const IRQ_UART3_RX: u16 = spi!(7, TRIG_LEVEL, 0x40);
+pub const IRQ_UART3_TX: u16 = spi!(8, TRIG_LEVEL, 0x40);
+pub const IRQ_UART4_RX: u16 = spi!(9, TRIG_LEVEL, 0x40);
+pub const IRQ_UART4_TX: u16 = spi!(10, TRIG_LEVEL, 0x40);
+pub const IRQ_UART5_RX: u16 = spi!(11, TRIG_LEVEL, 0x40);
+pub const IRQ_UART5_TX: u16 = spi!(12, TRIG_LEVEL, 0x40);
+pub const IRQ_UART2_CMB: u16 = spi!(13, TRIG_LEVEL, 0x40);
+pub const IRQ_UART3_CMB: u16 = spi!(14, TRIG_LEVEL, 0x40);
+pub const IRQ_UART4_CMB: u16 = spi!(15, TRIG_LEVEL, 0x40);
+pub const IRQ_UART5_CMB: u16 = spi!(16, TRIG_LEVEL, 0x40);
+pub const IRQ_UART_OVF: u16 = spi!(17, TRIG_LEVEL, 0x40);
+//pub const IRQ_ETHERNET  = spi!(18, todo);
+//pub const IRQ_USB = spi!(19, todo);
+//pub const IRQ_FPGA_AUDIO_I2S = spi!(20, todo);
+//pub const IRQ_TOUCH_SCREEN = spi!(21, todo);
+//pub const IRQ_SPI_ADC = spi!(22, todo);
+//pub const IRQ_SPI_SHIELD0 = spi!(23, todo);
+//pub const IRQ_SPI_SHIELD1 = spi!(24, todo);
+//pub const IRQ_HDCLCD = spi!(25, todo);
+//pub const IRQ_GPIO0_COMB = spi!(26, todo);
+pub const IRQ_UART01_RX: u16 = ppi!(0, TRIG_LEVEL, 0x30);
+pub const IRQ_UART01_TX: u16 = ppi!(1, TRIG_LEVEL, 0x30);
+pub const IRQ_UART01_CMB: u16 = ppi!(2, TRIG_LEVEL, 0x30);
+pub const IRQ_UART01_OVF: u16 = ppi!(3, TRIG_LEVEL, 0x30);
+
+// Default PPI for Cortex-R52, need to substract 16 from the
+// Cortex R52 Tech RM Table 10-3.
+
+//   22 Debug Communications Channel interrupt
+//   23 Performance Monitor Counter Overflow interrupt
+//   24 Cross Trigger Interface interrupt
+//   25 Virtual CPU Interface Maintenance interrupt
+//   26 Hypervisor timer interrupt
+//   27 Virtual timer interrupt
+//   30 Non-secure physical timer interrupt
+
+pub const IRQ_GENTIMER_VIRT: u16 = ppi!(11, TRIG_EDGE, 0x20);
+pub const IRQ_GENTIMER_PHY: u16 = ppi!(14, TRIG_EDGE, 0x10);
+

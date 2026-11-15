@@ -14,7 +14,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup, chip::Chip};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, debug, ipc, static_init};
 
-use xcku::chip::XckuChip;
+use xcku115an536::chip::{self, XckuChip};
 
 mod io;
 mod low_level_debug;
@@ -30,6 +30,8 @@ use alarm_mux::AlarmMux;
 use cortexr52::gentimer::GenTimer;
 #[cfg(not(feature = "mymux"))]
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+
+//use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 
 /// Maximum number of concurrent processes.
 const NUM_PROCS: usize = 6;
@@ -51,11 +53,25 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // TODO: dity code + need to check required size
 kernel::stack_size! {4096 + 256 + 256}
 
+kernel::define_capability_type!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+
 /// Top-level platform structure holding references to all active capsules.
 struct QemuMps3 {
     ipc: ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static SchedulerInUse,
     console: &'static capsules_core::console::Console<'static>,
+    //pconsole: &'static capsules_core::process_console::ProcessConsole<
+    //    'static,
+    //    { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+    //    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+    //        'static,
+    //        GenTimer<'static>,
+    //    >,
+    //    ProcessConsoleCap,
+    //>,
     low_level_debug: &'static low_level_debug::MyLowLevelDebug,
     #[cfg(not(feature = "mymux"))]
     alarm: &'static capsules_core::alarm::AlarmDriver<
@@ -122,6 +138,7 @@ impl KernelResources<ChipHw> for QemuMps3 {
     }
 }
 
+
 /// Entry point called after the C runtime has initialised RAM.
 ///
 /// Must only be called once, directly by the reset handler defined in the
@@ -181,6 +198,15 @@ pub unsafe fn main() {
         create_capability!(capabilities::MemoryAllocationCapability),
     ).finalize(components::alarm_component_static!(GenTimer));
 
+    // Create a shared virtualization mux layer on top of a single hardware
+    // alarm.
+    //let mux_alarm = static_init!(
+    //    MuxAlarm<'static, GenTimer>,
+    //    MuxAlarm::new(&chip.gentimer)
+    //);
+    //kernel::hil::time::Alarm::set_alarm_client(&chip.gentimer, mux_alarm);
+
+
     // UART
     let uart_mux = components::console::UartMuxComponent::new(&chip.uart2, 115200)
         .finalize(components::uart_mux_component_static!());
@@ -201,6 +227,28 @@ pub unsafe fn main() {
     )
     .finalize(components::debug_writer_component_static!());
 
+    // Create the process printer used in panic prints, etc.
+    //let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+    //    .finalize(components::process_printer_text_component_static!());
+    //PANIC_RESOURCES.get().map(|resources| {
+    //    resources.printer.put(process_printer);
+    //});
+
+    // Initialize the kernel's process console.
+    //let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
+    //let pconsole = components::process_console::ProcessConsoleComponent::new(
+    //    kernel,
+    //    uart_mux,
+    //    mux_alarm,
+    //    process_printer,
+    //    None,
+    //    process_console_cap,
+    //)
+    //.finalize(components::process_console_component_static!(
+    //    GenTimer,
+    //    ProcessConsoleCap
+    //));
+
     // ---------------------------------------------------------------------------
     // Platform
     // ---------------------------------------------------------------------------
@@ -211,6 +259,7 @@ pub unsafe fn main() {
             scheduler: components::sched::cooperative::CooperativeComponent::new(processes)
                 .finalize(components::cooperative_component_static!(NUM_PROCS)),
             alarm,
+            //pconsole,
             console,
             low_level_debug: static_init!(
                 low_level_debug::MyLowLevelDebug,
@@ -222,10 +271,10 @@ pub unsafe fn main() {
     // ---------------------------------------------------------------------------
     // IRQ
     // ---------------------------------------------------------------------------
-    chip.gic.irq_enable(cortexr52::gic::IRQ_GENTIMER_PHY, 0x1);
-    chip.gic.irq_enable(an536_inst::IRQ_UART2_TX, 0x2);
-    chip.gic.irq_enable(an536_inst::IRQ_UART2_RX, 0x3);
-    chip.gic.irq_enable(an536_inst::IRQ_DUALTIMER1, 0x4);
+    chip.gic.irq_enable(cortexr52::gic::IRQ_GENTIMER_PHY);
+    chip.gic.irq_enable(chip::IRQ_UART2_TX);
+    chip.gic.irq_enable(chip::IRQ_UART2_RX);
+    //chip.gic.irq_enable(chip::IRQ_DUALTIMER1);
 
     ChipHw::init();
 
@@ -276,6 +325,8 @@ pub unsafe fn main() {
         ),
         env!("CARGO_PKG_VERSION")
     );
+
+    //let _ = platform.pconsole.start();
 
     kernel.kernel_loop(
         platform,
