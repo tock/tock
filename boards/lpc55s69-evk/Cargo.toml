@@ -16,6 +16,7 @@ lpc55s6x = { path = "../../chips/lpc55s6x" }
 components = { path = "../components" }
 segger = { path = "../../chips/segger" }
 capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 [build-dependencies]

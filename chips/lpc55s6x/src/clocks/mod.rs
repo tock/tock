@@ -96,6 +96,25 @@ impl Clock {
             .modify(PRESETCTRL2::RNG_RST::BlocIsNotReset);
     }
 
+    /// Enable the HASH-AES (HASHCRYPT) clock and pulse its reset.
+    pub fn start_hashcrypt_clock(&self) {
+        self.syscon
+            .ahbclkctrl2
+            .modify(AHBCLKCTRL2::HASH_AES::EnableClock);
+
+        self.syscon
+            .presetctrl2
+            .modify(PRESETCTRL2::HASH_AES_RST::BlocIsReset);
+        self.syscon
+            .presetctrl2
+            .modify(PRESETCTRL2::HASH_AES_RST::BlocIsNotReset);
+    }
+
+    /// Whether the HASH-AES (HASHCRYPT) clock is enabled.
+    pub fn is_hashcrypt_clock_enabled(&self) -> bool {
+        self.syscon.ahbclkctrl2.is_set(AHBCLKCTRL2::HASH_AES)
+    }
+
     pub fn start_timer_clocks(&self) {
         self.syscon
             .ctimerclksel0

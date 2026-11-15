@@ -15,6 +15,7 @@ pub mod ctimer0;
 pub mod dma;
 pub mod flexcomm;
 pub mod gpio;
+pub mod hashcrypt;
 pub mod inputmux;
 pub mod interrupts;
 pub mod iocon;

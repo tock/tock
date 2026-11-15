@@ -31,6 +31,9 @@ use lpc55s6x::pmc::Pmc;
 
 kernel::stack_size! {0x4000}
 
+/// Digest length of SHA-256, the algorithm exposed by the SHA syscall driver.
+const SHA256_DIGEST_LEN: usize = 32;
+
 fn system_init() {
     let clocks = Clock::new();
     clocks.start_gpio_clocks();
@@ -38,6 +41,7 @@ fn system_init() {
     clocks.start_dma_clocks();
     Pmc::new().power_up_rng();
     clocks.start_rng_clock();
+    clocks.start_hashcrypt_clock();
 }
 
 unsafe fn get_peripherals(
@@ -89,6 +93,10 @@ pub struct Lpc55s69evk {
     led: &'static capsules_core::led::LedDriver<'static, LedLow<'static, GpioPin<'static>>, 1>,
     button: &'static capsules_core::button::Button<'static, lpc55s6x::gpio::GpioPin<'static>>,
     rng: &'static components::rng::RngComponentType<lpc55s6x::rng::RNG<'static>>,
+    sha: &'static components::sha::ShaDriverComponentType<
+        lpc55s6x::hashcrypt::Hashcrypt<'static>,
+        SHA256_DIGEST_LEN,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
 }
@@ -105,6 +113,7 @@ impl SyscallDriverLookup for Lpc55s69evk {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
             _ => f(None),
         }
     }
@@ -318,6 +327,17 @@ unsafe fn start() -> (
     )
     .finalize(components::rng_component_static!(lpc55s6x::rng::RNG));
 
+    let sha = components::sha::ShaDriverComponent::new(
+        board_kernel,
+        capsules_extra::sha256_driver::DRIVER_NUM,
+        &peripherals.hashcrypt,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::sha_driver_component_static!(
+        lpc55s6x::hashcrypt::Hashcrypt<'static>,
+        SHA256_DIGEST_LEN,
+    ));
+
     const INPUTMUX_SRC: u8 = 41;
 
     peripherals
@@ -430,6 +450,7 @@ unsafe fn start() -> (
         button,
         led,
         rng,
+        sha,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(12_000_000),
     };
