@@ -14,26 +14,18 @@
 // Initial code was for the scheduler, and dualtimer for Alarm due to a
 // misunderstanding, but the  other way around is a bit simplier...
 
-use aarch32_cpu::generic_timer::{El1PhysicalTimer, GenericTimer};
-
 use kernel::hil::time::{Alarm, AlarmClient, Ticks64, Time};
 use an536_inst;
 use crate::support::isb;
+use crate::reg;
 
 pub struct GenTimer<'a> {
-    timer: core::cell::RefCell<El1PhysicalTimer>,
     client: kernel::utilities::cells::OptionalCell<&'a dyn AlarmClient>,
 }
 
 impl GenTimer<'_> {
-    /// Create a scheduler timer backed by the EL1 physical generic timer.
-    ///
-    /// Only one handle to the EL1 physical generic timer may be created at a
-    /// time; see [`El1PhysicalTimer::new`].
     pub fn new() -> Self {
-        let timer = core::cell::RefCell::new(unsafe { El1PhysicalTimer::new() });
         Self {
-            timer,
             client: kernel::utilities::cells::OptionalCell::empty(),
         }
     }
@@ -41,30 +33,28 @@ impl GenTimer<'_> {
     pub fn now64(&self) -> u64 {
         // As per ARM DDI 0487 G6.2.1
         isb();
-        let cnt = self.timer.borrow().counter();
+        let cnt = reg::CNTPCT_get();
         isb();
         cnt
     }
 
     pub fn set_alarm_u64(&self, cnt: u64) {
-        let mut timer = self.timer.borrow_mut();
-        timer.counter_compare_set(cnt);
-        timer.interrupt_mask(false);
-        timer.enable(true);
+        reg::CNTP_CVAL_set(cnt);
+        reg::CNTP_CTL_set(reg::CNTP_CTL_ENABLE);
     }
 
     pub fn get_alarm_u64(&self) -> u64 {
-        self.timer.borrow().counter_compare()
+        reg::CNTP_CVAL_get()
     }
 
     pub fn handle_interrupt(&self) {
-        // Clear the IRQ in HW by canceling condition cmp < cnt
-        self.timer.borrow_mut().counter_compare_set(u64::MAX);
+        // Clear the IRQ in HW by canceling condition CVAL < CT
+        reg::CNTP_CVAL_set(u64::MAX);
         self.client.map(|client| client.alarm());
     }
 
     pub fn has_fired(&self) -> bool {
-        self.timer.borrow().interrupt_status()
+        (reg::CNTP_CTL_get() & reg::CNTP_CTL_ISTATUS) != 0
     }
 }
 
@@ -91,16 +81,16 @@ impl<'a> Alarm<'a> for GenTimer<'a> {
     }
 
     fn disarm(&self) -> Result<(), kernel::ErrorCode> {
-        self.timer.borrow_mut().enable(false);
-        //sh::s!("%");
+        reg::CNTP_CTL_set(0);
         Ok(())
     }
 
     fn is_armed(&self) -> bool {
-        self.timer.borrow().enabled()
+        (reg::CNTP_CTL_get() & reg::CNTP_CTL_ENABLE) != 0
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
+        // Chosen almost randomly!
         Self::Ticks::from(16_u64)
     }
 }
