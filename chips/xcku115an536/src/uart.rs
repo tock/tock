@@ -82,24 +82,23 @@ register_bitfields![u32,
     ]
 ];
 
-/// UARTE
-// It should never be instanced outside this module but because a static mutable reference to it
-// is exported outside this module it must be `pub`
 pub struct ApbUart<'a> {
     reg: StaticRef<ApbUartReg>,
 
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     tx_buffer: kernel::utilities::cells::TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
-
     tx_position: Cell<usize>,
+
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
-    //rx_buffer: kernel::utilities::cells::TakeCell<'static, [u8]>,
+    rx_buffer: kernel::utilities::cells::TakeCell<'static, [u8]>,
+    rx_len: Cell<usize>,
+    rx_position: Cell<usize>,
 }
 
 impl<'a> ApbUart<'a> {
     /// Constructor
-    // base can be any of the 5 UART instances
+    /// base can be any of the 5 UART instances
     pub const fn new(base: u32) -> ApbUart<'a> {
         let reg = unsafe { StaticRef::new(base as *const ApbUartReg) };
 
@@ -110,7 +109,9 @@ impl<'a> ApbUart<'a> {
             tx_len: Cell::new(0),
             tx_position: Cell::new(0),
             rx_client: OptionalCell::empty(),
-            //rx_buffer: kernel::utilities::cells::TakeCell::empty(),
+            rx_buffer: kernel::utilities::cells::TakeCell::empty(),
+            rx_len: Cell::new(0),
+            rx_position: Cell::new(0),
         }
     }
 
@@ -128,7 +129,7 @@ impl<'a> ApbUart<'a> {
             .modify(Ctrl::TX_INTEN.val(val) + Ctrl::TXO_INTEN.val(val));
     }
 
-    fn _rx_int_set(&self, on: bool) {
+    fn rx_int_set(&self, on: bool) {
         let val = on as u32;
         self.reg
             .ctrl
@@ -143,7 +144,7 @@ impl<'a> ApbUart<'a> {
         val
     }
 
-    fn _rx_int_get(&self) -> bool {
+    fn rx_int_get(&self) -> bool {
         let val = self.reg.intstatus.is_set(IntStatus::RX);
         if val {
             self.reg.intstatus.write(IntStatus::RX.val(1));
@@ -155,7 +156,7 @@ impl<'a> ApbUart<'a> {
     #[inline(never)]
     pub fn handle_tx_irq(&self) {
         if self.reg.intstatus.is_set(IntStatus::TXO) {
-            sh::v!("OVF!");
+            sh::v!("OVFT!");
         }
 
         self.reg.intstatus.write(IntStatus::TX.val(1));
@@ -181,7 +182,25 @@ impl<'a> ApbUart<'a> {
     }
 
     pub fn handle_rx_irq(&self) {
-        if self.rx_ready() {}
+        if self.reg.intstatus.is_set(IntStatus::RXO) {
+            sh::v!("OVFR!");
+        }
+        self.reg.intstatus.write(IntStatus::RX.val(1));
+
+        let byte = self.reg.data.read(Data::DATA) as u8;
+        self.rx_buffer.map(|buf| buf[self.rx_position.get()] = byte);
+        self.rx_position.set(self.rx_position.get() + 1);
+
+        if self.rx_position.get() == self.rx_len.get() {
+            let l = self.rx_len.get();
+            self.rx_len.set(0); // nested call by client...
+            self.rx_int_set(false);
+            self.rx_client.map(|client| {
+                if let Some(buf) = self.rx_buffer.take() {
+                    client.received_buffer(buf, l, Ok(()), uart::Error::None);
+                }
+            });
+        }
     }
 
     /// Check if the UART transmission is done
@@ -229,7 +248,6 @@ impl uart::Configure for ApbUart<'_> {
             );
         }
 
-        // TODO: Not good! this file should be generic and not rely on instance definition
         let scaler: u32 = an536_inst::FREQ_ACLK / params.baud_rate;
         self.reg.bauddiv.write(BaudDiv::BAUDDIV.val(scaler));
         self.reg.ctrl.write(Ctrl::TX_EN.val(1) + Ctrl::RX_EN.val(1));
@@ -248,31 +266,17 @@ impl<'a> uart::Transmit<'a> for ApbUart<'a> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        assert!(0 < tx_len);
+        assert!(0 < tx_len && tx_len <= tx_data.len());
         if self.tx_len.get() == 0 {
-            if tx_len <= tx_data.len() {
-                if false //tx_len == 1
-                {
-                    self.reg.data.write(Data::DATA.val(tx_data[0].into()));
-                    self.tx_client.map(|client| {
-                        client.transmitted_buffer(tx_data, 1, Ok(()));
-                    });
-
-                } else {
-                    self.tx_buffer.put(Some(tx_data));
-                    self.tx_len.set(tx_len);
-                    self.tx_int_get();
-                    self.tx_int_set(true);
-                    self.tx_buffer.map(|buf| {
-                        self.reg.data.write(Data::DATA.val(buf[0].into()));
-                        self.tx_position.set(1);
-                    });
-                }
-                Ok(())
-            } else {
-                sh::v!("<TX SIZE>");
-                Err((ErrorCode::SIZE, tx_data))
-            }
+            self.tx_buffer.put(Some(tx_data));
+            self.tx_len.set(tx_len);
+            self.tx_int_get();
+            self.tx_int_set(true);
+            self.tx_buffer.map(|buf| {
+                self.reg.data.write(Data::DATA.val(buf[0].into()));
+                self.tx_position.set(1);
+            });
+            Ok(())
         } else {
             sh::v!("<TX BUSY>");
             Err((ErrorCode::BUSY, tx_data))
@@ -303,25 +307,20 @@ impl<'a> uart::Receive<'a> for ApbUart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        
-        sh::v!("<TODO!>");
+        assert!(0 < rx_len && rx_len <= rx_buffer.len());
 
-        //if self.rx_status.get() == USARTStateRX::Idle {
-        //    if rx_len <= rx_buffer.len() {
-        //        self.rx_buffer.put(Some(rx_buffer));
-        //        self.rx_position.set(0);
-        //        self.rx_len.set(rx_len);
-        //        self.rx_status.set(USARTStateRX::Receiving);
-        //        self.enable_receive_interrupt();
-        //        Ok(())
-        //    } else {
-        //        Err((ErrorCode::SIZE, rx_buffer))
-        //    }
-        //} else {
-        Err((ErrorCode::BUSY, rx_buffer))
-        //}
+        if self.rx_len.get() == 0 {
+            self.rx_buffer.put(Some(rx_buffer));
+            self.rx_position.set(0);
+            self.rx_len.set(rx_len);
+            self.rx_int_get();
+            self.rx_int_set(true);
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, rx_buffer))
+        }
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
