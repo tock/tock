@@ -42,17 +42,28 @@ use crate::ccm;
 register_structs! {
     /// General-purpose I/Os
     GpioRegisters {
+        // GPIO data register
         (0x000 => dr: ReadWrite<u32>),
+        // GPIO direction register
         (0x004 => gdir: ReadWrite<u32>),
+        // GPIO pad status register
         (0x008 => psr: ReadOnly<u32>),
+        // GPIO Interrupt configuration register 1
         (0x00C => icr1: ReadWrite<u32>),
+        // GPIO Interrupt configuration register 2
         (0x010 => icr2: ReadWrite<u32>),
+        // GPIO interrupt mask register
         (0x014 => imr: ReadWrite<u32>),
+        // GPIO interrupt status register -- W1C - Write 1 to clear
         (0x018 => isr: ReadWrite<u32>),
+        // GPIO edge select register
         (0x01C => edge_sel: ReadWrite<u32>),
         (0x020 => _reserved1: [u8; 100]),
+        // GPIO data register set
         (0x084 => dr_set: WriteOnly<u32>),
+        // GPIO data register clear
         (0x088 => dr_clear: WriteOnly<u32>),
+         // GPIO data register toggle
         (0x08C => dr_toggle: WriteOnly<u32>),
         (0x090 => @END),
     }
