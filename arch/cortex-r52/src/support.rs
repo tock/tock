@@ -7,7 +7,6 @@
 use core::arch::asm;
 use core::ptr::self;
 use core::fmt::Write;
-use kernel::platform::chip::ThreadIdProvider;
 
 /// No-operation instruction used for busy-wait loops.
 #[inline(always)]
@@ -18,7 +17,7 @@ pub fn nop() {
 /// Wait-for-interrupt instruction to lower power consumption in idle loops.
 /// The PE will wake up REGARDLESS of A,I,F flags in PSTATE.
 #[inline(always)]
-pub fn wfi() {
+pub fn wfi(_cap: &dyn kernel::capabilities::CpuStateControlCapability) {
     unsafe { asm!("wfi", options(nomem, nostack, preserves_flags)) }
 }
 
@@ -63,15 +62,6 @@ where
     let res = f();
     irq_enable();
     res
-}
-
-/// Implement the [`ThreadIdProvider`] trait for Cortex-R52 platforms.
-pub enum CortexR52ThreadIdProvider {}
-
-unsafe impl ThreadIdProvider for CortexR52ThreadIdProvider {
-    fn running_thread_id() -> usize {
-        crate::support::is_interrupt_context() as usize
-    }
 }
 
 /// TODO: This implementation is probably broken. I have no idea what

@@ -3,9 +3,11 @@
 // Copyright Tock Contributors 2026.
 
 //! Specific device definition for the MPS3-AN536 instance pf the Cortex R52.
+//! 
 //! All data come from the document "Example Cortex™-R52x2 Subsystem for MPS3
 //! Application Note AN536 / Issue B / DAI 0536"
-//! Implented as as separate crate to avoid cyclic package dependency
+//! This file is supposed to be included by this crate but also directly 
+//! by the arch crate cortexr52.
 
 use kernel::hil::time::Frequency;
 

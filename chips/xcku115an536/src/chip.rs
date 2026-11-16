@@ -112,7 +112,7 @@ pub const IRQ_UART01_OVF: Irq = Irq::ppi(3, Irq::TRIG_LEVEL, 11);
 impl Chip for XckuChip {
     type MPU = MPU;
     type UserspaceKernelBoundary = SysCall;
-    type ThreadIdProvider = support::CortexR52ThreadIdProvider;
+    type ThreadIdProvider = cortexr52::thread_id::CortexR52ThreadIdProvider;
 
     fn init() {
         // Just enable FIQs once setup is done
@@ -159,7 +159,8 @@ impl Chip for XckuChip {
     }
 
     fn sleep(&self) {
-        support::wfi();
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
+        support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

@@ -25,8 +25,6 @@ https://github.com/calandoa/tockloader/tree/dev/cortexr52_mps3an536
 
 To test it you will also need QEMU for ARM.
 
-It also rely on the aarch32-cpu/aarch32-rt crates.
-
 To compile the OS:
 `make -C boards/qemu_mps3an536`
 
@@ -58,14 +56,8 @@ TODO next
 - test on real HW
 - need more detailed debug prints (partly done)
 - need dual timer driver for scheduler timer
-- need uart rx
+= need watchdog
 - ... some more ...
-
-- DONE: cache config
-- DONE: MPU driver
-- DONE: app crashing when many after a few minutes
-- DONE: app crashing when adding a few more basic stuff
-- DONE: cannot load more than 2 apps (tockloader)
 
 ...
 

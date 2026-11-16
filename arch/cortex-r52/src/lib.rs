@@ -20,4 +20,5 @@ pub mod mpu;
 pub mod reg;
 pub mod support;
 pub mod syscall;
+pub mod thread_id;
 pub mod vectors;

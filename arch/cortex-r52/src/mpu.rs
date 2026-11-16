@@ -17,8 +17,10 @@ use crate::reg;
 use kernel::platform::mpu;
 use crate::support::isb;
 
-/// Number of regions used by each app. The official API is not making much sense,
-/// but what I infered from Cortex-M is that there is one modifiable region set with
+/// Number of regions used by each app.
+///
+/// The official API is not making much sense, but what I infered 
+/// from Cortex-M is that there is one modifiable region set with
 /// allocate_app_memory_region() and update_app_memory_region(), and 1 or more
 /// fixed regions set with allocate_region() and remove_memory_region().
 /// Only tested with 1 of each.
@@ -69,7 +71,7 @@ impl CortexR52Region {
     }
 
     fn prbar_set(&mut self, start: u32, permissions: mpu::Permissions) {
-        assert!(start & !reg::PRBAR_BASE_MASK == 0);
+        assert_eq!(start & !reg::PRBAR_BASE_MASK, 0);
         // Note that SH (Shareability) is not set here and defaults to non-shareable.
         // (but not sure if MAIR cache settings apply to NS memory)
         self.prbar = start | match permissions {
@@ -83,13 +85,13 @@ impl CortexR52Region {
     }
 
     fn prlar_set(&mut self, limit: u32) {
-        assert!(limit & !reg::PRLAR_LIMIT_MASK == 0);
+        assert_eq!(limit & !reg::PRLAR_LIMIT_MASK, 0);
         self.prlar = limit | (MAIR_ATTR_INDEX << reg::PRLAR_AttrIndx_SHIFT) | reg::PRLAR_EN;
     }
 
     /// `start` and `size` must be multiples of `SIZE_STEP`, `size` non-zero
     fn new(start: usize, size: usize, permissions: mpu::Permissions) -> Option<Self> {
-        if size == 0 || start % SIZE_STEP != 0 || size % SIZE_STEP != 0 {
+        if size == 0 || !start.is_multiple_of(SIZE_STEP) || !size.is_multiple_of(SIZE_STEP) {
             return None;
         }
 
@@ -216,7 +218,7 @@ unsafe impl mpu::MPU for MPU {
             config.modified.set(true);
             Some(mpu::Region::new(start as *const u8, size))
         } else {
-            return None;
+            None
         }
     }
 
@@ -237,7 +239,7 @@ unsafe impl mpu::MPU for MPU {
             config.modified.set(true);
             Ok(())
         } else {
-            return Err(());
+            Err(())
         }
     }
 
@@ -318,11 +320,11 @@ unsafe impl mpu::MPU for MPU {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
 
-        if self.active_config.get() == (config as *const _) 
-            && config.modified.get() == false {
+        if core::ptr::eq(self.active_config.get(), config)
+            && !config.modified.get() {
             return;
         }
-        self.active_config.set(config as *const _);
+        self.active_config.set(core::ptr::from_ref(config));
         config.modified.set(false);
 
         Self::write_region(REGION_APP_MEM, config);
