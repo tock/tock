@@ -87,7 +87,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             pka: rsa::Pka::new(rsa::PKA_BASE),
             dac: dac::Dac::new(dac::DAC_BASE),
             crc: crc::CRC::new(crc::CRC_BASE),
-            hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
+            hash: hash::hash::Hash::new(hash::HASH_BASE),
             aes: aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
                 registers: stm32u5xx_unsafe::aes::AES_BASE,
             }),

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
+
 //! Userspace message digests using mutex-protected digest peripherals.
 //!
 //! Read-only allow 0 contains the entire input; read-write allow 0 receives the
@@ -475,7 +479,10 @@ impl<
         result
     }
 
-    fn read(&self, sink: &dyn Fn(&ReadableProcessSlice) -> usize) -> Result<(), ErrorCode> {
+    fn read(
+        &self,
+        sink: &mut dyn FnMut(&ReadableProcessSlice) -> Result<usize, ErrorCode>,
+    ) -> Result<(), ErrorCode> {
         let mut request = self.request.get().ok_or(ErrorCode::OFF)?;
         let count = request.input_len - request.offset;
         if count == 0 {
@@ -490,7 +497,7 @@ impl<
                         if source.len() < request.input_len {
                             return Err(ErrorCode::SIZE);
                         }
-                        let count = sink(&source[request.offset..]);
+                        let count = sink(&source[request.offset..])?;
                         request.offset += count;
                         self.request.set(Some(request));
                         Ok(())
@@ -734,7 +741,10 @@ impl<
         Sm3Driver,
     >
 {
-    fn read_input(&self, sink: &dyn Fn(&ReadableProcessSlice) -> usize) -> Result<(), ErrorCode> {
+    fn read_input(
+        &self,
+        sink: &mut dyn FnMut(&ReadableProcessSlice) -> Result<usize, ErrorCode>,
+    ) -> Result<(), ErrorCode> {
         self.read(sink)
     }
 

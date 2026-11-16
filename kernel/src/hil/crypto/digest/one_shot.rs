@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
+
 //! Interfaces for message digest algorithms performing calculations in one run.
 
 use crate::{ErrorCode, hil::crypto::digest::DigestAlgorithm, processbuffer::ReadableProcessSlice};
@@ -32,7 +36,10 @@ pub trait DigestClient<A: DigestAlgorithm> {
     /// return between one byte and `input.len()` bytes for each nonempty request. A zero or
     /// oversized count terminates the operation with [`ErrorCode::SIZE`]. Empty messages do
     /// not cause input callbacks.
-    fn read_input(&self, sink: &dyn Fn(&ReadableProcessSlice) -> usize) -> Result<(), ErrorCode>;
+    fn read_input(
+        &self,
+        sink: &mut dyn FnMut(&ReadableProcessSlice) -> Result<usize, ErrorCode>,
+    ) -> Result<(), ErrorCode>;
 
     /// Return the computed digest.
     ///

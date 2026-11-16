@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
+
 //! Interfaces for message digests computed incrementally, with
 //! the state of computation saved to and restored from a client-held context
 //! between requests.
@@ -96,7 +100,7 @@ pub trait StreamingDigestClient<A: DigestAlgorithm, C: Context>: DigestClient<A>
     /// with that error.
     fn update_input(
         &self,
-        advance: &dyn Fn(&ReadableProcessSlice, &mut C) -> usize,
+        advance: &dyn Fn(&ReadableProcessSlice, &mut C) -> Result<usize, ErrorCode>,
     ) -> Result<(), ErrorCode>;
 
     /// Signal completion of a [`StreamingDigest::update`] request.

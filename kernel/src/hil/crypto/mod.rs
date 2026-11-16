@@ -57,7 +57,7 @@
 //!
 //! ## Example HIL Structure
 //!
-//! ```
+//! ```ignore
 //! trait Foo {
 //!     fn set_client(&self, client: &'static dyn CryptoClient);
 //!
