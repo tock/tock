@@ -122,6 +122,8 @@ register_bitfields![u32,
     // drives that pin.
     FUNC_OUT_SEL [
         FUNC_SEL OFFSET(0) NUMBITS(8) [],
+        // Take the output enable from `enable` instead of the peripheral.
+        OEN_SEL OFFSET(9) NUMBITS(1) [],
     ],
     // Selects, per peripheral input signal, which GPIO pin feeds it.
     FUNC_IN_SEL [
@@ -211,6 +213,31 @@ impl<'a> GpioPin<'a> {
 
         // Connect this pin to the peripheral signal in both directions.
         self.registers.func_out_sel_cfg[shift].write(FUNC_OUT_SEL::FUNC_SEL.val(signal));
+        self.registers.func_in_sel_cfg[signal as usize]
+            .write(FUNC_IN_SEL::FUNC_SEL.val(shift as u32) + FUNC_IN_SEL::SIG_IN_SEL::SET);
+    }
+
+    /// Route a peripheral output signal to this pin through the GPIO matrix,
+    /// and always drive the pin (push-pull).
+    pub fn make_output_peripheral_pin(&self, signal: u32) {
+        let shift = self.pin.shift;
+
+        self.iomux_registers.gpio[shift].modify(IO_MUX_GPIO::MCU_SEL::FUN_1);
+        gpio::Configure::set_floating_state(self, gpio::FloatingState::PullNone);
+        self.registers.pin[shift].modify(PIN::PAD_DRIVER::CLEAR);
+
+        self.registers.func_out_sel_cfg[shift]
+            .write(FUNC_OUT_SEL::FUNC_SEL.val(signal) + FUNC_OUT_SEL::OEN_SEL::SET);
+        self.registers.enable_w1ts.set(self.mask());
+    }
+
+    /// Route this pin to a peripheral input signal through the GPIO matrix.
+    pub fn make_input_peripheral_pin(&self, signal: u32) {
+        let shift = self.pin.shift;
+
+        self.iomux_registers.gpio[shift].modify(
+            IO_MUX_GPIO::MCU_SEL::FUN_1 + IO_MUX_GPIO::FUN_IE::SET + IO_MUX_GPIO::MCU_IE::SET,
+        );
         self.registers.func_in_sel_cfg[signal as usize]
             .write(FUNC_IN_SEL::FUNC_SEL.val(shift as u32) + FUNC_IN_SEL::SIG_IN_SEL::SET);
     }

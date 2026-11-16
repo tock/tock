@@ -15,8 +15,10 @@ register_structs! {
         (0x040 => gpio_interrupt_pro_map: ReadWrite<u32>),
         (0x044 => gpio_interrupt_pro_nmi_map: ReadWrite<u32>),
         (0x048 => _reserved1),
+        (0x04c => spi_intr_2_map: ReadWrite<u32>),
+        (0x050 => _reserved2),
         (0x054 => uart0_intr_map: ReadWrite<u32>),
-        (0x058 => _reserved2),
+        (0x058 => _reserved8),
         (0x068 => usb_intr_map: ReadWrite<u32>),
         (0x06C => _reserved6),
         (0x074 => i2c_ext0_intr_map: ReadWrite<u32>),
@@ -88,6 +90,7 @@ impl Intc {
             self.registers
                 .i2c_ext0_intr_map
                 .set(interrupts::IRQ_I2C_EXT0);
+            self.registers.spi_intr_2_map.set(interrupts::IRQ_SPI2);
         });
     }
 
