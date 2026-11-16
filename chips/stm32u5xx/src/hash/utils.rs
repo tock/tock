@@ -2,125 +2,79 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-//! HASH utilities for leftovers, HMAC key, adapters and distributed client handling.
+//! HASH utilities for leftovers, HMAC key, tracking message loading and handling different client types.
 
 use core::cell::Cell;
 
 use kernel::ErrorCode;
-use kernel::hil::digest;
-use kernel::utilities::cells::MapCell;
-use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
+use kernel::hil::crypto::digest::{DigestClient, Md5, Sha1, Sha224, Sha256};
+use kernel::processbuffer::ReadableProcessSlice;
 
-use crate::hash::md5::Md5Adapter;
-use crate::hash::sha1::Sha1Adapter;
-use crate::hash::sha224::Sha224Adapter;
-use crate::hash::sha256::Sha256Adapter;
-
-const MAX_HMAC_KEY_LEN: usize = 128;
-
-#[derive(Clone, Copy)]
-pub enum Mode {
-    MD5,
-    SHA1,
-    SHA2_224,
-    SHA2_256,
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum State {
+    Add(usize, DataType),
+    Run(bool, DataType),
 }
 
-impl Mode {
-    pub fn get_digest_len(&self) -> usize {
-        match self {
-            Mode::MD5 => 4,
-            Mode::SHA1 => 5,
-            Mode::SHA2_224 => 7,
-            Mode::SHA2_256 => 8,
+impl State {
+    pub(crate) fn update(self, updated_len: Option<usize>) -> Option<Self> {
+        match (self, updated_len) {
+            // (State::Run(true, DataType::Input), Some(len)) => {
+            //     Some(State::Add(len, DataType::OuterKey))
+            // }
+            (State::Run(false, data_type), None) => Some(State::Run(true, data_type)),
+            (State::Add(0, datatype), _) | (State::Add(_, datatype), Some(0)) => {
+                Some(State::Run(false, datatype))
+            }
+            (State::Add(_, datatype), Some(len)) => Some(State::Add(len, datatype)),
+            _ => None,
         }
     }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum TransferMode {
+    DirectStream,
+    Dma(bool),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum State {
-    Add,
-    PreRun,
-    Run,
-    HmacInit,
-    HmacPreAuth,
-    HmacPostAuth,
-    HmacFinalize,
+pub(crate) enum DataType {
+    Input,
 }
 
 #[derive(Clone, Copy)]
-pub enum HashAdapter<'a> {
-    Md5(&'a Md5Adapter<'a>),
-    Sha1(&'a Sha1Adapter<'a>),
-    Sha224(&'a Sha224Adapter<'a>),
-    Sha256(&'a Sha256Adapter<'a>),
+pub(crate) enum HashClient<'a> {
+    Md5(&'a dyn DigestClient<Md5>),
+    Sha1(&'a dyn DigestClient<Sha1>),
+    Sha224(&'a dyn DigestClient<Sha224>),
+    Sha256(&'a dyn DigestClient<Sha256>),
 }
 
-#[derive(Clone, Copy)]
-pub enum HashClient<'a, const DIGEST_LEN: usize> {
-    // Unique clients for every operation
-    Split(
-        Option<&'a dyn digest::ClientData<DIGEST_LEN>>,
-        Option<&'a dyn digest::ClientHash<DIGEST_LEN>>,
-        Option<&'a dyn digest::ClientVerify<DIGEST_LEN>>,
-    ),
-    DataHasher(&'a dyn digest::ClientDataHash<DIGEST_LEN>),
-    DataVerifier(&'a dyn digest::ClientDataVerify<DIGEST_LEN>),
-    AllInOne(&'a dyn digest::Client<DIGEST_LEN>),
-}
-
-// Implements all the callback functions that are used by every client in the HIL
-impl<const DIGEST_LEN: usize> HashClient<'_, DIGEST_LEN> {
-    pub fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
-        match self {
-            Self::Split(client_data, _, _) => {
-                client_data.map(|c| c.add_data_done(result, data));
-            }
-            Self::DataHasher(client) => client.add_data_done(result, data),
-            Self::DataVerifier(client) => client.add_data_done(result, data),
-            Self::AllInOne(client) => client.add_data_done(result, data),
-        }
-    }
-
-    pub fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
-        match self {
-            Self::Split(client_data, _, _) => {
-                client_data.map(|c| c.add_mut_data_done(result, data));
-            }
-            Self::DataHasher(client) => client.add_mut_data_done(result, data),
-            Self::DataVerifier(client) => client.add_mut_data_done(result, data),
-            Self::AllInOne(client) => client.add_mut_data_done(result, data),
-        }
-    }
-
-    pub fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; DIGEST_LEN]) {
-        match self {
-            Self::Split(_, client_hash, _) => {
-                client_hash.map(|c| c.hash_done(result, digest));
-            }
-            Self::DataHasher(client) => client.hash_done(result, digest),
-            Self::AllInOne(client) => client.hash_done(result, digest),
-            _ => (),
-        }
-    }
-
-    pub fn verification_done(
+impl HashClient<'_> {
+    pub(crate) fn read_input(
         &self,
-        result: Result<bool, ErrorCode>,
-        compare: &'static mut [u8; DIGEST_LEN],
-    ) {
+        sink: &mut dyn FnMut(&ReadableProcessSlice) -> Result<usize, ErrorCode>,
+    ) -> Result<(), ErrorCode> {
         match self {
-            Self::Split(_, _, client_verify) => {
-                client_verify.map(|c| c.verification_done(result, compare));
-            }
-            Self::DataVerifier(client) => client.verification_done(result, compare),
-            Self::AllInOne(client) => client.verification_done(result, compare),
-            _ => (),
+            HashClient::Md5(client) => client.read_input(sink),
+            HashClient::Sha1(client) => client.read_input(sink),
+            HashClient::Sha224(client) => client.read_input(sink),
+            HashClient::Sha256(client) => client.read_input(sink),
+        }
+    }
+
+    pub(crate) fn hash_done(&self, result: Result<(), ErrorCode>) {
+        match self {
+            HashClient::Md5(client) => client.digest_done(result),
+            HashClient::Sha1(client) => client.digest_done(result),
+            HashClient::Sha224(client) => client.digest_done(result),
+            HashClient::Sha256(client) => client.digest_done(result),
         }
     }
 }
 
-pub struct Leftover {
+pub(crate) struct Leftover {
     buffer: Cell<Option<u32>>,
     index: Cell<usize>,
 }
@@ -151,8 +105,9 @@ impl Leftover {
     }
 
     /// Empty the buffer
-    pub fn empty(&self) {
+    pub fn reset(&self) {
         self.buffer.take();
+        self.index.take();
     }
 
     /// Return the contents of the buffer in little endian format
@@ -180,85 +135,5 @@ impl Leftover {
     /// Returns if the buffer empty or not.
     pub fn is_empty(&self) -> bool {
         self.buffer.get().is_none()
-    }
-}
-
-// HMAC key helping struct
-pub struct HmacKey {
-    pub key: MapCell<[u8; MAX_HMAC_KEY_LEN]>,
-    pub index: Cell<usize>,
-    len: Cell<usize>,
-}
-
-impl HmacKey {
-    pub fn new() -> Self {
-        Self {
-            key: MapCell::empty(),
-            index: Cell::new(0),
-            len: Cell::new(0),
-        }
-    }
-
-    /// Save the key.
-    ///
-    /// Returns `Ok(())` if save was successful.
-    ///
-    /// Returns `Error(ErrorCode::SIZE)` if the sent key is bigger than `MAX_HMAC_KEY_LEN`.
-    ///
-    /// Returns `Error(ErrorCode::FAIL)` if the key buffer was not allocated.
-    pub fn set(&self, key: &[u8]) -> Result<(), kernel::ErrorCode> {
-        if self.key.is_none() {
-            self.key.put([0u8; MAX_HMAC_KEY_LEN]);
-        }
-        match self.key.map(|buf| {
-            if buf.len() >= key.len() {
-                buf[..key.len()].copy_from_slice(key);
-                self.len.set(key.len());
-                Ok(())
-            } else {
-                Err(ErrorCode::SIZE)
-            }
-        }) {
-            Some(r) => r,
-            None => Err(ErrorCode::FAIL),
-        }
-    }
-
-    /// Checks if the key is stored by the peripheral struct.
-    pub fn is_stored(&self) -> bool {
-        self.key.is_some()
-    }
-
-    /// Checks if the key is loaded into hardware.
-    pub fn is_loaded(&self) -> bool {
-        self.index.get() == self.len.get()
-    }
-
-    /// Returns the number of bytes that are left to load the key completely.
-    pub fn left_to_load(&self) -> usize {
-        self.len.get().saturating_sub(self.index.get())
-    }
-
-    /// Resets the index of the key buffer and makes it available for loading again.
-    pub fn reset_index(&self) {
-        if self.key.is_some() {
-            self.index.take();
-        }
-    }
-
-    /// Empties the buffer, its length and index.
-    pub fn clear(&self) {
-        self.key.take();
-        self.len.take();
-        self.index.take();
-    }
-
-    /// Returns length of the HMAC key.
-    pub fn len(&self) -> usize {
-        if let Some(key) = self.key.get() {
-            key.len()
-        } else {
-            0
-        }
     }
 }

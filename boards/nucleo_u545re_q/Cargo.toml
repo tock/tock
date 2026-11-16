@@ -19,6 +19,7 @@ stm32u545 = { path = "../../chips/stm32u545" }
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
+capsules-crypto = { path = "../../capsules/crypto" }
 
 [build-dependencies]
 tock_build_scripts = { path = "../build_scripts" }

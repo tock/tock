@@ -87,7 +87,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             pka: rsa::Pka::new(rsa::PKA_BASE),
             dac: dac::Dac::new(dac::DAC_BASE),
             crc: crc::CRC::new(crc::CRC_BASE),
-            hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
+            hash: hash::hash::Hash::new(hash::HASH_BASE),
             aes: aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
                 registers: stm32u5xx_unsafe::aes::AES_BASE,
             }),
@@ -103,7 +103,10 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
     ///     - some of their functions will fail, which is usually indicated by `Err(kernel::ErrorCode::FAIL)` where the HIL allows it
     /// - the rest of the chip will still be initialized
     /// - this function will return `Err(kernel::ErrorCode::INVAL)`; the board level can choose what to do in case this happens
-    pub fn init(&'static self) -> Result<(), kernel::ErrorCode> {
+    pub fn init(
+        &'static self,
+        hash_dma_buf: Option<&'static mut [u8]>,
+    ) -> Result<(), kernel::ErrorCode> {
         // Enable clock routing to all used peripherals
         self.rcc.enable_tim2();
         self.rcc.enable_tim3();
@@ -214,8 +217,8 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 
         // Link DMA to HASH
         let hash_channel = self.dma1.request_channel();
-        if let Some(tx) = hash_channel {
-            hash::hash::Hash::set_dma(&self.hash, self.dma1, tx);
+        if let (Some(tx), Some(buf)) = (hash_channel, hash_dma_buf) {
+            hash::hash::Hash::set_dma(&self.hash, self.dma1, tx, buf);
         }
 
         // Link DMA to AES
