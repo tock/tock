@@ -2,6 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2026.
 
+# We are currently migrating from tock-registers 0.11 to the work-in-progress
+# 2.0. During that migration, we have two versions of tock-registers.
+# TODO(https://github.com/tock/tock/issues/5122): Remove once the migration is
+# complete.
+allowed-duplicate-crates = ["tock-registers"]
+
 # We want our internal API documentation to be as good as our public
 # documentation. Enable `check-private-items` to apply lints from
 # https://rust-lang.github.io/rust-clippy/master/?search=check-private-items to

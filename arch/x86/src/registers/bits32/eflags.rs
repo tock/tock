@@ -5,7 +5,7 @@
 // This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
 
 use kernel::utilities::registers::register_bitfields;
-use tock_registers::LocalRegisterCopy;
+use tock_registers_v0::LocalRegisterCopy;
 
 #[cfg(target_arch = "x86")]
 use core::arch::asm;

@@ -6,7 +6,7 @@
 
 use super::ring::Ring;
 use kernel::utilities::registers::register_bitfields;
-use tock_registers::LocalRegisterCopy;
+use tock_registers_v0::LocalRegisterCopy;
 
 #[cfg(target_arch = "x86")]
 use core::arch::asm;

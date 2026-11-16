@@ -10,7 +10,7 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
-tock-registers.workspace = true
+tock-registers-v0.workspace = true
 riscv-csr = { path = "../../libraries/riscv-csr" }
 
 

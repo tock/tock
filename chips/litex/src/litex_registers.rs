@@ -35,13 +35,13 @@
 //! }`, `BaseWidth` in `{ 32 }`.
 
 use core::marker::PhantomData;
-use tock_registers::fields::{Field, FieldValue, TryFromValue};
-use tock_registers::interfaces::{Readable, Writeable};
-pub use tock_registers::register_bitfields;
-use tock_registers::registers::{
+use tock_registers_v0::fields::{Field, FieldValue, TryFromValue};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+pub use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::{
     ReadOnly as TRReadOnly, ReadWrite as TRReadWrite, WriteOnly as TRWriteOnly,
 };
-use tock_registers::{LocalRegisterCopy, RegisterLongName, UIntLike as TRUIntLike};
+use tock_registers_v0::{LocalRegisterCopy, RegisterLongName, UIntLike as TRUIntLike};
 
 /// Extension of the `tock_registers` `UIntLike` trait.
 ///
@@ -363,7 +363,7 @@ where
 ///
 /// ```rust
 /// # // This is a dummy setup to make the doctests pass
-/// # use tock_registers::register_bitfields;
+/// # use tock_registers_v0::register_bitfields;
 /// # use kernel::utilities::StaticRef;
 /// # use litex::litex_registers::{
 /// #   LiteXSoCRegisterConfiguration,

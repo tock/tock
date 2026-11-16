@@ -567,7 +567,7 @@ version = "0.2.4-dev"
 dependencies = [
  "flux-rs",
  "tock-cells",
- "tock-registers",
+ "tock-registers 0.11.0",
  "tock-tbf",
 ]
 
@@ -582,7 +582,7 @@ name = "litex"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
- "tock-registers",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1236,7 +1236,7 @@ dependencies = [
 name = "pci-x86"
 version = "0.2.4-dev"
 dependencies = [
- "tock-registers",
+ "tock-registers 2.0.0-dev",
  "x86",
 ]
 
@@ -1278,9 +1278,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.101"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
+checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
 ]
@@ -1487,9 +1487,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.41"
+version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce25767e7b499d1b604768e7cde645d14cc8584231ea6b295e9c9eb22c02e1d1"
+checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
@@ -1603,14 +1603,14 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv-csr",
- "tock-registers",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
 name = "riscv-csr"
 version = "0.1.0"
 dependencies = [
- "tock-registers",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -1919,6 +1919,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "928f3adf9b9d80a5852412dcdd7be7a4bd762605fdefa3c413f9d9eba4c7c52d"
 
 [[package]]
+name = "tock-registers"
+version = "2.0.0-dev"
+source = "git+https://github.com/tock/tock-registers.git?rev=86008616e0082f4a75e2cf1b33c94b78cbaf7f5f#86008616e0082f4a75e2cf1b33c94b78cbaf7f5f"
+
+[[package]]
 name = "tock-tbf"
 version = "0.1.0"
 
@@ -2027,7 +2032,7 @@ name = "x86"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
- "tock-registers",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -2036,7 +2041,7 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "tock-cells",
- "tock-registers",
+ "tock-registers 0.11.0",
  "x86",
 ]
 

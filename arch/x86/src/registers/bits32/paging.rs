@@ -9,7 +9,7 @@
 use core::fmt;
 use core::ops;
 use kernel::utilities::registers::register_bitfields;
-use tock_registers::LocalRegisterCopy;
+use tock_registers_v0::LocalRegisterCopy;
 
 /// A wrapper for a physical address.
 #[repr(transparent)]

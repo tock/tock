@@ -35,12 +35,12 @@ pub use self::static_ref::StaticRef;
 /// The Tock Register Interface provides a mechanism for accessing hardware
 /// registers and MMIO interfaces.
 pub mod registers {
-    pub use tock_registers::fields::{Field, FieldValue};
-    pub use tock_registers::interfaces;
-    pub use tock_registers::registers::InMemoryRegister;
-    pub use tock_registers::registers::{Aliased, ReadOnly, ReadWrite, WriteOnly};
-    pub use tock_registers::{LocalRegisterCopy, RegisterLongName};
-    pub use tock_registers::{register_bitfields, register_structs};
+    pub use tock_registers_v0::fields::{Field, FieldValue};
+    pub use tock_registers_v0::interfaces;
+    pub use tock_registers_v0::registers::InMemoryRegister;
+    pub use tock_registers_v0::registers::{Aliased, ReadOnly, ReadWrite, WriteOnly};
+    pub use tock_registers_v0::{LocalRegisterCopy, RegisterLongName};
+    pub use tock_registers_v0::{register_bitfields, register_structs};
 }
 
 /// The Tock `Cell` types.
