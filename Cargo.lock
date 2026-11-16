@@ -1197,6 +1197,7 @@ name = "nucleo_u545re_q"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
+ "capsules-crypto",
  "capsules-extra",
  "capsules-system",
  "components",

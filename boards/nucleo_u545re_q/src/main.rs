@@ -6,7 +6,6 @@
 #![no_std]
 #![no_main]
 
-use components::hmac_component_static;
 use kernel::capabilities::{self, MemoryAllocationCapability};
 use kernel::component::Component;
 use kernel::debug;
@@ -69,10 +68,11 @@ struct NucleoU545RE {
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
     crc: &'static capsules_extra::crc::CrcDriver<'static, stm32u545::crc::CRC<'static>>,
-    hmac: &'static capsules_extra::hmac::HmacDriver<
-        'static,
-        stm32u545::hash::sha256::Sha256Adapter<'static>,
-        32,
+    hash: &'static capsules_crypto::digest::DigestDriver<
+        stm32u545::hash::hash::Hash<'static>,
+        stm32u545::hash::hash::Hash<'static>,
+        stm32u545::hash::hash::Hash<'static>,
+        stm32u545::hash::hash::Hash<'static>,
     >,
     aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
         'static,
@@ -106,7 +106,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_extra::crc::DRIVER_NUM => f(Some(self.crc)),
-            capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules_crypto::digest::DRIVER_NUM => f(Some(self.hash)),
             capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
@@ -302,7 +302,7 @@ unsafe fn start() -> (
 
     // Initialize wiring (DMA, clocks)
     // This can only fail if the `RccConfig` inside is intentionally modified to be incorrect (as explained in the function's doc comment)
-    let _ = periphs.init();
+    let _ = periphs.init(None);
 
     // Start the TIM2 timer, used for alarms
     // This can only fail if `set_clocks` was not called for `tim2` yet, but it's not the case, since it's done in `periphs.init()`
@@ -311,13 +311,6 @@ unsafe fn start() -> (
     // Board specific wiring
     set_pin_primary_functions(periphs);
 
-    // Create an adapter for the HASH peripheral
-    // In this way it is ensured that only one mode is used by the peripheral
-    let sha256 = static_init!(
-        stm32u545::hash::sha256::Sha256Adapter<'static>,
-        stm32u545::hash::sha256::Sha256Adapter::new(&periphs.hash)
-    );
-
     // Create the TRNG peripheral
     let trng = static_init!(
         stm32u545::rng::Trng<'static>,
@@ -325,9 +318,6 @@ unsafe fn start() -> (
     );
     // Note: TRNG clock routing is enabled in the RCC in `periphs.init()` above
     trng.init();
-
-    // Adapter receives callbacks from the peripheral
-    let _ = periphs.hash.set_sha256_adapter(sha256);
 
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -562,16 +552,29 @@ unsafe fn start() -> (
     )
     .finalize(components::gpio_component_static!(GpioHw));
 
-    let hmac = components::hmac::HmacComponent::new(
+    // Mutex for the hashing peripheral
+    let hash_mutex = components::driver_mutex::DriverMutexComponent::new(&periphs.hash).finalize(
+        components::driver_mutex_component_static!(stm32u545::hash::hash::Hash<'static>, 4),
+    );
+
+    // Hash capsule
+    let Ok(hash) = components::crypto::digest::DigestComponent::new(
         board_kernel,
-        capsules_extra::hmac::DRIVER_NUM,
-        sha256,
+        capsules_crypto::digest::DRIVER_NUM,
         create_capability!(capabilities::MemoryAllocationCapability),
     )
-    .finalize(hmac_component_static!(
-        stm32u545::hash::sha256::Sha256Adapter<'static>,
-        32
-    ));
+    .with_md5(hash_mutex)
+    .with_sha1(hash_mutex)
+    .with_sha224(hash_mutex)
+    .with_sha256(hash_mutex)
+    .finalize(components::digest_component_static!(
+        md5: stm32u545::hash::hash::Hash<'static>,
+        sha1: stm32u545::hash::hash::Hash<'static>,
+        sha224: stm32u545::hash::hash::Hash<'static>,
+        sha256: stm32u545::hash::hash::Hash<'static>,
+    )) else {
+        panic!("Failed to instantiate a digest capsule");
+    };
 
     let crc = components::crc::CrcComponent::new(
         board_kernel,
@@ -610,7 +613,7 @@ unsafe fn start() -> (
             dac,
             gpio,
             crc,
-            hmac,
+            hash,
             aes: aes_driver,
             spi,
             date_time,

@@ -21,6 +21,7 @@
 
 use core::cell::Cell;
 
+use capsules_core::driver;
 use capsules_core::driver_mutex::{
     DriverMutex, DriverMutexAny, DriverMutexClient, DriverMutexHandle, DriverMutexRef,
 };
@@ -109,6 +110,9 @@ impl<AlgorithmType: DigestAlgorithm> Digest<AlgorithmType> for UnavailableDigest
 
     fn set_client(&self, _client: &'static dyn DigestClient<AlgorithmType>) {}
 }
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = driver::NUM::Sha as usize;
 
 /// Upcalls for Digest operations completing.
 mod upcall {

@@ -14,7 +14,7 @@ use crate::hash::utils::{DataType, HashClient, Leftover, State, TransferMode};
 use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::crypto::digest::{Digest, DigestClient};
+use kernel::hil::crypto::digest::{Digest, DigestClient, Md5, Sha1, Sha224, Sha256};
 use kernel::processbuffer::ReadableProcessSlice;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
@@ -22,7 +22,7 @@ use kernel::utilities::dma_slice::DmaSubSliceMut;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 
-const LONG_HMAC_KEY_LEN: usize = 64;
+// const LONG_HMAC_KEY_LEN: usize = 64;
 pub const FIFO_SIZE: usize = 17 * 4;
 
 pub struct Hash<'a> {
@@ -329,7 +329,9 @@ impl Hash<'_> {
         // Accumulate leftover bytes
         // This code is invoked only in at the last iteration of reading data from client
         if let Some(left) = buffer.get(aligned_len..) {
-            left.iter().map(|b| self.leftover.add(b.get()));
+            for b in left.iter() {
+                self.leftover.add(b.get())
+            }
         }
 
         Ok(())
@@ -416,14 +418,7 @@ impl Hash<'_> {
                     regs.imr.modify(IMR::DCIE::SET);
                 }
                 self.data_length.get() as u32
-            } // DataType::InnerKey => {
-              //     regs.imr.modify(IMR::DINIE::SET);
-              //     self.key_length.get() as u32
-              // }
-              // DataType::OuterKey => {
-              //     regs.imr.modify(IMR::DCIE::SET);
-              //     self.key_length.get() as u32
-              // }
+            }
         };
         regs.str.modify(STR::NBLW.val((data_length % 4) * 8));
         regs.str.modify(STR::DCAL::SET);
@@ -431,23 +426,49 @@ impl Hash<'_> {
         Ok(true)
     }
 
-    // /// Helper function for validating requested algorithms and returning the corresponding register value.
-    // fn parse_algo(&self, algorithm: Algorithm) -> Result<FieldValue<u32, CR::Register>, ErrorCode> {
-    //     match algorithm {
-    //         Algorithm::Md5 => Ok(CR::ALGO::MD5),
-    //         Algorithm::Sha1 => Ok(CR::ALGO::SHA_1),
-    //         Algorithm::Sha224 => Ok(CR::ALGO::SHA2_224),
-    //         Algorithm::Sha256 => Ok(CR::ALGO::SHA2_256),
-    //         _ => Err(ErrorCode::NOSUPPORT),
-    //     }
-    // }
-
-    /// Finish the hashing / HMAC operation.
+    /// Finish the hashing operation.
     ///
     /// Called to signal the client that the operation is done regardless of its result.
     fn finish(&self, result: Result<(), ErrorCode>, client: HashClient<'_>) {
-        self.state.take();
+        self.clear();
         client.hash_done(result);
+    }
+
+    fn start(&self, len: usize, client: &HashClient<'_>) -> Result<(), ErrorCode> {
+        if self.state.get().is_some() {
+            return Err(ErrorCode::BUSY);
+        }
+
+        let algo_val = match client {
+            HashClient::Md5(_) => CR::ALGO::MD5,
+            HashClient::Sha1(_) => CR::ALGO::SHA_1,
+            HashClient::Sha224(_) => CR::ALGO::SHA2_224,
+            HashClient::Sha256(_) => CR::ALGO::SHA2_256,
+        };
+
+        let regs = self.regs;
+        self.data_length.set(len);
+        self.state.set(Some(State::Add(len, DataType::Input)));
+
+        regs.cr.modify(
+            algo_val + CR::MDMAT::SET + CR::DATATYPE::_8bitData + CR::MODE::CLEAR + CR::INIT::SET,
+        );
+
+        if self.dma.is_some() && self.dma_channel.get().is_some() {
+            self.transfer_mode.set(TransferMode::Dma(false));
+        } else {
+            self.transfer_mode.set(TransferMode::DirectStream);
+        }
+        self.deferred_call.set();
+        Ok(())
+    }
+
+    fn clear(&self) {
+        self.regs.cr.modify(CR::INIT::SET);
+        self.data_length.take();
+        self.key_length.take();
+        self.data_buffer.map(|buf| buf.reset());
+        self.leftover.reset();
     }
 }
 
@@ -518,30 +539,61 @@ impl DeferredCallClient for Hash<'_> {
     }
 }
 
-// impl Digest for Hash<'_> {
-//     fn hash(&self, algorithm: Algorithm, len: usize) -> Result<(), ErrorCode> {
-//         if self.state.get().is_some() {
-//             return Err(ErrorCode::BUSY);
-//         }
-//
-//         let algo_val = self.parse_algo(algorithm)?;
-//         let regs = self.regs;
-//         self.data_length.set(len);
-//         self.state.set(Some(State::Add(len, DataType::Input)));
-//         self.algorithm.set(Some(algorithm));
-//
-//         regs.cr.modify(
-//             algo_val + CR::MDMAT::SET + CR::DATATYPE::_8bitData + CR::MODE::CLEAR + CR::INIT::SET,
-//         );
-//
-//         if self.dma.is_some() && self.dma_channel.get().is_some() {
-//             self.transfer_mode.set(TransferMode::Dma(false));
-//         } else {
-//             self.transfer_mode.set(TransferMode::DirectStream);
-//         }
-//         self.deferred_call.set();
-//         Ok(())
-//     }
+impl Digest<Md5> for Hash<'_> {
+    fn digest(&self, len: usize) -> Result<(), ErrorCode> {
+        if let Some(client @ HashClient::Md5(_)) = self.client.get() {
+            self.start(len, &client)
+        } else {
+            Err(ErrorCode::RESERVE)
+        }
+    }
+
+    fn set_client(&self, client: &'static dyn DigestClient<Md5>) {
+        self.client.set(HashClient::Md5(client));
+    }
+}
+
+impl Digest<Sha1> for Hash<'_> {
+    fn digest(&self, len: usize) -> Result<(), ErrorCode> {
+        if let Some(client @ HashClient::Sha1(_)) = self.client.get() {
+            self.start(len, &client)
+        } else {
+            Err(ErrorCode::RESERVE)
+        }
+    }
+
+    fn set_client(&self, client: &'static dyn DigestClient<Sha1>) {
+        self.client.set(HashClient::Sha1(client));
+    }
+}
+
+impl Digest<Sha224> for Hash<'_> {
+    fn digest(&self, len: usize) -> Result<(), ErrorCode> {
+        if let Some(client @ HashClient::Sha224(_)) = self.client.get() {
+            self.start(len, &client)
+        } else {
+            Err(ErrorCode::RESERVE)
+        }
+    }
+
+    fn set_client(&self, client: &'static dyn DigestClient<Sha224>) {
+        self.client.set(HashClient::Sha224(client));
+    }
+}
+
+impl Digest<Sha256> for Hash<'_> {
+    fn digest(&self, len: usize) -> Result<(), ErrorCode> {
+        if let Some(client @ HashClient::Sha256(_)) = self.client.get() {
+            self.start(len, &client)
+        } else {
+            Err(ErrorCode::RESERVE)
+        }
+    }
+
+    fn set_client(&self, client: &'static dyn DigestClient<Sha256>) {
+        self.client.set(HashClient::Sha256(client));
+    }
+}
 //
 //     fn clear_data(&self) {
 //         if self.state.get().is_none() {
