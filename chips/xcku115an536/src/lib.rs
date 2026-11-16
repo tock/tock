@@ -6,6 +6,7 @@
 
 #![no_std]
 
+pub mod config;
 pub mod chip;
 pub mod dualtimer;
 pub mod uart;

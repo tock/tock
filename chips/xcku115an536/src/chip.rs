@@ -11,6 +11,7 @@ use crate::{uart::ApbUart, dualtimer::DualTimer};
 use cortexr52::{gentimer::GenTimer, mpu::MPU, support, syscall::SysCall};
 use cortexr52::gic::{self, Irq};
 use kernel::platform::chip::Chip;
+use crate::config;
 
 /// The MPS3-AN536 chip.
 pub struct XckuChip {
@@ -30,10 +31,10 @@ impl XckuChip {
             syscall: SysCall {},
             mpu : MPU::new(),
             gic: gic::Gic::new(),
-            uart2: ApbUart::new(an536_inst::BASE_UART2),
+            uart2: ApbUart::new(config::BASE_UART2),
             gentimer: GenTimer::new(),
-            dualtimer1: DualTimer::new(an536_inst::BASE_DUALTIMER1),
-            //dualtimer2: DualTimer::new(an536_inst::BASE_DUALTIMER2),
+            dualtimer1: DualTimer::new(config::BASE_DUALTIMER1),
+            //dualtimer2: DualTimer::new(config::BASE_DUALTIMER2),
         }
     }
 }
@@ -140,7 +141,7 @@ impl Chip for XckuChip {
                 id if id == IRQ_UART2_RX.intid() => {
                     self.uart2.handle_rx_irq();
                 }
-                //id if id == cortexr52::irq_id!(an536_inst::IRQ_DUALTIMER1) => {
+                //id if id == cortexr52::irq_id!(config::IRQ_DUALTIMER1) => {
                 //    self.dualtimer1.handle_interrupt();
                 //}
                 _ => panic!("unexpected interrupt: {:?}", intid),

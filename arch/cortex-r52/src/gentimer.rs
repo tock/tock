@@ -3,9 +3,6 @@
 // Copyright Tock Contributors 2026.
 
 //! Scheduler timer driver for the Cortex-R52 based on the ARMv8 Generic Timer.
-//!
-//! This uses the EL1 physical timer (`El1PhysicalTimer`) provided by the
-//! `aarch32-cpu` crate to implement Tock's Alarm interface.
 
 // From my understanding: EL0 timer is the same as EL1, Virtual is the
 // same than Physical with just an offset, and EL2 is not accessible,
@@ -15,7 +12,7 @@
 // misunderstanding, but the  other way around is a bit simplier...
 
 use kernel::hil::time::{Alarm, AlarmClient, Ticks64, Time};
-use an536_inst;
+use crate::config;
 use crate::support::isb;
 use crate::reg;
 
@@ -59,7 +56,7 @@ impl GenTimer<'_> {
 }
 
 impl Time for GenTimer<'_> {
-    type Frequency = an536_inst::FreqAclk;
+    type Frequency = config::FreqAclk;
     type Ticks = Ticks64;
 
     fn now(&self) -> Self::Ticks {

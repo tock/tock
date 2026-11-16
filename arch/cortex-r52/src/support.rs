@@ -167,10 +167,11 @@ pub unsafe fn print_fault_frame() {
 
         sh::p!("--- END ---\n");
 
-        asm!("bkpt");
         loop {
-            asm!("cpsid aif");
-            asm!("wfe");
+            asm!("
+                cpsid aif
+                wfe
+            ");
         }
     }
 }

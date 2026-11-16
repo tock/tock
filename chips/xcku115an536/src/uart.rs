@@ -11,14 +11,14 @@
 //! Only Tx implemented
 
 use core::cell::Cell;
-use core::fmt::Write;
-
 use kernel::ErrorCode;
 use kernel::hil::uart;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+
+use crate::config;
 
 register_structs! {
     pub ApbUartReg {
@@ -116,7 +116,7 @@ impl<'a> ApbUart<'a> {
     }
 
     pub fn enable(&mut self, baud_rate: u32) {
-        let scaler: u32 = an536_inst::FREQ_ACLK / baud_rate;
+        let scaler: u32 = config::FREQ_ACLK / baud_rate;
 
         self.reg.bauddiv.write(BaudDiv::BAUDDIV.val(scaler));
         self.reg.ctrl.write(Ctrl::TX_EN.val(1) + Ctrl::RX_EN.val(1));
@@ -229,13 +229,6 @@ impl<'a> ApbUart<'a> {
     }
 }
 
-impl Write for ApbUart<'_> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.ioprint(s);
-        Ok(())
-    }
-}
-
 impl uart::Configure for ApbUart<'_> {
     fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
         if params.stop_bits != uart::StopBits::One
@@ -248,7 +241,7 @@ impl uart::Configure for ApbUart<'_> {
             );
         }
 
-        let scaler: u32 = an536_inst::FREQ_ACLK / params.baud_rate;
+        let scaler: u32 = config::FREQ_ACLK / params.baud_rate;
         self.reg.bauddiv.write(BaudDiv::BAUDDIV.val(scaler));
         self.reg.ctrl.write(Ctrl::TX_EN.val(1) + Ctrl::RX_EN.val(1));
 
@@ -288,14 +281,8 @@ impl<'a> uart::Transmit<'a> for ApbUart<'a> {
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        //if self.tx_status.get() != USARTStateTX::Idle {
-        //    self.disable_transmit_interrupt();
-        //    self.tx_status.set(USARTStateTX::AbortRequested);
-        //    self.deferred_call.set();
+        // todo
         Err(ErrorCode::BUSY)
-        //} else {
-        //    Ok(())
-        //}
     }
 }
 
@@ -328,13 +315,7 @@ impl<'a> uart::Receive<'a> for ApbUart<'a> {
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        //if self.rx_status.get() != USARTStateRX::Idle {
-        //    self.disable_receive_interrupt();
-        //    self.rx_status.set(USARTStateRX::AbortRequested);
-        //    self.deferred_call.set();
+        // todo
         Err(ErrorCode::BUSY)
-        //} else {
-        //    Ok(())
-        //}
     }
 }

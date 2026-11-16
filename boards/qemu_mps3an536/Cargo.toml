@@ -24,8 +24,7 @@ capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 components = { path = "../components" }
 
-an536_inst = { path = "../../chips/xcku115an536/an536_inst" }
-cortexr52 = { path = "../../arch/cortex-r52" }
+cortexr52 = { path = "../../arch/cortex-r52", features = ["config-xcku115an536"]  }
 xcku115an536 = { path = "../../chips/xcku115an536" }
 
 [features]

@@ -3,60 +3,68 @@
 // Copyright Tock Contributors 2026.
 
 //! Panic handler and debug output for the MPS3 board.
-//!
-//! Debug output is sent through UART0 using a
-//! blocking byte-at-a-time write, which is safe to call even when the
-//! interrupt-driven console stack is not yet initialised.
 
-/* */
 use core::fmt::Write;
-use core::panic::PanicInfo;
 
-use kernel::debug;
+use kernel::platform::chip::PanicWriter;
 use kernel::utilities::io_write::IoWrite;
-use xcku115an536::uart;
+use xcku115an536::uart::ApbUart;
+use xcku115an536::config;
 
-struct Writer {}
-
-static mut WRITER: Writer = Writer {};
-
-impl Write for Writer {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
+struct PanicPrinter {
+    uart: ApbUart<'static>,
 }
 
-impl IoWrite for Writer {
+impl IoWrite for PanicPrinter {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let mut uart = uart::ApbUart::new(an536_inst::BASE_UART2);
-        uart.enable(115_200);
-        uart.transmit_sync(buf);
+        self.uart.transmit_sync(buf);
         buf.len()
     }
 }
 
-/// Panic handler.
-///
-/// Prints panic information to UART2 and then halts the core.
-#[cfg(not(test))]
+impl Write for PanicPrinter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.uart.ioprint(s);
+        Ok(())
+    }
+}
+
+impl PanicWriter for PanicPrinter {
+    type Config = ();
+
+    fn create_panic_writer(
+        _config: Self::Config,
+        _panic: &core::panic::PanicInfo,
+    ) -> impl IoWrite + Write {
+        let mut uart = ApbUart::new(config::BASE_UART2);
+        uart.enable(115_200);
+        PanicPrinter { uart }
+    }
+}
+
+
 #[panic_handler]
-pub fn panic_fmt(pi: &PanicInfo) -> ! {
-    use core::ptr::addr_of_mut;
+pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
 
-    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
+    sh::p!("\n--- PANIC ---");
+    sh::p!("message: {}", info.message());
+    if let Some(location) = info.location() {
+        sh::p!("location: {}", location);
+    }
 
-    sh::p!("##### Panic occurred: {:?} ####", pi);
-
-    unsafe { debug::panic_print_old(
-        writer,
-        pi,
+    kernel::debug::panic_print::<PanicPrinter, _, _>(
+        (),
+        info,
         &cortexr52::support::nop,
         crate::PANIC_RESOURCES.get(),
-    ); }
+    );
 
-    // Halt the core by looping with WFI to reduce power consumption.
-    loop {
-        cortexr52::support::wfi();
+    unsafe { 
+        loop {
+            core::arch::asm!("
+                cpsid aif
+                wfe
+            ");
+        }
     }
 }

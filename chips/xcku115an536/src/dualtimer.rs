@@ -31,7 +31,7 @@ use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
 
-use an536_inst;
+use crate::config;
 
 register_structs! {
     DualTimerRegisters {
@@ -100,7 +100,7 @@ impl DualTimer<'_> {
 }
 
 impl Time for DualTimer<'_> {
-    type Frequency = an536_inst::FreqTclk;
+    type Frequency = config::FreqTclk;
     type Ticks = Ticks32;
 
     fn now(&self) -> Self::Ticks {

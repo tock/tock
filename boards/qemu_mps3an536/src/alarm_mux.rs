@@ -19,7 +19,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
-use an536_inst::FREQ_ACLK;
+use config::FREQ_ACLK;
 use cortexr52::gentimer::GenTimer;
 
 const ALARM_CALLBACK_NUM: usize = 0;
