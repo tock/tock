@@ -11,19 +11,21 @@ use kernel::hil::entropy::{self, Continue};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use tock_registers_v0::interfaces::{Readable, Writeable};
-use tock_registers_v0::register_bitfields;
 use tock_registers_v0::registers::{ReadOnly, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
-#[repr(C)]
-struct TrngRegisters {
-    cr: WriteOnly<u32, Control::Register>,
-    _reserved0: [u32; 3],
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    isr: ReadOnly<u32, Interrupt::Register>,
-    _reserved1: [u32; 12],
-    odata: ReadOnly<u32, OutputData::Register>,
+register_structs! {
+    TrngRegisters {
+        (0x000 => cr: WriteOnly<u32, Control::Register>),
+        (0x004 => _reserved0: [u32; 3]),
+        (0x010 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x014 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x018 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x01C => isr: ReadOnly<u32, Interrupt::Register>),
+        (0x020 => _reserved1: [u32; 12]),
+        (0x050 => odata: ReadOnly<u32, OutputData::Register>),
+        (0x054 => @END),
+    }
 }
 
 register_bitfields![u32,

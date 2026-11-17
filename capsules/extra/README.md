@@ -70,7 +70,7 @@ These drivers provide support for various ICs.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 - **[Seven Segment Display](src/seven_segment.rs)**: Seven segment displays.
 - **[SH1106](src/sh1106.rs)**: SH1106 OLED screen driver.
-- **[SSD1306](src/ssd1306.rs)**: SSD1306 OLED screen driver.
+- **[SSD13xx](src/ssd13xx.rs)**: SSD1306/SSD1309/SSD1315 OLED screen driver (I2C or SPI).
 - **[ST77xx](src/st77xx.rs)**: ST77xx IPS screen.
 
 

@@ -12,6 +12,7 @@ use cortexm33::{CortexM33, CortexMVariant, initialize_ram_jump_to_main, unhandle
 pub mod chip;
 pub mod clocks;
 pub mod ctimer0;
+pub mod dma;
 pub mod flexcomm;
 pub mod gpio;
 pub mod inputmux;

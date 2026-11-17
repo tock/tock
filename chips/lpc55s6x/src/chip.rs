@@ -13,6 +13,7 @@ use kernel::platform::chip::InterruptService;
 use crate::Lpc55ImageHeader;
 use crate::clocks::Clock;
 use crate::ctimer0::LPCTimer;
+use crate::dma::{DMA0_CHANNELS, DMA1_CHANNELS, Dma0, Dma1, DmaDescriptorTable};
 use crate::flexcomm::Flexcomm;
 use crate::gpio::Pins;
 use crate::interrupts;
@@ -109,19 +110,41 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
     }
 }
 
-pub struct Lpc55s69DefaultPeripheral<'a> {
+pub struct Lpc55s69DefaultPeripherals<'a> {
     pub pins: Pins<'a>,
     pub ctimer0: LPCTimer<'a>,
     pub uart: Uart<'a>,
+    pub dma0: Dma0<'a>,
+    pub dma1: Dma1<'a>,
     pub rng: RNG<'a>,
 }
 
-impl Lpc55s69DefaultPeripheral<'_> {
-    pub fn new(clocks: &'static Clock, flexcomm: &'static Flexcomm) -> Self {
+impl Lpc55s69DefaultPeripherals<'_> {
+    /// Create default peripherals for an LPC55S69 microcontroller.
+    ///
+    /// # Safety
+    ///
+    /// The DMA0 and DMA1 drivers control DMA hardware. As such, the default
+    /// peripherals must be unique. This requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - There must not be additional instances of the DMA drivers.
+    /// - There must not be any other code that accesses the registers of the
+    ///   DMA controllers, or the descriptor tables passed in.
+    pub unsafe fn new(
+        clocks: &'static Clock,
+        flexcomm: &'static Flexcomm,
+        dma0_descriptors: &'static DmaDescriptorTable<DMA0_CHANNELS>,
+        dma1_descriptors: &'static DmaDescriptorTable<DMA1_CHANNELS>,
+    ) -> Self {
         Self {
             pins: Pins::new(),
             ctimer0: LPCTimer::new(),
             uart: Uart::new_uart0(clocks, flexcomm),
+            // SAFETY: See function-level doc.
+            dma0: unsafe { Dma0::new_dma0(dma0_descriptors) },
+            // SAFETY: See function-level doc.
+            dma1: unsafe { Dma1::new_dma1(dma1_descriptors) },
             rng: RNG::new(),
         }
     }
@@ -131,7 +154,7 @@ impl Lpc55s69DefaultPeripheral<'_> {
     }
 }
 
-impl InterruptService for Lpc55s69DefaultPeripheral<'_> {
+impl InterruptService for Lpc55s69DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::GPIO_INT0_IRQ0 => {
@@ -175,6 +198,15 @@ impl InterruptService for Lpc55s69DefaultPeripheral<'_> {
 
             interrupts::FLEXCOMM0 => {
                 self.uart.handle_interrupt();
+                true
+            }
+
+            interrupts::SDMA0 => {
+                self.dma0.handle_interrupt();
+                true
+            }
+            interrupts::SDMA1 => {
+                self.dma1.handle_interrupt();
                 true
             }
 

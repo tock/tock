@@ -41,28 +41,49 @@ use kernel::ErrorCode;
 use kernel::debug;
 use kernel::utilities::StaticRef;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable};
-use tock_registers_v0::register_bitfields;
 use tock_registers_v0::registers::{ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use core::marker::PhantomData;
 
-#[repr(C)]
-struct FlashRegisters {
-    /// Flash access control register
-    acr: ReadWrite<u32, ACR::Register>,
-    /// Flash key register
-    keyr: WriteOnly<u32>,
-    /// Flash option key register
-    optkeyr: WriteOnly<u32>,
-    /// Status register
-    sr: ReadWrite<u32, SR::Register>,
-    /// Control register
-    cr: ReadWrite<u32, CR::Register>,
-    /// Flash option control register
-    optcr: ReadWrite<u32, OPTCR::Register>,
-    /// Flash option control register 1
-    #[cfg(feature = "stm32f429")]
-    optcr1: ReadWrite<u32, OPTCR1::Register>,
+#[cfg(feature = "stm32f429")]
+register_structs! {
+    FlashRegisters {
+        /// Flash access control register
+        (0x000 => acr: ReadWrite<u32, ACR::Register>),
+        /// Flash key register
+        (0x004 => keyr: WriteOnly<u32>),
+        /// Flash option key register
+        (0x008 => optkeyr: WriteOnly<u32>),
+        /// Status register
+        (0x00C => sr: ReadWrite<u32, SR::Register>),
+        /// Control register
+        (0x010 => cr: ReadWrite<u32, CR::Register>),
+        /// Flash option control register
+        (0x014 => optcr: ReadWrite<u32, OPTCR::Register>),
+        /// Flash option control register 1
+        (0x018 => optcr1: ReadWrite<u32, OPTCR1::Register>),
+        (0x01C => @END),
+    }
+}
+
+#[cfg(not(feature = "stm32f429"))]
+register_structs! {
+    FlashRegisters {
+        /// Flash access control register
+        (0x000 => acr: ReadWrite<u32, ACR::Register>),
+        /// Flash key register
+        (0x004 => keyr: WriteOnly<u32>),
+        /// Flash option key register
+        (0x008 => optkeyr: WriteOnly<u32>),
+        /// Status register
+        (0x00C => sr: ReadWrite<u32, SR::Register>),
+        /// Control register
+        (0x010 => cr: ReadWrite<u32, CR::Register>),
+        /// Flash option control register
+        (0x014 => optcr: ReadWrite<u32, OPTCR::Register>),
+        (0x018 => @END),
+    }
 }
 
 register_bitfields![u32,

@@ -11,13 +11,15 @@ use crate::pm::{self, Clock, PBAClock};
 use crate::scif::{self, ClockSource, GenericClock};
 use kernel::utilities::StaticRef;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers_v0::register_bitfields;
 use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct GlocRegisters {
-    cr: ReadWrite<u32, Control::Register>,
-    truth: ReadWrite<u32, Truth::Register>,
+register_structs! {
+    pub GlocRegisters {
+        (0x000 => cr: ReadWrite<u32, Control::Register>),
+        (0x004 => truth: ReadWrite<u32, Truth::Register>),
+        (0x008 => @END),
+    }
 }
 
 register_bitfields![u32,

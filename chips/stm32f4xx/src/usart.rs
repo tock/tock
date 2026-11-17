@@ -11,29 +11,31 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers_v0::register_bitfields;
 use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::clocks::{Stm32f4Clocks, phclk};
 use crate::dma;
 
-/// Universal synchronous asynchronous receiver transmitter
-#[repr(C)]
-pub struct UsartRegisters {
-    /// Status register
-    sr: ReadWrite<u32, SR::Register>,
-    /// Data register
-    dr: ReadWrite<u32>,
-    /// Baud rate register
-    brr: ReadWrite<u32, BRR::Register>,
-    /// Control register 1
-    cr1: ReadWrite<u32, CR1::Register>,
-    /// Control register 2
-    cr2: ReadWrite<u32, CR2::Register>,
-    /// Control register 3
-    cr3: ReadWrite<u32, CR3::Register>,
-    /// Guard time and prescaler register
-    gtpr: ReadWrite<u32, GTPR::Register>,
+register_structs! {
+    /// Universal synchronous asynchronous receiver transmitter
+    pub UsartRegisters {
+        /// Status register
+        (0x000 => sr: ReadWrite<u32, SR::Register>),
+        /// Data register
+        (0x004 => dr: ReadWrite<u32>),
+        /// Baud rate register
+        (0x008 => brr: ReadWrite<u32, BRR::Register>),
+        /// Control register 1
+        (0x00C => cr1: ReadWrite<u32, CR1::Register>),
+        /// Control register 2
+        (0x010 => cr2: ReadWrite<u32, CR2::Register>),
+        /// Control register 3
+        (0x014 => cr3: ReadWrite<u32, CR3::Register>),
+        /// Guard time and prescaler register
+        (0x018 => gtpr: ReadWrite<u32, GTPR::Register>),
+        (0x01C => @END),
+    }
 }
 
 register_bitfields![u32,

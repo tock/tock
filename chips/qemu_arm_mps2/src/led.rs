@@ -17,15 +17,18 @@
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::register_structs;
 use tock_registers_v0::registers::ReadWrite;
 
 /// Number of LEDs QEMU wires up to `LED0` for the an385/an386 machines
 /// (the `mps2-fpgaio` device's `num-leds` property default).
 pub const NUM_LEDS: u32 = 2;
 
-#[repr(C)]
-pub struct FpgaioRegisters {
-    led0: ReadWrite<u32>,
+register_structs! {
+    pub FpgaioRegisters {
+        (0x000 => led0: ReadWrite<u32>),
+        (0x004 => @END),
+    }
 }
 
 pub struct Fpgaio {

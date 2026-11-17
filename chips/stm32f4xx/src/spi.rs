@@ -14,34 +14,36 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable};
-use tock_registers_v0::register_bitfields;
 use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::clocks::phclk;
 use crate::dma;
 use crate::dma::{Dma1, Dma1Peripheral};
 
-/// Serial peripheral interface
-#[repr(C)]
-pub struct SpiRegisters {
-    /// control register 1
-    cr1: ReadWrite<u32, CR1::Register>,
-    /// control register 2
-    cr2: ReadWrite<u32, CR2::Register>,
-    /// status register
-    sr: ReadWrite<u32, SR::Register>,
-    /// data register
-    dr: ReadWrite<u32, DR::Register>,
-    /// CRC polynomial register
-    crcpr: ReadWrite<u32>,
-    /// RX CRC register
-    rxcrcr: ReadOnly<u32>,
-    /// TX CRC register
-    txcrcr: ReadOnly<u32>,
-    /// I2S configuration register
-    i2scfgr: ReadWrite<u32, I2SCFGR::Register>,
-    /// I2S prescaler register
-    i2spr: ReadWrite<u32, I2SPR::Register>,
+register_structs! {
+    /// Serial peripheral interface
+    pub SpiRegisters {
+        /// control register 1
+        (0x000 => cr1: ReadWrite<u32, CR1::Register>),
+        /// control register 2
+        (0x004 => cr2: ReadWrite<u32, CR2::Register>),
+        /// status register
+        (0x008 => sr: ReadWrite<u32, SR::Register>),
+        /// data register
+        (0x00C => dr: ReadWrite<u32, DR::Register>),
+        /// CRC polynomial register
+        (0x010 => crcpr: ReadWrite<u32>),
+        /// RX CRC register
+        (0x014 => rxcrcr: ReadOnly<u32>),
+        /// TX CRC register
+        (0x018 => txcrcr: ReadOnly<u32>),
+        /// I2S configuration register
+        (0x01C => i2scfgr: ReadWrite<u32, I2SCFGR::Register>),
+        /// I2S prescaler register
+        (0x020 => i2spr: ReadWrite<u32, I2SPR::Register>),
+        (0x024 => @END),
+    }
 }
 
 register_bitfields![u32,

@@ -2,7 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2023.
 
-//! SSD1306/SSD1315 OLED Screen
+//! SSD1306/SSD1309/SSD1315 OLED Screen
+//!
+//! The SSD1306, SSD1309, and SSD1315 share their command set and 128x64 display
+//! RAM. The exact chip is selected through the [`Variant`] generic type
+//! parameter ([`Ssd1306`], [`Ssd1309`], or [`Ssd1315`]). Select the panel
+//! resolution with the `WIDTH` and `HEIGHT` const generics (128x64 by default).
+//! Panels narrower than 128 columns are assumed to be centered in the
+//! controller's columns.
+//!
+//! Both controllers can be attached over I2C ([`I2CTransport`]) or 4-wire SPI
+//! with a data/command pin ([`SpiTransport`]).
 
 use core::cell::Cell;
 use kernel::ErrorCode;
@@ -12,8 +22,229 @@ use kernel::utilities::leasable_buffer::SubSliceMut;
 
 pub const BUFFER_SIZE: usize = 1032;
 
-const WIDTH: usize = 128;
-const HEIGHT: usize = 64;
+/// Number of columns in the controller's display RAM.
+const CONTROLLER_WIDTH: usize = 128;
+/// Number of rows (COM lines) of the controller.
+const CONTROLLER_HEIGHT: usize = 64;
+
+/// Settings that differ between the controllers this driver supports.
+pub trait Variant {
+    /// Whether the controller has an internal charge pump (command `0x8D`).
+    const HAS_CHARGE_PUMP: bool;
+
+    /// Controller-specific commands sent during initialization, before the
+    /// display is turned on.
+    const INIT_COMMANDS: &'static [Command];
+}
+
+/// The SSD1306 controller.
+pub enum Ssd1306 {}
+
+impl Variant for Ssd1306 {
+    const HAS_CHARGE_PUMP: bool = true;
+    const INIT_COMMANDS: &'static [Command] = &[
+        Command::SetPrechargePeriod {
+            phase1: 0x1,
+            phase2: 0xf,
+        },
+        Command::SetVcomDeselect { level: 2 },
+    ];
+}
+
+/// The SSD1315 controller, which is compatible with the SSD1306.
+pub type Ssd1315 = Ssd1306;
+
+/// The SSD1309 controller.
+///
+/// The SSD1309 has no charge pump (the panel voltage is supplied externally)
+/// and encodes the VCOMH deselect level differently from the SSD1306. It keeps
+/// its reset defaults for the pre-charge period (`0x22`) and VCOMH level
+/// (`0x34`, ~0.78 x VCC).
+pub enum Ssd1309 {}
+
+impl Variant for Ssd1309 {
+    const HAS_CHARGE_PUMP: bool = false;
+    const INIT_COMMANDS: &'static [Command] = &[];
+}
+
+/// How the panel is wired to the controller's segment (column) and COM (row)
+/// lines. This depends on the display module, and decides the orientation of
+/// the image.
+///
+/// The fields are named after the controller commands they configure.
+#[derive(Clone, Copy)]
+pub struct PanelConfig {
+    /// Set Segment Re-map (`0xA0`/`0xA1`).
+    ///
+    /// `true` maps column 0 to SEG127, mirroring the image horizontally.
+    pub segment_remap: bool,
+    /// Set COM Output Scan Direction (`0xC0`/`0xC8`).
+    ///
+    /// `true` scans from COM[N-1] to COM0, mirroring the image vertically.
+    pub com_scan_decrement: bool,
+    /// Set COM Pins Hardware Configuration (`0xDA`).
+    ///
+    /// `true` means alternative (interleaved) instead of sequential COM pin
+    /// configuration. Panels with 64 rows typically use the alternative
+    /// configuration, panels with 32 rows the sequential one.
+    pub com_pins_alternative: bool,
+    /// Set COM Pins Hardware Configuration (`0xDA`).
+    ///
+    /// `true` means enabling COM left/right remap.
+    pub com_left_right_remap: bool,
+}
+
+impl Default for PanelConfig {
+    /// The configuration of common 128x64 modules.
+    fn default() -> Self {
+        PanelConfig {
+            segment_remap: true,
+            com_scan_decrement: true,
+            com_pins_alternative: true,
+            com_left_right_remap: false,
+        }
+    }
+}
+
+/// Whether bytes sent to the controller are commands or display data.
+#[derive(Clone, Copy, PartialEq)]
+pub enum DataKind {
+    Command,
+    Data,
+}
+
+/// Bus that connects the controller.
+pub trait Transport<'a> {
+    fn set_client(&self, client: &'a dyn TransportClient);
+
+    /// Send `buffer[1..len]` to the controller as `kind` bytes.
+    ///
+    /// `buffer[0]` is reserved for the transport (e.g. the I2C control byte).
+    /// On success, [`TransportClient::send_done`] returns the buffer. `len`
+    /// includes this byte.
+    fn send(
+        &self,
+        kind: DataKind,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+}
+
+pub trait TransportClient {
+    fn send_done(&self, buffer: &'static mut [u8], result: Result<(), ErrorCode>);
+}
+
+/// I2C transport for SSD13xx screens.
+///
+/// Each transfer starts with a control byte that marks the following bytes as
+/// commands or data.
+pub struct I2CTransport<'a, I: hil::i2c::I2CDevice<'a>> {
+    i2c: &'a I,
+    client: OptionalCell<&'a dyn TransportClient>,
+}
+
+impl<'a, I: hil::i2c::I2CDevice<'a>> I2CTransport<'a, I> {
+    pub fn new(i2c: &'a I) -> Self {
+        Self {
+            i2c,
+            client: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a, I: hil::i2c::I2CDevice<'a>> Transport<'a> for I2CTransport<'a, I> {
+    fn set_client(&self, client: &'a dyn TransportClient) {
+        self.client.set(client);
+    }
+
+    fn send(
+        &self,
+        kind: DataKind,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        buffer[0] = match kind {
+            DataKind::Command => 0, // Co = 0, D/C̅ = 0
+            DataKind::Data => 0x40, // Co = 0, D/C̅ = 1
+        };
+
+        self.i2c.enable();
+        self.i2c.write(buffer, len).map_err(|(e, buf)| {
+            self.i2c.disable();
+            (e.into(), buf)
+        })
+    }
+}
+
+impl<'a, I: hil::i2c::I2CDevice<'a>> hil::i2c::I2CClient for I2CTransport<'a, I> {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), hil::i2c::Error>) {
+        self.i2c.disable();
+        self.client
+            .map(|client| client.send_done(buffer, status.map_err(Into::into)));
+    }
+}
+
+/// 4-wire SPI transport: the D/C̅ pin marks the transferred bytes as commands
+/// (low) or data (high).
+///
+/// The transport uses the SPI controller directly, so the controller cannot
+/// be shared with other devices. Its chip select, clock rate, and mode must be
+/// configured before use (SPI mode 0).
+pub struct SpiTransport<'a, S: hil::spi::SpiMaster<'a>, P: hil::gpio::Output> {
+    spi: &'a S,
+    dc: &'a P,
+    client: OptionalCell<&'a dyn TransportClient>,
+}
+
+impl<'a, S: hil::spi::SpiMaster<'a>, P: hil::gpio::Output> SpiTransport<'a, S, P> {
+    pub fn new(spi: &'a S, dc: &'a P) -> Self {
+        Self {
+            spi,
+            dc,
+            client: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a, S: hil::spi::SpiMaster<'a>, P: hil::gpio::Output> Transport<'a>
+    for SpiTransport<'a, S, P>
+{
+    fn set_client(&self, client: &'a dyn TransportClient) {
+        self.client.set(client);
+    }
+
+    fn send(
+        &self,
+        kind: DataKind,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        match kind {
+            DataKind::Command => self.dc.clear(),
+            DataKind::Data => self.dc.set(),
+        }
+
+        let mut buf_slice = SubSliceMut::new(buffer);
+        buf_slice.slice(1..len);
+        self.spi
+            .read_write_bytes(buf_slice, None)
+            .map_err(|(e, buf_slice, _)| (e, buf_slice.take()))
+    }
+}
+
+impl<'a, S: hil::spi::SpiMaster<'a>, P: hil::gpio::Output> hil::spi::SpiMasterClient
+    for SpiTransport<'a, S, P>
+{
+    fn read_write_done(
+        &self,
+        write_buffer: SubSliceMut<'static, u8>,
+        _read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
+    ) {
+        self.client
+            .map(|client| client.send_done(write_buffer.take(), status.map(|_| ())));
+    }
+}
 
 #[derive(Copy, Clone, PartialEq)]
 #[repr(usize)]
@@ -281,26 +512,60 @@ enum State {
     Write,
 }
 
-pub struct Ssd1306<'a, I: hil::i2c::I2CDevice<'a>> {
-    i2c: &'a I,
+pub struct Ssd13xx<
+    'a,
+    V: Variant,
+    T: Transport<'a>,
+    const WIDTH: usize = CONTROLLER_WIDTH,
+    const HEIGHT: usize = CONTROLLER_HEIGHT,
+> {
+    transport: &'a T,
     state: Cell<State>,
     client: OptionalCell<&'a dyn hil::screen::ScreenClient>,
     setup_client: OptionalCell<&'a dyn hil::screen::ScreenSetupClient>,
     buffer: TakeCell<'static, [u8]>,
     write_buffer: MapCell<SubSliceMut<'static, u8>>,
     enable_charge_pump: bool,
+    panel: PanelConfig,
+    _variant: core::marker::PhantomData<V>,
 }
 
-impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
-    pub fn new(i2c: &'a I, buffer: &'static mut [u8], enable_charge_pump: bool) -> Ssd1306<'a, I> {
-        Ssd1306 {
-            i2c,
+impl<'a, V: Variant, T: Transport<'a>, const WIDTH: usize, const HEIGHT: usize>
+    Ssd13xx<'a, V, T, WIDTH, HEIGHT>
+{
+    /// Column of the controller's display RAM where the panel starts.
+    const COLUMN_OFFSET: usize = (CONTROLLER_WIDTH - WIDTH) / 2;
+
+    /// Rejects unsupported resolutions at compile time.
+    const VALID_RESOLUTION: () = assert!(
+        WIDTH > 0
+            && WIDTH <= CONTROLLER_WIDTH
+            && HEIGHT > 0
+            && HEIGHT <= CONTROLLER_HEIGHT
+            && HEIGHT.is_multiple_of(8)
+    );
+
+    /// Create the screen driver.
+    ///
+    /// `enable_charge_pump` is ignored for controllers without a charge pump.
+    pub fn new(
+        transport: &'a T,
+        buffer: &'static mut [u8],
+        enable_charge_pump: bool,
+        panel: PanelConfig,
+    ) -> Self {
+        let () = Self::VALID_RESOLUTION;
+
+        Ssd13xx {
+            transport,
             state: Cell::new(State::Idle),
             client: OptionalCell::empty(),
             setup_client: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             write_buffer: MapCell::empty(),
             enable_charge_pump,
+            panel,
+            _variant: core::marker::PhantomData,
         }
     }
 
@@ -316,29 +581,33 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
             },
             Command::SetDisplayOffset { vertical_shift: 0 },
             Command::SetDisplayStartLine { line: 0 },
-            Command::SetChargePump {
-                enable: self.enable_charge_pump,
-            },
             Command::SetMemoryAddressingMode { mode: 0 }, //horizontal
-            Command::SetSegmentRemap { reverse: true },
-            Command::SetComScanDirection { decrement: true },
+            Command::SetSegmentRemap {
+                reverse: self.panel.segment_remap,
+            },
+            Command::SetComScanDirection {
+                decrement: self.panel.com_scan_decrement,
+            },
             Command::SetComPins {
-                alternative: true,
-                enable_com: false,
+                alternative: self.panel.com_pins_alternative,
+                enable_com: self.panel.com_left_right_remap,
             },
             Command::SetContrast { contrast: 0xcf },
-            Command::SetPrechargePeriod {
-                phase1: 0x1,
-                phase2: 0xf,
-            },
-            Command::SetVcomDeselect { level: 2 },
             Command::EntireDisplayOn { ignore_ram: false },
             Command::SetDisplayInvert { inverse: false },
             Command::DeactivateScroll,
-            Command::SetDisplayOnOff { on: true },
         ];
+        let charge_pump = Command::SetChargePump {
+            enable: self.enable_charge_pump,
+        };
 
-        match self.send_sequence(&commands) {
+        let sequence = commands
+            .iter()
+            .chain(V::HAS_CHARGE_PUMP.then_some(&charge_pump))
+            .chain(V::INIT_COMMANDS)
+            .chain(&[Command::SetDisplayOnOff { on: true }]);
+
+        match self.send_sequence(sequence) {
             Ok(()) => {
                 self.state.set(State::Init);
             }
@@ -346,18 +615,19 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
         }
     }
 
-    fn send_sequence(&self, sequence: &[Command]) -> Result<(), ErrorCode> {
+    fn send_sequence<'c>(
+        &self,
+        sequence: impl IntoIterator<Item = &'c Command>,
+    ) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                 let mut buf_slice = SubSliceMut::new(buffer);
 
-                // Specify this is a series of command bytes.
-                buf_slice[0] = 0; // Co = 0, D/C̅ = 0
-
-                // Move the window of the subslice after the command byte header.
+                // Move the window of the subslice after the header byte
+                // reserved for the transport.
                 buf_slice.slice(1..);
 
-                for cmd in sequence.iter() {
+                for cmd in sequence {
                     cmd.encode(&mut buf_slice);
                 }
 
@@ -367,13 +637,14 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
                 buf_slice.reset();
                 let tx_len = buf_slice.len() - remaining_len;
 
-                self.i2c.enable();
-                match self.i2c.write(buf_slice.take(), tx_len) {
+                match self
+                    .transport
+                    .send(DataKind::Command, buf_slice.take(), tx_len)
+                {
                     Ok(()) => Ok(()),
-                    Err((_e, buf)) => {
+                    Err((e, buf)) => {
                         self.buffer.replace(buf);
-                        self.i2c.disable();
-                        Err(ErrorCode::INVAL)
+                        Err(e)
                     }
                 }
             })
@@ -383,7 +654,9 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> Ssd1306<'a, I> {
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::ScreenSetup<'a> for Ssd1306<'a, I> {
+impl<'a, V: Variant, T: Transport<'a>, const WIDTH: usize, const HEIGHT: usize>
+    hil::screen::ScreenSetup<'a> for Ssd13xx<'a, V, T, WIDTH, HEIGHT>
+{
     fn set_client(&self, client: &'a dyn hil::screen::ScreenSetupClient) {
         self.setup_client.set(client);
     }
@@ -423,7 +696,9 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::ScreenSetup<'a> for Ssd1306<'a
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> {
+impl<'a, V: Variant, T: Transport<'a>, const WIDTH: usize, const HEIGHT: usize>
+    hil::screen::Screen<'a> for Ssd13xx<'a, V, T, WIDTH, HEIGHT>
+{
     fn set_client(&self, client: &'a dyn hil::screen::ScreenClient) {
         self.client.set(client);
     }
@@ -453,8 +728,8 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> 
                 page_end: ((y / 8) + (height / 8) - 1) as u8,
             },
             Command::SetColumnAddress {
-                column_start: x as u8,
-                column_end: (x + width - 1) as u8,
+                column_start: (Self::COLUMN_OFFSET + x) as u8,
+                column_end: (Self::COLUMN_OFFSET + x + width - 1) as u8,
             },
         ];
         match self.send_sequence(&commands) {
@@ -470,10 +745,8 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> 
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             let mut buf_slice = SubSliceMut::new(buffer);
 
-            // Specify this is data.
-            buf_slice[0] = 0x40; // Co = 0, D/C̅ = 1
-
-            // Move the window of the subslice after the command byte header.
+            // Move the window of the subslice after the header byte reserved
+            // for the transport.
             buf_slice.slice(1..);
 
             // Figure out how much we can send.
@@ -485,16 +758,18 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> 
 
             let tx_len = copy_len + 1;
 
-            self.i2c.enable();
-            match self.i2c.write(buf_slice.take(), tx_len) {
+            match self
+                .transport
+                .send(DataKind::Data, buf_slice.take(), tx_len)
+            {
                 Ok(()) => {
                     self.state.set(State::Write);
                     self.write_buffer.replace(data);
                     Ok(())
                 }
-                Err((_e, buf)) => {
+                Err((e, buf)) => {
                     self.buffer.replace(buf);
-                    Err(ErrorCode::INVAL)
+                    Err(e)
                 }
             }
         })
@@ -536,10 +811,11 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Ssd1306<'a, I> 
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice<'a>> hil::i2c::I2CClient for Ssd1306<'a, I> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), hil::i2c::Error>) {
+impl<'a, V: Variant, T: Transport<'a>, const WIDTH: usize, const HEIGHT: usize> TransportClient
+    for Ssd13xx<'a, V, T, WIDTH, HEIGHT>
+{
+    fn send_done(&self, buffer: &'static mut [u8], result: Result<(), ErrorCode>) {
         self.buffer.replace(buffer);
-        self.i2c.disable();
 
         match self.state.get() {
             State::Init => {
@@ -549,13 +825,13 @@ impl<'a, I: hil::i2c::I2CDevice<'a>> hil::i2c::I2CClient for Ssd1306<'a, I> {
 
             State::SimpleCommand => {
                 self.state.set(State::Idle);
-                self.client.map(|client| client.command_complete(Ok(())));
+                self.client.map(|client| client.command_complete(result));
             }
 
             State::Write => {
                 self.state.set(State::Idle);
                 self.write_buffer.take().map(|buf| {
-                    self.client.map(|client| client.write_complete(buf, Ok(())));
+                    self.client.map(|client| client.write_complete(buf, result));
                 });
             }
             _ => {}

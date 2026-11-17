@@ -44,6 +44,10 @@ impl Bitmap {
         if start_idx > end_idx {
             return false;
         }
+        if start_idx == end_idx {
+            // Empty range, nothing to set.
+            return true;
+        }
         let start_byte_idx = start_idx / 8;
         let end_byte_idx = end_idx / 8;
         let first = 0xff << (start_idx % 8);
@@ -58,9 +62,12 @@ impl Bitmap {
             result
         } else {
             let mut result = (self.map[start_byte_idx] & first) == 0;
-            result = result && ((self.map[end_byte_idx] & second) == 0);
             self.map[start_byte_idx] |= first;
-            self.map[end_byte_idx] |= second;
+            // Only touch the end byte if the range ends partway through it.
+            if !end_idx.is_multiple_of(8) {
+                result = result && ((self.map[end_byte_idx] & second) == 0);
+                self.map[end_byte_idx] |= second;
+            }
             // Set all bytes between start and end bytes.
             for i in start_byte_idx + 1..end_byte_idx {
                 result = result && (self.map[i] == 0);
@@ -71,13 +78,18 @@ impl Bitmap {
     }
 
     pub fn is_complete(&self, total_length: usize) -> bool {
+        if total_length > BITMAP_SIZE * 8 {
+            return false;
+        }
         let mut result = true;
         for i in 0..total_length / 8 {
             result = result && (self.map[i] == 0xff);
         }
         // Check last byte.
-        let mask = 0xff >> (8 - (total_length % 8));
-        result = result && (self.map[total_length / 8] == mask);
+        if !total_length.is_multiple_of(8) {
+            let mask = 0xff >> (8 - (total_length % 8));
+            result = result && (self.map[total_length / 8] == mask);
+        }
         result
     }
 }

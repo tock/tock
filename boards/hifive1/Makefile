@@ -43,5 +43,9 @@ init:
 		--binary-path hifive1-qemu.bin \
 		--arch rv32imac \
 
-run: $(TARGET_PATH)/release/$(PLATFORM).elf
-	$(QEMU_CMDLINE) -kernel $^ -device loader,file=hifive1-qemu.bin,addr=0x20040000
+# Kernel and apps image to boot. Can be overridden to boot different images.
+KERNEL ?= $(TARGET_PATH)/release/$(PLATFORM).elf
+LOCAL_BOARD_BIN ?= hifive1-qemu.bin
+
+run: $(KERNEL)
+	$(QEMU_CMDLINE) -kernel $(KERNEL) -device loader,file=$(LOCAL_BOARD_BIN),addr=0x20040000

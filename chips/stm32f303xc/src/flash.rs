@@ -22,40 +22,42 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers_v0::register_bitfields;
 use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 const FLASH_BASE: StaticRef<FlashRegisters> =
     unsafe { StaticRef::new(0x40022000 as *const FlashRegisters) };
 
-#[repr(C)]
-struct FlashRegisters {
-    /// Flash access control register
-    /// Address offset 0x00
-    pub acr: ReadWrite<u32, AccessControl::Register>,
-    /// Flash key register
-    /// Address offset 0x04
-    pub kr: WriteOnly<u32, Key::Register>,
-    /// Flash option key register
-    /// Address offset 0x08
-    pub okr: WriteOnly<u32, Key::Register>,
-    /// Flash status register
-    /// Address offset 0x0C
-    pub sr: ReadWrite<u32, Status::Register>,
-    /// Flash control register
-    /// Address offset 0x10
-    pub cr: ReadWrite<u32, Control::Register>,
-    /// Flash address register
-    /// Address offset 0x14
-    pub ar: WriteOnly<u32, Address::Register>,
-    /// Reserved
-    _reserved: u32,
-    /// Flash option byte register
-    /// Address offset 0x1C
-    pub obr: ReadOnly<u32, OptionByte::Register>,
-    /// Flash write protection register
-    /// Address offset 0x20
-    pub wrpr: ReadOnly<u32, WriteProtect::Register>,
+register_structs! {
+    FlashRegisters {
+        /// Flash access control register
+        /// Address offset 0x00
+        (0x000 => pub acr: ReadWrite<u32, AccessControl::Register>),
+        /// Flash key register
+        /// Address offset 0x04
+        (0x004 => pub kr: WriteOnly<u32, Key::Register>),
+        /// Flash option key register
+        /// Address offset 0x08
+        (0x008 => pub okr: WriteOnly<u32, Key::Register>),
+        /// Flash status register
+        /// Address offset 0x0C
+        (0x00C => pub sr: ReadWrite<u32, Status::Register>),
+        /// Flash control register
+        /// Address offset 0x10
+        (0x010 => pub cr: ReadWrite<u32, Control::Register>),
+        /// Flash address register
+        /// Address offset 0x14
+        (0x014 => pub ar: WriteOnly<u32, Address::Register>),
+        /// Reserved
+        (0x018 => _reserved),
+        /// Flash option byte register
+        /// Address offset 0x1C
+        (0x01C => pub obr: ReadOnly<u32, OptionByte::Register>),
+        /// Flash write protection register
+        /// Address offset 0x20
+        (0x020 => pub wrpr: ReadOnly<u32, WriteProtect::Register>),
+        (0x024 => @END),
+    }
 }
 
 register_bitfields! [u32,

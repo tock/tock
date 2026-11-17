@@ -30,7 +30,7 @@ mod tests;
 const NUM_PROCS: usize = 4;
 
 type ChipHw = esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<'static>>;
-type AlarmHw = esp32_c3::timg::TimG<'static>;
+type AlarmHw = esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>;
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerNoMuxComponentType<AlarmHw>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
@@ -61,7 +61,9 @@ static mut PLATFORM: Option<&'static Esp32C3Board> = None;
 #[cfg(test)]
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
 // Test access to alarm
-static mut ALARM: Option<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static>>> = None;
+static mut ALARM: Option<
+    &'static MuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
+> = None;
 
 kernel::stack_size! {0x900}
 
@@ -84,7 +86,7 @@ struct Esp32C3Board {
     console: &'static capsules_core::console::Console<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static>>,
+        VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
     >,
     scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
@@ -184,6 +186,9 @@ unsafe fn setup() -> (
         .sysreg
         .use_pll_clock_source(PllFrequency::MHz320, CpuFrequency::MHz160);
 
+    hil::time::Counter::start(&peripherals.timg0).unwrap();
+    hil::time::Counter::start(&peripherals.timg1).unwrap();
+
     // The mask ROM leaves flash in single-bit mode at 20 MHz. Switch flash
     // reads to a faster mode (DIO or QIO at 80MHz).
     esp32_c3::flash::configure();
@@ -271,7 +276,7 @@ unsafe fn setup() -> (
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, esp32_c3::timg::TimG>,
+        MuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
         MuxAlarm::new(&peripherals.timg0)
     );
     hil::time::Alarm::set_alarm_client(&peripherals.timg0, mux_alarm);
@@ -280,13 +285,16 @@ unsafe fn setup() -> (
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, esp32_c3::timg::TimG>,
+        VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, esp32_c3::timg::TimG>>,
+        capsules_core::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>>,
+        >,
         capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
@@ -365,7 +373,7 @@ unsafe fn setup() -> (
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
-        esp32_c3::timg::TimG,
+        esp32_c3::timg::TimG<'static, esp32_c3::timg::Freq20MHz>,
         ProcessConsoleCap
     ));
     let _ = process_console.start();

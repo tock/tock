@@ -17,6 +17,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
+use rv32i::interrupt_controller::InterruptController;
 use tock_registers_v0::interfaces::ReadWriteable;
 use veer_el2::chip::VeeRDefaultPeripherals;
 
@@ -110,7 +111,7 @@ impl KernelResources<VeeRChip> for VeeR {
 #[inline(never)]
 unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     // only machine mode
-    rv32i::configure_trap_handler();
+    rv32i::interrupt_controller::Clint::configure_trap_handler();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state_unsafe::<

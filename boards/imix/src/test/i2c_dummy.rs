@@ -5,7 +5,6 @@
 //! A dummy I2C client
 
 use core::cell::Cell;
-use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::i2c::{Error, I2CMaster};
@@ -52,8 +51,6 @@ impl hil::i2c::I2CHwMasterClient for ScanClient {
 
 /// This test should be called with I2C2, specifically
 pub fn i2c_scan_slaves(i2c_master: &'static dyn I2CMaster<'static>) {
-    static mut DATA: [u8; 255] = [0; 255];
-
     let dev = i2c_master;
 
     let i2c_client = unsafe { kernel::static_init!(ScanClient, ScanClient::new(dev)) };
@@ -64,7 +61,7 @@ pub fn i2c_scan_slaves(i2c_master: &'static dyn I2CMaster<'static>) {
     debug!("Scanning for I2C devices...");
     dev.write(
         i2c_client.dev_id.get(),
-        unsafe { &mut *addr_of_mut!(DATA) },
+        unsafe { kernel::static_init!([u8; 255], [0; 255]) },
         2,
     )
     .unwrap();
@@ -153,15 +150,13 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
 
 /// This test should be called with I2C2, specifically
 pub fn i2c_accel_test(i2c_master: &'static dyn I2CMaster<'static>) {
-    static mut DATA: [u8; 255] = [0; 255];
-
     let dev = i2c_master;
 
     let i2c_client = unsafe { kernel::static_init!(AccelClient, AccelClient::new(dev)) };
     dev.set_master_client(i2c_client);
     dev.enable();
 
-    let buf = unsafe { &mut *addr_of_mut!(DATA) };
+    let buf = unsafe { kernel::static_init!([u8; 255], [0; 255]) };
     debug!("Reading Accel's WHOAMI...");
     buf[0] = 0x0D_u8; // 0x0D == WHOAMI register
     dev.write_read(0x1e, buf, 1, 1).unwrap();
@@ -221,8 +216,6 @@ impl hil::i2c::I2CHwMasterClient for LiClient {
 
 /// This test should be called with I2C2, specifically
 pub fn i2c_li_test(i2c_master: &'static dyn I2CMaster<'static>) {
-    static mut DATA: [u8; 255] = [0; 255];
-
     let pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA16);
     pin.enable_output();
     pin.set();
@@ -233,7 +226,7 @@ pub fn i2c_li_test(i2c_master: &'static dyn I2CMaster<'static>) {
     dev.set_master_client(i2c_client);
     dev.enable();
 
-    let buf = unsafe { &mut *addr_of_mut!(DATA) };
+    let buf = unsafe { kernel::static_init!([u8; 255], [0; 255]) };
     debug!("Enabling LI...");
     buf[0] = 0;
     buf[1] = 0b10100000;
