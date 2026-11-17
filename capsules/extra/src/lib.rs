@@ -119,6 +119,7 @@ pub mod touch;
 pub mod tsl2561;
 pub mod usb;
 pub mod usb_hid_driver;
+pub mod userspace_services;
 pub mod virtualizers;
 pub mod wifi;
 pub mod ws2812;
