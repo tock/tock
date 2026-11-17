@@ -500,7 +500,11 @@ unsafe extern "cdecl" fn main() {
         mux_alarm,
         process_printer,
         None,
-        None,
+        Some(|| {
+            x86::support::hardfault(&kernel::create_capability!(
+                kernel::capabilities::CpuStateControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
