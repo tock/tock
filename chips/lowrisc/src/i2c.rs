@@ -8,6 +8,7 @@ use crate::registers::i2c_regs::{
     CTRL, FDATA, FIFO_CTRL, INTR, RDATA, STATUS, TIMING0, TIMING1, TIMING2, TIMING3, TIMING4,
 };
 use core::cell::Cell;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::i2c;
 use kernel::utilities::StaticRef;
@@ -22,6 +23,7 @@ pub struct I2c<'a> {
     clock_period_nanos: u32,
 
     master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
+    deferred_call: DeferredCall,
 
     // Set when calling the write_read operation
     // This specifies the address of the read operation
@@ -42,6 +44,7 @@ impl<'a> I2c<'a> {
             registers: base,
             clock_period_nanos,
             master_client: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
             slave_read_address: Cell::new(0),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
@@ -130,10 +133,7 @@ impl<'a> I2c<'a> {
             }
 
             if data_popped == len {
-                // Finished call the callback
-                self.master_client.map(|client| {
-                    client.command_complete(self.buffer.take().unwrap(), Ok(()));
-                });
+                self.deferred_call.set();
             } else {
                 self.read_index.set(data_popped + 1);
 
@@ -177,10 +177,7 @@ impl<'a> I2c<'a> {
             }
 
             if data_pushed == len {
-                // Finished call the callback
-                self.master_client.map(|client| {
-                    client.command_complete(self.buffer.take().unwrap(), Ok(()));
-                });
+                self.deferred_call.set();
             } else {
                 self.write_index.set(data_pushed + 1);
 
@@ -200,6 +197,7 @@ impl<'a> I2c<'a> {
         let regs = self.registers;
         let mut data_pushed = self.write_index.get();
         let len = self.write_len.get();
+        let mut start_read = false;
 
         self.buffer.map(|buf| {
             let start_index = data_pushed;
@@ -233,7 +231,7 @@ impl<'a> I2c<'a> {
                 regs.fdata
                     .write(FDATA::START::SET + FDATA::FBYTE.val(read_addr as u32));
 
-                self.read_data();
+                start_read = true;
             } else {
                 self.write_index.set(data_pushed + 1);
 
@@ -247,6 +245,10 @@ impl<'a> I2c<'a> {
                 }
             }
         });
+
+        if start_read {
+            self.read_data();
+        }
     }
 }
 
@@ -404,5 +406,19 @@ impl<'a> hil::i2c::I2CMaster<'a> for I2c<'a> {
         self.read_data();
 
         Ok(())
+    }
+}
+
+impl DeferredCallClient for I2c<'_> {
+    fn handle_deferred_call(&self) {
+        self.master_client.map(|client| {
+            self.buffer
+                .take()
+                .map(|buffer| client.command_complete(buffer, Ok(())));
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
