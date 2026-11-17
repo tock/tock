@@ -254,27 +254,41 @@ impl Hash<'_> {
         match self.transfer_mode.get() {
             // CPU
             TransferMode::DirectStream => {
-                let fifo_space = (self.regs.sr.read(SR::NBWE) * 4) as usize;
-                let mut bytes_read = fifo_space.min(FIFO_SIZE);
-                client.read_input(&mut |buffer| {
-                    bytes_read = bytes_read.min(buffer.len());
-                    let buf = buffer.get(..bytes_read).ok_or(ErrorCode::NOMEM)?;
-                    self.write_data_cpu(buf)?;
-                    Ok(bytes_read)
+                let room = ((self.regs.sr.read(SR::NBWE) * 4) as usize).min(FIFO_SIZE);
+                let mut taken = 0;
+                client.read_input(&mut |input| {
+                    let n = input.len().min(room);
+                    input
+                        .get(..n)
+                        .ok_or(ErrorCode::NOMEM)
+                        .and_then(|chunk| self.write_data_cpu(chunk))?;
+                    taken += n;
+                    Ok(n)
                 })?;
-                Ok((bytes_read, true))
+                if taken == 0 {
+                    return Err(ErrorCode::SIZE);
+                }
+                Ok((taken, true))
             }
             // DMA
             TransferMode::Dma(_) => {
                 let mut dma_buffer = self.data_buffer.take().ok_or(ErrorCode::FAIL)?;
                 dma_buffer.reset();
-                let mut bytes_read = dma_buffer.len();
-                client.read_input(&mut |buf| {
-                    bytes_read = bytes_read.min(buf.len());
-                    buf.copy_to_slice_or_err(dma_buffer.as_mut_slice())?;
-                    Ok(bytes_read)
-                })?;
-                dma_buffer.slice(..bytes_read);
+                let capacity = dma_buffer.len();
+                let mut filled = 0;
+                let result = client.read_input(&mut |input| {
+                    let n = input.len().min(capacity);
+                    input.get(..n).ok_or(ErrorCode::NOMEM).and_then(|chunk| {
+                        chunk.copy_to_slice_or_err(&mut dma_buffer.as_mut_slice()[..n])
+                    })?;
+                    filled += n;
+                    Ok(n)
+                });
+                if let Err(error) = result {
+                    self.data_buffer.replace(dma_buffer);
+                    return Err(error);
+                }
+                dma_buffer.slice(..filled);
 
                 if let (Some(dma), Some(dma_channel)) = (self.dma.get(), self.dma_channel.get()) {
                     if !self.leftover.is_empty() {
@@ -282,13 +296,13 @@ impl Hash<'_> {
                         if self.trim_dma_subslice(&mut dma_buffer) {
                             if dma_buffer.len() == 0 {
                                 // Already finished with everything, no need for DMA transfer
-                                return Ok((bytes_read, true));
+                                return Ok((filled, true));
                             }
                         } else {
                             // Failed to write, accelerator is busy
                             // Try to write later
                             self.data_buffer.put(dma_buffer);
-                            return Ok((bytes_read, false));
+                            return Ok((filled, false));
                         }
                     }
                     // As DMA slice can be of arbitrary size whereas DMA can send only 32-bit words,
@@ -296,11 +310,11 @@ impl Hash<'_> {
                     if !dma_buffer.len().is_multiple_of(4) {
                         self.truncate_dma_subslice(&mut dma_buffer);
                         if dma_buffer.len() == 0 {
-                            return Ok((bytes_read, true));
+                            return Ok((filled, true));
                         }
                     }
                     self.start_dma_transfer(dma, dma_channel, dma_buffer);
-                    Ok((bytes_read, true))
+                    Ok((filled, true))
                 } else {
                     Err(ErrorCode::NODEVICE)
                 }

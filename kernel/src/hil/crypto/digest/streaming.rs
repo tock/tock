@@ -100,7 +100,7 @@ pub trait StreamingDigestClient<A: DigestAlgorithm, C: Context>: DigestClient<A>
     /// with that error.
     fn update_input(
         &self,
-        advance: &dyn Fn(&ReadableProcessSlice, &mut C) -> Result<usize, ErrorCode>,
+        advance: &mut dyn FnMut(&ReadableProcessSlice, &mut C) -> Result<usize, ErrorCode>,
     ) -> Result<(), ErrorCode>;
 
     /// Signal completion of a [`StreamingDigest::update`] request.
@@ -126,7 +126,7 @@ pub trait StreamingDigestClient<A: DigestAlgorithm, C: Context>: DigestClient<A>
     /// reference to it.
     ///
     /// Returns [`ErrorCode::NOMEM`] if the client has no context to supply or it failed to access it.
-    fn restore_context(&self, restore: &dyn Fn(&C)) -> Result<(), ErrorCode>;
+    fn restore_context(&self, restore: &mut dyn FnMut(&C)) -> Result<(), ErrorCode>;
 
     /// Store the state to resume from later.
     ///
