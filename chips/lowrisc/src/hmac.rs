@@ -320,6 +320,10 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
         self.cancelled.set(true);
     }
 
+    fn preset_message_length(&self, _len: usize) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+
     fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<32> + 'a)) {
         unimplemented!()
     }

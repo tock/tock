@@ -336,6 +336,10 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
         self.initialize();
     }
 
+    fn preset_message_length(&self, _len: usize) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+
     fn set_data_client(&'a self, client: &'a (dyn ClientData<32> + 'a)) {
         self.client_data.set(client);
         self.client_hash.clear();
