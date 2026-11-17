@@ -7,8 +7,9 @@
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configuration, Configure, FloatingState};
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{FieldValue, LocalRegisterCopy, register_bitfields};
+use tock_registers_v0::fields::FieldValue;
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::{LocalRegisterCopy, register_bitfields};
 
 use crate::registers::pinmux_regs::{
     DIO_PAD_ATTR_REGWEN, MIO_OUTSEL_REGWEN, MIO_PAD_ATTR_REGWEN, MIO_PERIPH_INSEL_REGWEN,

@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/top_earlgrey/ip_autogen/rv_plic/data/rv_plic.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of interrupt sources
 pub const RV_PLIC_PARAM_NUM_SRC: u32 = 185;
 /// Number of Targets (Harts)

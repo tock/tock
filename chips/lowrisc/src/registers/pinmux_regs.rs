@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/pinmux/data/pinmux.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Pad attribute data width
 pub const PINMUX_PARAM_ATTR_DW: u32 = 10;
 /// Number of muxed peripheral inputs

@@ -11,6 +11,7 @@ edition.workspace = true
 [dependencies]
 cortexm0p = { path="../../arch/cortex-m0p" }
 kernel = { path = "../../kernel" }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 
 [lints]
 workspace = true

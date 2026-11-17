@@ -7,13 +7,9 @@
 
 // allow wildcard imports as there are too many symbols to import seperately or with alias
 use crate::srss_registers as regs;
-use kernel::utilities::{
-    StaticRef,
-    registers::{
-        ReadOnly, ReadWrite,
-        interfaces::{ReadWriteable, Readable, Writeable},
-    },
-};
+use kernel::utilities::StaticRef;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
 
 const SRSS_BASE: StaticRef<regs::SrssRegisters> =
     unsafe { StaticRef::new(0x42200000 as *const regs::SrssRegisters) };

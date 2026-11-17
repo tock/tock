@@ -3,20 +3,14 @@
 // Copyright OxidOS Automotive 2025 SRL.
 // Copyright Infineon Technologies AG 2026.
 
+use kernel::hil;
+use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite,
-    interfaces::{ReadWriteable, Readable},
-    register_bitfields, register_structs,
-};
-use kernel::{
-    hil::{
-        self,
-        time::{self, Alarm, Ticks, Time},
-    },
-    utilities::registers::interfaces::Writeable,
-};
+use tock_registers_v0::interfaces::Writeable;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::tcpwm::CNT_CTRL::QUAD_ENCODING_MODE;
 

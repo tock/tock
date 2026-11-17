@@ -8,7 +8,7 @@ use core::fmt::Write;
 
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 
 use rv32i::csr::{self, CSR, mcause, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};

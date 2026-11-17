@@ -5,10 +5,9 @@
 //! Power Control Manager (PCM)
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 const PCM_BASE: StaticRef<PcmRegisters> =
     unsafe { StaticRef::new(0x4001_0000 as *const PcmRegisters) };

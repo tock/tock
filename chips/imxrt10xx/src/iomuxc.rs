@@ -5,8 +5,9 @@
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::ReadWrite;
 
 /// IOMUX Controller Module
 #[repr(C)]

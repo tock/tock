@@ -4,10 +4,9 @@
 
 //! HASH registers.
 
-use kernel::utilities::{
-    StaticRef,
-    registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs},
-};
+use kernel::utilities::StaticRef;
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// Hash processor

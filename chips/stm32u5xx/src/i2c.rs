@@ -11,17 +11,13 @@ use core::cmp;
 use core::fmt::{self};
 use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
-use kernel::utilities::{
-    StaticRef,
-    cells::{MapCell, OptionalCell, TakeCell},
-    dma_slice::DmaSubSliceMut,
-    leasable_buffer::SubSliceMut,
-    registers::{
-        ReadOnly, ReadWrite,
-        interfaces::{ReadWriteable, Readable, Writeable},
-        register_bitfields, register_structs,
-    },
-};
+use kernel::utilities::StaticRef;
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::dma_slice::DmaSubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMut;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     pub I2cRegisters {

@@ -12,9 +12,10 @@ use enum_primitive::enum_from_primitive;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 pub use rp2xxx::pads::{DriveStrength, SlewRate};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::chip::Processor;
 #[repr(C)]

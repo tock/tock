@@ -9,7 +9,7 @@ use core::{cmp, fmt};
 
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::{LocalRegisterCopy, register_bitfields};
+use tock_registers_v0::{LocalRegisterCopy, register_bitfields};
 
 use crate::csr;
 
@@ -1609,7 +1609,7 @@ pub mod simple {
     use super::{OCTETS_PER_PMPCFG_CSR, PmpConfigCSRIter, TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
     use crate::csr;
     use core::fmt;
-    use kernel::utilities::registers::LocalRegisterCopy;
+    use tock_registers_v0::LocalRegisterCopy;
 
     /// A "simple" RISC-V PMP implementation.
     ///
@@ -1832,7 +1832,8 @@ pub mod kernel_protection {
     };
     use crate::csr;
     use core::fmt;
-    use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
+    use tock_registers_v0::LocalRegisterCopy;
+    use tock_registers_v0::fields::FieldValue;
 
     // ---------- Kernel memory-protection PMP memory region wrapper types -----
     //
@@ -2183,8 +2184,9 @@ pub mod kernel_protection_mml_epmp {
     use core::cell::Cell;
     use core::fmt;
     use kernel::platform::mpu;
-    use kernel::utilities::registers::interfaces::{Readable, Writeable};
-    use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
+    use tock_registers_v0::LocalRegisterCopy;
+    use tock_registers_v0::fields::FieldValue;
+    use tock_registers_v0::interfaces::{Readable, Writeable};
 
     // ---------- Kernel memory-protection PMP memory region wrapper types -----
     //

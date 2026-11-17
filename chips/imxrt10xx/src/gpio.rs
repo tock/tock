@@ -33,8 +33,8 @@ use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 use crate::ccm;
 

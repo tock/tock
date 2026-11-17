@@ -10,11 +10,10 @@ use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    Field, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
-    register_structs,
-};
+use tock_registers_v0::fields::Field;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{InMemoryRegister, ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{LocalRegisterCopy, register_bitfields, register_structs};
 
 use crate::power;
 
@@ -300,9 +299,9 @@ pub struct UsbdRegisters<'a> {
 mod detail {
     use super::{Amount, Count};
     use core::marker::PhantomData;
-    use kernel::utilities::registers::InMemoryRegister;
-    use kernel::utilities::registers::interfaces::Writeable;
-    use kernel::utilities::registers::{ReadOnly, ReadWrite};
+    use tock_registers_v0::interfaces::Writeable;
+    use tock_registers_v0::registers::InMemoryRegister;
+    use tock_registers_v0::registers::{ReadOnly, ReadWrite};
 
     #[repr(C)]
     pub struct EndpointRegisters<'a> {

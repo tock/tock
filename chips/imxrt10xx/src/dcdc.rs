@@ -6,8 +6,9 @@
 
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{self, ReadWrite};
+use tock_registers_v0 as registers;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::registers::ReadWrite;
 
 use crate::ccm;
 

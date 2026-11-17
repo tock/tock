@@ -12,7 +12,7 @@
 //!
 //! ```rust
 //! # use kernel::utilities::StaticRef;
-//! # use kernel::utilities::registers::ReadWrite;
+//! # use tock_registers_v0::registers::ReadWrite;
 //! # struct ChipSpecificPeripheralClock {};
 //! /// The MMIO Structure.
 //! #[repr(C)]
@@ -38,8 +38,8 @@
 //! ```rust
 //! # use kernel::utilities::peripheral_management::PeripheralManager;
 //! # use kernel::utilities::StaticRef;
-//! # use kernel::utilities::registers::ReadWrite;
-//! # use kernel::utilities::registers::interfaces::Writeable;
+//! # use tock_registers_v0::registers::ReadWrite;
+//! # use tock_registers_v0::interfaces::Writeable;
 //! # use kernel::ErrorCode;
 //! # use kernel::hil;
 //! # struct PeripheralRegisters { control: ReadWrite<u32> };
@@ -189,8 +189,8 @@ where
 /// ```
 /// # use kernel::utilities::peripheral_management::PeripheralManager;
 /// # use kernel::utilities::StaticRef;
-/// # use kernel::utilities::registers::ReadWrite;
-/// # use kernel::utilities::registers::interfaces::Writeable;
+/// # use tock_registers_v0::registers::ReadWrite;
+/// # use tock_registers_v0::interfaces::Writeable;
 /// # pub struct PeripheralRegisters { control: ReadWrite<u32> };
 /// # pub struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
 /// impl PeripheralHardware {

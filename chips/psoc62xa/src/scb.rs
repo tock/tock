@@ -8,15 +8,11 @@ use core::num::NonZeroUsize;
 use kernel::errorcode::ErrorCode;
 use kernel::hil::uart::{self, Configure, Receive, ReceiveClient, Transmit, TransmitClient};
 use kernel::utilities::StaticRef;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::io_write::IoWrite;
-use kernel::utilities::{
-    cells::{OptionalCell, TakeCell},
-    registers::{
-        ReadOnly, ReadWrite, WriteOnly,
-        interfaces::{ReadWriteable, Readable, Writeable},
-        register_bitfields, register_structs,
-    },
-};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     Scb5Registers {

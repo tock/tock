@@ -5,7 +5,8 @@
 //! SRSS (System Resources SubSystem) registers and bitfields.
 //! In seperate file to avoid too large files.
 
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     pub SrssRegisters {

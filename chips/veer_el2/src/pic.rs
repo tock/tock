@@ -8,9 +8,10 @@ testbench for VeeR EL2, so the Pic is not expected to handle any interrupts. */
 
 use core::sync::atomic::{AtomicU32, Ordering};
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 use riscv_csr::csr::ReadWriteRiscvCsr;
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 /// Bitmap data structure to hold the interrupt number of pending interrupts.
 ///

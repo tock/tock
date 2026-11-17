@@ -26,8 +26,8 @@ use kernel::hil::uart;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::registers::InMemoryRegister;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::InMemoryRegister;
 
 /// Identifying number for the endpoint when transferring data from us to the
 /// host.
