@@ -93,7 +93,6 @@ impl<'a, A: AES<'a, AES256> + AESECB> TestAES256Ecb<'a, A> {
             });
             let src = if encrypting { &PTXT } else { &CTXT_ECB };
             self.source.map(|s| s[..src.len()].copy_from_slice(src));
-            self.aes.start_message();
         }
 
         prepare_in_place(step, in_place, &self.source, &self.data);
@@ -200,7 +199,6 @@ impl<'a, A: AES<'a, AES256> + AESCBC> TestAES256Cbc<'a, A> {
             });
             let src = if encrypting { &PTXT } else { &CTXT_CBC };
             self.source.map(|s| s[..src.len()].copy_from_slice(src));
-            self.aes.start_message();
         }
 
         prepare_in_place(step, in_place, &self.source, &self.data);
@@ -305,7 +303,6 @@ impl<'a, A: AES<'a, AES256> + AESCtr> TestAES256Ctr<'a, A> {
             });
             let src = if encrypting { &PTXT } else { &CTXT_CTR };
             self.source.map(|s| s[..src.len()].copy_from_slice(src));
-            self.aes.start_message();
         }
 
         prepare_in_place(step, in_place, &self.source, &self.data);

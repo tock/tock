@@ -127,8 +127,6 @@ impl<'a, A: AES<'a, AES128> + AESECB> TestAes128Ecb<'a, A> {
             );
         }
 
-        self.aes.start_message();
-
         let start = DATA_OFFSET;
         let stop = DATA_OFFSET + DATA_LEN;
 
@@ -237,8 +235,6 @@ impl<'a, A: AES<'a, AES128> + AESCtr> TestAes128Ctr<'a, A> {
                 },
             );
         }
-
-        self.aes.start_message();
 
         let start = DATA_OFFSET;
         let stop = DATA_OFFSET + DATA_LEN;
@@ -412,8 +408,6 @@ impl<'a, A: AES<'a, AES128> + AESCBC> TestAes128Cbc<'a, A> {
                 },
             );
         }
-
-        self.aes.start_message();
 
         let start = DATA_OFFSET;
         let stop = DATA_OFFSET + DATA_LEN;
