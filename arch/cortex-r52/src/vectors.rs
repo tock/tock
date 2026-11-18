@@ -8,6 +8,8 @@
 // user mode libraries accordingly.
 
 // The code here will be put in ATCM on the mps3
+// TODO: move functions frequently called to ATCM for better 
+// performance on real HW
 
 // IMPORTANT TODO: FP context is not done at all, and I did not
 // check 8 bytes alignment stack for LDxEXD, STxEXD, as required by
@@ -38,6 +40,12 @@ const NO_IRQ: u16 = 0x80; /* mask to disable IRQ             */
 const NO_FIQ: u16 = 0x40; /* mask to disable FIQ             */
 const NO_INT: u16 = NO_IRQ | NO_FIQ; /* mask to disable IRQ and FIQ     */
 const THUMB_STATE: u16 = 0x20;
+
+// Size for error stack (prefetch, data, undefined exceptions): real usage < 150
+pub const STACK_SIZE_ERR: usize = 192; 
+
+/// Size of system stack
+pub const STACK_SIZE_SVC: usize = 4096; 
 
 // These constants are defined in the linker script.
 unsafe extern "C" {
@@ -169,24 +177,22 @@ EL1_RST_Handler:
         // HYP: not done
         // msr SP_hyp, r0
 
-        // IRQ/UND/ABT: unused or crash so same stack, size 256
+        // UND/ABT: unused or crash so same stack, size 256
         // SYSTEM mode unused and same SP as USR
         ldr r0, =_estack
-        msr SP_irq, r0
         msr SP_und, r0
         msr SP_abt, r0
-        sub	r0, r0, #256
+        sub	r0, r0, #{STACK_SIZE_ERR}
 
-        // FIQ size 256
-        msr SP_fiq, r0
-        sub	r0, r0, #256
-
-        // Cannot use SP_svc because current mode is svc
-        // SVC size / TODO: is it enough? check main.rs in boards too
+        // Remaining stack for SP_svc (msr X_svc not working in SVC mode)
         mov SP, r0
-        sub	r0, r0, #2048
 
-        // USR size remaining (0x4000 - 3 x 256)
+        // IRQ unused, SYSTEM same as USR, USR will be configured later
+        // FIQ mode used but stack unused
+        // use 0 to force panic if used
+        mov r0, #0
+        msr SP_irq, r0
+        msr SP_fiq, r0
         msr SP_usr, r0
 
         // Now that memory has been initialized, we can jump to main() where the
@@ -198,6 +204,7 @@ EL1_RST_Handler:
         sdata = sym _srelocate,
         edata = sym _erelocate,
         etext = sym _etext,
+        STACK_SIZE_ERR = const STACK_SIZE_ERR,
         MODE_SVC = const MODE_SVC,
         NO_IRQ = const NO_IRQ,
     );
@@ -205,168 +212,26 @@ EL1_RST_Handler:
 
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".atcm")
+    unsafe(link_section = ".vectors_atcm")
 )]
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn DEF_Handler() {
-    // Prepare a fault frame for print_fault_frame()
-    // stack top (high address)
-    // -1       LR (R13)
-    // -2  -14  R12-R0
-
-    // -15      CPSR
-    // -16      SPSR
-
-    // -17      LR_SVC
-    // -18      SP_SVC
-    // -19      SPSR_SVC
-
-    // -20      LR_USR
-    // -21      SP_USR
-
-    // -22      LR_FIQ (R13)
-    // -23 -27  R12-R8 FIQ
-    // -28      SPSR_FIQ
-    // -29      SP_FIQ
-    // -30      IFSR 
-    // -31      IFAR 
-    // -32      DFSR 
-    // -33      DFAR 
-    // -34      AIFSR
-    // -35      ADFSR
-
-    naked_asm!("
-        // Save LR and load previous CPSR
-        push {{lr}}
-        mrs lr, spsr
-        // check if mode was USR = 0x10 or SVC = 0x13
-        ands lr, lr, #0xF
-        beq mode_usr
-
-        // Hard error during SVC mode, do panic!
-        cpsid af
-
-        push {{r0-r12}} // LR already saved
-
-        mrs r12, cpsr
-        mrs r11, spsr
-
-        mrs r10, lr_svc
-        mrs r9, sp_svc
-        mrs r8, spsr_svc
-
-        mrs r7, lr_usr
-        mrs r6, sp_usr
-        push {{r6-r12}}
-
-        mrs lr, lr_fiq
-        mrs r12, r12_fiq
-        mrs r11, r11_fiq
-        mrs r10, r10_fiq
-        mrs r9, r9_fiq
-        mrs r8, r8_fiq
-        mrs r7, sp_fiq
-        mrs r6, spsr_fiq
-
-        mrc p15, 0, r5, c5, c0, 1   // IFSR
-        mrc p15, 0, r4, c6, c0, 2   // IFAR
-        mrc p15, 0, r3, c5, c0, 0   // DFSR
-        mrc p15, 0, r2, c6, c0, 0   // DFAR
-        mrc p15, 0, r1, c5, c1, 1   // AIFSR
-        mrc p15, 0, r0, c5, c1, 0   // ADFSR
-
-        push {{r0-r12, lr}}
-
-        b   print_fault_frame
-
-    mode_usr:
-        // Hard error during USR mode, don't panic!
-        // store usr context as usual frame in sp_usr
-        mrs lr, sp_usr
-        stmdb lr!, {{r0-r12}}
-        mov r0, lr
-        pop {{r3}}  // was lr_err
-        mrs r2, spsr
-        mrs r1, lr_usr
-        stmdb r0!, {{r1-r3}}
-
-        // switch to SVC
-        cps #{MODE_SVC}
-        isb
-
-        // restore SVC context ; lr will hold return address from switch_to_user()
-        pop {{r4-r12, lr}}
-        // user stack and error code (in r0, r1) are the return values
-        mov r1, #{MODE_RETURN_ERR}
-        bx lr
-
-    ",
-    MODE_SVC = const MODE_SVC,
-    MODE_RETURN_ERR = const syscall::MODE_RETURN_ERR,
-
-    );
-}
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn UND_Handler() {
-    naked_asm!("bkpt");
-}
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-#[unsafe(link_section = ".atcm")]
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn SVC_Handler() {
+pub unsafe extern "C" fn vectors() {
     naked_asm!(
         "
-        // should only happen in USR mode
-
-        // use lr as sp to save regs in user stack
-        // check switch_to_user_arm_cr52() below for frame layout
-        push {{lr}}
-        mrs lr, sp_usr
-        stmdb lr!, {{r0-r12}}
-        mov r0, lr
-        mrs r1, lr_usr
-        mrs r2, spsr
-        // retrieve lr as return address
-        pop {{r3}}
-        stmdb r0!, {{r1-r3}}
-
-        // restore SVC context ; lr will hold return address from switch_to_user()
-        pop {{r4-r12, lr}}
-        mov r1, #{MODE_RETURN_SVC}
-        // user stack and error code (in r0, r1) are the return values
-        bx lr
+        b   EL2_RST_Handler // Boot
+        b   DEF_Handler     // Undefined
+        b   SVC_Handler     // SVC handler
+        b   DEF_Handler     // Prefetch abort
+        b   DEF_Handler     // Data abort
+        .word 0             // Reserved
+        b   DEF_Handler     // IRQ handler
+                            // FIQ handler (no branch, starting below)
         ",
-        MODE_RETURN_SVC = const syscall::MODE_RETURN_SVC,
-    );
-}
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn PFT_Handler() {
-    naked_asm!("bkpt");
-}
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn DAB_Handler() {
-    naked_asm!("bkpt");
-}
 
-// TODO: FIQ handler should be implemented just after the vecor table to
-// avoid a useless jump
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-#[unsafe(link_section = ".atcm")]
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn FIQ_Handler() {
-    naked_asm!(
+// FIQ handler starts here, no branch to avoid useless jump
+
         // We are in FIQ mode, remeber that FIQ is masked in
         // CPSR and R8-R12 are HW banked, unlike any other modes
         "
@@ -409,35 +274,142 @@ pub unsafe extern "C" fn FIQ_Handler() {
         NO_FIQ = const NO_FIQ,
     );
 }
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn IRQ_Handler() {
-    naked_asm!("bkpt",);
-}
 
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".vectors_atcm")
+    unsafe(link_section = ".atcm")
 )]
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vectors() {
-    naked_asm!(
-        "
-        b   EL2_RST_Handler
-        b   DEF_Handler     // UND_Handler
-        b   SVC_Handler
-        b   DEF_Handler     // PFT_Handler
-        b   DEF_Handler     // DAB_Handler
-        .word 0             // RSV
-        b   DEF_Handler     // IRQ_Handler
-        b   FIQ_Handler     // TODO: move the handler here
-        "
+pub unsafe extern "C" fn DEF_Handler() {
+    naked_asm!("
+        // Save LR and load previous CPSR
+        push {{lr}}
+        mrs lr, spsr
+        // check if mode was USR = 0x10 or SVC = 0x13
+        ands lr, lr, #0xF
+        beq mode_usr",
+
+        // Hard error during SVC mode, do panic!
+
+        // Prepare a fault frame for print_fault_frame()
+        // stack top (high address)
+        // -1       LR (R13)
+        // -2  -14  R12-R0
+
+        // -15      CPSR
+        // -16      SPSR
+
+        // -17      LR_SVC
+        // -18      SP_SVC
+        // -19      SPSR_SVC
+
+        // -20      LR_USR
+        // -21      SP_USR
+
+        // -22      LR_FIQ (R13)
+        // -23 -27  R12-R8 FIQ
+        // -28      SPSR_FIQ
+        // -29      SP_FIQ
+        // -30      IFSR 
+        // -31      IFAR 
+        // -32      DFSR 
+        // -33      DFAR 
+        // -34      AIFSR
+        // -35      ADFSR
+        "cpsid af
+
+        push {{r0-r12}} // LR already saved
+
+        mrs r12, cpsr
+        mrs r11, spsr
+
+        mrs r10, lr_svc
+        mrs r9, sp_svc
+        mrs r8, spsr_svc
+
+        mrs r7, lr_usr
+        mrs r6, sp_usr
+        push {{r6-r12}}
+
+        mrs lr, lr_fiq
+        mrs r12, r12_fiq
+        mrs r11, r11_fiq
+        mrs r10, r10_fiq
+        mrs r9, r9_fiq
+        mrs r8, r8_fiq
+        mrs r7, sp_fiq
+        mrs r6, spsr_fiq
+
+        mrc p15, 0, r5, c5, c0, 1   // IFSR
+        mrc p15, 0, r4, c6, c0, 2   // IFAR
+        mrc p15, 0, r3, c5, c0, 0   // DFSR
+        mrc p15, 0, r2, c6, c0, 0   // DFAR
+        mrc p15, 0, r1, c5, c1, 1   // AIFSR
+        mrc p15, 0, r0, c5, c1, 0   // ADFSR
+
+        push {{r0-r12, lr}}
+
+        b   print_fault_frame",
+        
+        // Hard error during USR mode, don't panic!
+        // store usr context as usual frame in sp_usr
+    "mode_usr:
+        mrs lr, sp_usr
+        stmdb lr!, {{r0-r12}}
+        mov r0, lr
+        pop {{r3}}  // was lr_err
+        mrs r2, spsr
+        mrs r1, lr_usr
+        stmdb r0!, {{r1-r3}}
+
+        // switch to SVC
+        cps #{MODE_SVC}
+        isb
+
+        // restore SVC context ; lr will hold return address from switch_to_user()
+        pop {{r4-r12, lr}}
+        // user stack and error code (in r0, r1) are the return values
+        mov r1, #{MODE_RETURN_ERR}
+        bx lr
+    ",
+    MODE_SVC = const MODE_SVC,
+    MODE_RETURN_ERR = const syscall::MODE_RETURN_ERR,
     );
 }
 
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[unsafe(link_section = ".atcm")]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn SVC_Handler() {
+    naked_asm!(
+        // should only happen in USR mode
+
+        // use lr as sp to save regs in user stack
+        // check switch_to_user_arm_cr52() below for frame layout
+        "push {{lr}}
+        mrs lr, sp_usr
+        stmdb lr!, {{r0-r12}}
+        mov r0, lr
+        mrs r1, lr_usr
+        mrs r2, spsr
+        // retrieve lr as return address
+        pop {{r3}}
+        stmdb r0!, {{r1-r3}}
+
+        // restore SVC context ; lr will hold return address from switch_to_user()
+        pop {{r4-r12, lr}}
+        mov r1, #{MODE_RETURN_SVC}
+        // user stack and error code (in r0, r1) are the return values
+        bx lr
+        ",
+        MODE_RETURN_SVC = const syscall::MODE_RETURN_SVC,
+    );
+}
+
+// This is the only non-handler here: asm wrapper for context switch in switch_to_user()
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(link_section = ".atcm")]
 #[unsafe(naked)]

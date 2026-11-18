@@ -49,9 +49,8 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
 const FAULT_RESPONSE: capsules_system::process_policies::StopFaultPolicy =
     capsules_system::process_policies::StopFaultPolicy {};
 
-// system + FIQ + other stacks, check arch/x/vectors.rs for each size
-// TODO: dity code + need to check required size
-kernel::stack_size! {4096 + 256 + 256}
+// system + error stacks
+kernel::stack_size! {cortexr52::vectors::STACK_SIZE_SVC + cortexr52::vectors::STACK_SIZE_ERR}
 
 kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
@@ -63,15 +62,17 @@ struct QemuMps3 {
     ipc: ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static SchedulerInUse,
     console: &'static capsules_core::console::Console<'static>,
-    //pconsole: &'static capsules_core::process_console::ProcessConsole<
-    //    'static,
-    //    { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-    //    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-    //        'static,
-    //        GenTimer<'static>,
-    //    >,
-    //    ProcessConsoleCap,
-    //>,
+    // pconsole is currently disabled as it sucks too much resources
+    // however, it should work if uncommented (and resources usage reduced)
+    /* pconsole: &'static capsules_core::process_console::ProcessConsole<
+        'static,
+        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            GenTimer<'static>,
+        >,
+        ProcessConsoleCap,
+    >, */
     low_level_debug: &'static low_level_debug::MyLowLevelDebug,
     #[cfg(not(feature = "mymux"))]
     alarm: &'static capsules_core::alarm::AlarmDriver<
@@ -90,7 +91,6 @@ impl SyscallDriverLookup for QemuMps3 {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            //capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.low_level_debug)),
             ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => {
@@ -206,7 +206,6 @@ pub unsafe fn main() {
     //);
     //kernel::hil::time::Alarm::set_alarm_client(&chip.gentimer, mux_alarm);
 
-
     // UART
     let uart_mux = components::console::UartMuxComponent::new(&chip.uart2, 115200)
         .finalize(components::uart_mux_component_static!());
@@ -227,27 +226,26 @@ pub unsafe fn main() {
     )
     .finalize(components::debug_writer_component_static!());
 
-    // Create the process printer used in panic prints, etc.
-    //let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
-    //    .finalize(components::process_printer_text_component_static!());
-    //PANIC_RESOURCES.get().map(|resources| {
-    //    resources.printer.put(process_printer);
-    //});
+    // Create the process printer used for pconsole.
+    /*let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
+    }); */
 
     // Initialize the kernel's process console.
-    //let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
-    //let pconsole = components::process_console::ProcessConsoleComponent::new(
-    //    kernel,
-    //    uart_mux,
-    //    mux_alarm,
-    //    process_printer,
-    //    None,
-    //    process_console_cap,
-    //)
-    //.finalize(components::process_console_component_static!(
-    //    GenTimer,
-    //    ProcessConsoleCap
-    //));
+    /*
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        None,
+        process_console_cap,
+    )
+    .finalize(components::process_console_component_static!(
+        GenTimer,
+        ProcessConsoleCap
+    )); */
 
     // ---------------------------------------------------------------------------
     // Platform

@@ -27,6 +27,10 @@ This crate requires to be configured for some specific chip by using a mandatory
 feature (check lib.rs) which must provide clocks and HW modules base addresses
 as constants.
 
+
+TODO:
+ - Watchdog
+ - FP context saving
 ...
 
 ...
