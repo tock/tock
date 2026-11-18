@@ -57,28 +57,28 @@ register_structs! {
         ///
         /// - Address: 0x100 - 0x110 (nRF51)
         /// - Address: 0x100 - 0x120 (nRF52)
-        (4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) => event_in: [ReadWrite<u32, EventsIn::Register>; NUM_GPIOTE]),
+        (0x100 => event_in: [ReadWrite<u32, EventsIn::Register>; NUM_GPIOTE]),
         /// Reserved
-        (4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE => _reserved1),
+        (0x100 + 4 * NUM_GPIOTE => _reserved1),
         /// Event generated from multiple input GPIO pins
         /// - Address: 0x17C - 0x180
-        (4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => event_port: ReadWrite<u32, EventsPort::Register>),
+        (0x17C => event_port: ReadWrite<u32, EventsPort::Register>),
         /// Reserved
-        (0x4 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => _reserved2),
+        (0x180 => _reserved2),
         /// Enable interrupt
         /// - Address: 0x304 - 0x308
-        (0x188 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => intenset: ReadWrite<u32, Intenset::Register>),
+        (0x304 => intenset: ReadWrite<u32, Intenset::Register>),
         /// Disable interrupt
         /// - Address: 0x308 - 0x30C
-        (0x18C + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => intenclr: ReadWrite<u32, Intenclr::Register>),
+        (0x308 => intenclr: ReadWrite<u32, Intenclr::Register>),
         /// Reserved
-        (0x190 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => _reserved3),
+        (0x30C => _reserved3),
         /// Configuration for OUT\[n\], SET\[n\] and CLR\[n\] tasks and IN\[n\] event
         ///
         /// - Adress: 0x510 - 0x520 (nRF51)
         /// - Adress: 0x510 - 0x530 (nRF52)
-        (0x394 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) => config: [ReadWrite<u32, Config::Register>; NUM_GPIOTE]),
-        (0x394 + 4 * NUM_GPIOTE + 0x100 - (0x0 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE + 0x17C - (0x100 + NUM_GPIOTE * 4) + 4 * NUM_GPIOTE => @END),
+        (0x510 => config: [ReadWrite<u32, Config::Register>; NUM_GPIOTE]),
+        (0x510 + NUM_GPIOTE * 4 => @END),
     }
 }
 
