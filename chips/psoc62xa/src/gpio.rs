@@ -156,8 +156,8 @@ PRT_CFG [
     IN_EN4 OFFSET(19) NUMBITS(1) [],
     DRIVE_MODE5 OFFSET(20) NUMBITS(3) [
         HIGHZ = 0,
-        PULL_UP = 2,
-        PULL_DOWN = 3,
+        PULL_UP = 3,
+        PULL_DOWN = 2,
         OD_DRIVESLOW = 4,
         OD_DRIVESHIGH = 5,
         STRONG = 6,
@@ -845,45 +845,45 @@ impl Configure for GpioPin<'_> {
     }
 
     fn floating_state(&self) -> kernel::hil::gpio::FloatingState {
-        let drive_mode = if self.pin == 0 {
+        let drive_mode: Option<PRT_CFG::DRIVE_MODE0::Value> = if self.pin == 0 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE0)
+                .read_as_enum(PRT_CFG::DRIVE_MODE0)
         } else if self.pin == 1 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE1)
+                .read_as_enum(PRT_CFG::DRIVE_MODE1)
         } else if self.pin == 2 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE2)
+                .read_as_enum(PRT_CFG::DRIVE_MODE2)
         } else if self.pin == 3 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE3)
+                .read_as_enum(PRT_CFG::DRIVE_MODE3)
         } else if self.pin == 4 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE4)
+                .read_as_enum(PRT_CFG::DRIVE_MODE4)
         } else if self.pin == 5 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE5)
+                .read_as_enum(PRT_CFG::DRIVE_MODE5)
         } else if self.pin == 6 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE6)
+                .read_as_enum(PRT_CFG::DRIVE_MODE6)
         } else {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE7)
+                .read_as_enum(PRT_CFG::DRIVE_MODE7)
         };
-        if drive_mode == PULL_UP {
-            kernel::hil::gpio::FloatingState::PullUp
-        } else if drive_mode == PULL_DOWN {
-            kernel::hil::gpio::FloatingState::PullDown
-        } else {
-            kernel::hil::gpio::FloatingState::PullNone
+        match drive_mode {
+            Some(PRT_CFG::DRIVE_MODE0::Value::PULL_UP) => kernel::hil::gpio::FloatingState::PullUp,
+            Some(PRT_CFG::DRIVE_MODE0::Value::PULL_DOWN) => {
+                kernel::hil::gpio::FloatingState::PullDown
+            }
+            _ => kernel::hil::gpio::FloatingState::PullNone,
         }
     }
 }
