@@ -5,13 +5,8 @@
 //! System call (SVC) handling for Cortex-R52.
 //!
 use core::fmt::Write;
-use core::ptr::{self, addr_of, addr_of_mut, read_volatile, write_volatile};
+use core::ptr;
 use kernel::errorcode::ErrorCode;
-
-/// Set by the SVC handler when userspace executes an `svc` instruction.
-#[unsafe(no_mangle)]
-#[used]
-pub static mut SYSCALL_FIRED: usize = 0;
 
 /// Process state preserved across kernel entries.
 #[derive(Default)]
@@ -24,9 +19,15 @@ pub struct CortexR52StoredState {
 // Check switch_to_user_arm_cr52() for frame description
 const SVC_FRAME_SIZE: usize = 16 * 4; // 16 words, 4 bytes each
 
-// From the doc: SPSR (MSB-LSB-meaning)
+/// Return codes from asm context switching routines
+/// Different from HW PSTATE.M (PE modes).
+pub const MODE_RETURN_SVC: u32 = 0;
+pub const MODE_RETURN_FIQ: u32 = 1;
+pub const MODE_RETURN_ERR: u32 = 2;
+
+// From the doc: SPSR (MSB-LSB:meaning)
 //    31-27  condition flags = 0
-//    26-25  If Then flags(1) = 0
+//    26-25  If Then flags = 0
 //    24     J = 0
 //    23     SBSS ? = 0
 //    22     PAN ? = 0
@@ -158,29 +159,24 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
 
         // Big stuff occuring here: call the asm context switch and run user code
-        let new_stack_pointer = unsafe {
-            crate::vectors::switch_to_user_arm_cr52(state.sp_usr as *const usize)
+        let (new_stack_pointer, mode) = unsafe {
+            let r0_r1_ret : u64 = crate::vectors::switch_to_user_arm_cr52(state.sp_usr as *const usize);
+            // u64 is the safest way to retrieve 2 registers with standard C ABI
+            ((r0_r1_ret & u32::MAX as u64) as *const usize, (r0_r1_ret >> 32) as u32)
         };
         // when we return via SVC or FIQ handlers, we are back in the kernel context
 
         // Save the user stack pointer returned by the handler.
         state.sp_usr = new_stack_pointer as usize;
 
-        // just copied from Cortex-M
-        let invalid_stack_pointer = state.sp_usr < accessible_memory_start as usize
-            || state.sp_usr.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
-
-        if invalid_stack_pointer {
+        // Check if sp within range
+        if state.sp_usr < accessible_memory_start as usize
+            || state.sp_usr.saturating_add(SVC_FRAME_SIZE) > app_brk as usize {
             // This should use a specific fault for quicker identification
-            sh::v!("STACK OVERFLOW!");
             return (kernel::syscall::ContextSwitchReason::Fault, None);
         }
 
-        // Consume the SVC marker set by the assembly handler.
-        let syscall_fired = unsafe { read_volatile(&*addr_of!(SYSCALL_FIRED)) };
-        unsafe { write_volatile(&mut *addr_of_mut!(SYSCALL_FIRED), 0); }
-
-        let switch_reason = if syscall_fired == 1 {
+        let switch_reason = if mode == MODE_RETURN_SVC {
             // Get the SVC arguments from user stack frame
             let syscall = unsafe {
                 let r0 = ptr::read(new_stack_pointer.add(3));
@@ -208,8 +204,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                     kernel::syscall::ContextSwitchReason::Fault
                 }
             }
-        } else {
+        } else if mode == MODE_RETURN_FIQ {
             kernel::syscall::ContextSwitchReason::Interrupted
+        } else {
+            kernel::syscall::ContextSwitchReason::Fault
         };
 
         (switch_reason, Some(state.sp_usr as *const u8))

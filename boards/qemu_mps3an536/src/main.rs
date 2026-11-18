@@ -46,8 +46,8 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
     SingleThreadValue::new();
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
-    capsules_system::process_policies::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::StopFaultPolicy =
+    capsules_system::process_policies::StopFaultPolicy {};
 
 // system + FIQ + other stacks, check arch/x/vectors.rs for each size
 // TODO: dity code + need to check required size

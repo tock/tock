@@ -19,6 +19,7 @@
 #![allow(dead_code)]
 
 use core::arch::naked_asm;
+use crate::syscall;
 
 /* ARMv8 processor modes */
 const MODE_USR: u16 = 0x10; /* unprivileged mode in which most applications run                           */
@@ -237,9 +238,17 @@ pub unsafe extern "C" fn DEF_Handler() {
     // -35      ADFSR
 
     naked_asm!("
+        // Save LR and load previous CPSR
+        push {{lr}}
+        mrs lr, spsr
+        // check if mode was USR = 0x10 or SVC = 0x13
+        ands lr, lr, #0xF
+        beq mode_usr
+
+        // Hard error during SVC mode, do panic!
         cpsid af
 
-        push {{r0-r12, lr}}
+        push {{r0-r12}} // LR already saved
 
         mrs r12, cpsr
         mrs r11, spsr
@@ -271,7 +280,33 @@ pub unsafe extern "C" fn DEF_Handler() {
         push {{r0-r12, lr}}
 
         b   print_fault_frame
-    ");
+
+    mode_usr:
+        // Hard error during USR mode, don't panic!
+        // store usr context as usual frame in sp_usr
+        mrs lr, sp_usr
+        stmdb lr!, {{r0-r12}}
+        mov r0, lr
+        pop {{r3}}  // was lr_err
+        mrs r2, spsr
+        mrs r1, lr_usr
+        stmdb r0!, {{r1-r3}}
+
+        // switch to SVC
+        cps #{MODE_SVC}
+        isb
+
+        // restore SVC context ; lr will hold return address from switch_to_user()
+        pop {{r4-r12, lr}}
+        // user stack and error code (in r0, r1) are the return values
+        mov r1, #{MODE_RETURN_ERR}
+        bx lr
+
+    ",
+    MODE_SVC = const MODE_SVC,
+    MODE_RETURN_ERR = const syscall::MODE_RETURN_ERR,
+
+    );
 }
 
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
@@ -302,15 +337,13 @@ pub unsafe extern "C" fn SVC_Handler() {
         pop {{r3}}
         stmdb r0!, {{r1-r3}}
 
-        // SVC from userspace: mark that a syscall occurred.
-        ldr r2, =SYSCALL_FIRED
-        mov r3, #1
-        str r3, [r2]
-
         // restore SVC context ; lr will hold return address from switch_to_user()
         pop {{r4-r12, lr}}
-        bx lr       // r0 is the user stack
+        mov r1, #{MODE_RETURN_SVC}
+        // user stack and error code (in r0, r1) are the return values
+        bx lr
         ",
+        MODE_RETURN_SVC = const syscall::MODE_RETURN_SVC,
     );
 }
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
@@ -367,9 +400,11 @@ pub unsafe extern "C" fn FIQ_Handler() {
 
         // restore SVC context ; lr will hold return address from switch_to_user()
         pop {{r4-r12, lr}}
-        // user stack (in r0) is the return value
+        // user stack and FIQ code (in r0m r1) are the return values
+        mov r1, #{MODE_RETURN_FIQ}
         bx lr
         ",
+        MODE_RETURN_FIQ = const syscall::MODE_RETURN_FIQ,
         MODE_SVC = const MODE_SVC,
         NO_FIQ = const NO_FIQ,
     );
@@ -406,17 +441,17 @@ pub unsafe extern "C" fn vectors() {
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(link_section = ".atcm")]
 #[unsafe(naked)]
-pub unsafe extern "C" fn switch_to_user_arm_cr52(user_stack: *const usize) -> *const usize {
+pub unsafe extern "C" fn switch_to_user_arm_cr52(user_stack: *const usize) -> u64 {
     naked_asm!(
         "
         // User stack with saved context
-        //  | LR          | <- r0 (user SP) before (low address)
-        //  | CPSR        |
-        //  | ret addr    |
-        //  | R0          |
-        //  | R1 ... R11  |
-        //  | R12         |
         //  |             | <- SP_usr after  (high address)
+        //  | R12         |
+        //  | R1 ... R11  |
+        //  | R0          |
+        //  | ret addr    |
+        //  | CPSR        |
+        //  | LR          | <- r0 (user SP) before (low address)
 
         // save SVC context and return address
         push {{r4-r12, lr}}
