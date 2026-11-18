@@ -149,6 +149,14 @@ macro_rules! __linker_region_slice_ptr {
 /// > this memory is disjoint from memory that will be used by the abstract
 /// > machine such as the stack, heap, and statics.
 ///
+/// # Usage
+///
+/// ```should_panic
+/// # use riscv::__linker_region_slice_ptr as linker_region_slice_ptr;
+/// let apps_flash: *mut [u8] = linker_region_slice_ptr!("_sapps", "_eapps")
+///     .expect("App flash region is invalid");
+/// ```
+///
 /// # Safety Considerations
 ///
 /// This macro is safe to invoke, and has no strict safety invariants that
