@@ -61,9 +61,8 @@ register_structs! {
         (0x090 => bdcr: ReadWrite<u32, BDCR::Register>),
         (0x094 => csr: ReadWrite<u32, CSR::Register>),
         (0x098 => _reserved6),
-        (0x0A6 => _implicit_padding0),
-        (0x0A8 => extcfgr: ReadWrite<u32, EXTCFGR::Register>),
-        (0x0AC => @END),
+        (0x108 => extcfgr: ReadWrite<u32, EXTCFGR::Register>),
+        (0x10C => @END),
     }
 }
 

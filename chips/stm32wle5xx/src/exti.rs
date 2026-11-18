@@ -44,8 +44,8 @@ register_structs! {
         /// RESERVED (0x08C)
         (0x088 => reserved2),
         /// Interrupt mask register (EXTI_IMR2)
-        (0x08C => imr2: ReadWrite<u32, IMR2::Register>),
-        (0x090 => @END),
+        (0x090 => imr2: ReadWrite<u32, IMR2::Register>),
+        (0x094 => @END),
     }
 }
 

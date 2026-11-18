@@ -391,10 +391,10 @@ register_bitfields![u32,
 ];
 
 const GPIOH_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40001C00 as *const GpioRegisters) };
+    unsafe { StaticRef::new(0x48001C00 as *const GpioRegisters) };
 
 const GPIOC_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40000800 as *const GpioRegisters) };
+    unsafe { StaticRef::new(0x48000800 as *const GpioRegisters) };
 
 const GPIOB_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x48000400 as *const GpioRegisters) };

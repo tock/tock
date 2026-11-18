@@ -57,12 +57,14 @@ register_structs! {
         /// DMA address for full transfer
         (0x04C => dmar: ReadWrite<u32>),
         /// TIM5 option register
-        (0x050 => or_: ReadWrite<u32>),
+        (0x050 => or1: ReadWrite<u32>),
+        (0x054 => _reserved2),
         /// TIM2 Alternate function option register 1
-        (0x054 => af1: ReadWrite<u32>),
+        (0x060 => af1: ReadWrite<u32>),
+        (0x064 => _reserved3),
         /// TIM2 timer input selection register
-        (0x058 => tisel: ReadWrite<u32>),
-        (0x05C => @END),
+        (0x068 => tisel: ReadWrite<u32>),
+        (0x06C => @END),
     }
 }
 
