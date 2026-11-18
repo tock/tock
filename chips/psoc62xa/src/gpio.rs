@@ -254,10 +254,6 @@ VDD_INTR_SET [
 const GPIO_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x40310000 as *const GpioRegisters) };
 
-const HIGHZ: u32 = 0;
-const PULL_UP: u32 = 2;
-const PULL_DOWN: u32 = 3;
-
 #[derive(Clone, Copy, Debug)]
 pub enum PsocPin {
     P0_0 = 0,
@@ -536,8 +532,8 @@ impl GpioPin<'_> {
                     .is_set(PRT_CFG::IN_EN0),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE0)
-                    == HIGHZ,
+                    .read_as_enum(PRT_CFG::DRIVE_MODE0)
+                    == Some(PRT_CFG::DRIVE_MODE1::Value::HIGHZ),
             )
         } else if self.pin == 1 {
             (
@@ -546,8 +542,8 @@ impl GpioPin<'_> {
                     .is_set(PRT_CFG::IN_EN1),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE1)
-                    == HIGHZ,
+                    .read_as_enum(PRT_CFG::DRIVE_MODE1)
+                    == Some(PRT_CFG::DRIVE_MODE1::Value::HIGHZ),
             )
         } else if self.pin == 2 {
             (
@@ -556,8 +552,8 @@ impl GpioPin<'_> {
                     .is_set(PRT_CFG::IN_EN2),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE2)
-                    == HIGHZ,
+                    .read_as_enum(PRT_CFG::DRIVE_MODE2)
+                    == Some(PRT_CFG::DRIVE_MODE2::Value::HIGHZ),
             )
         } else if self.pin == 3 {
             (
@@ -566,8 +562,8 @@ impl GpioPin<'_> {
                     .is_set(PRT_CFG::IN_EN3),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE3)
-                    == HIGHZ,
+                    .read_as_enum(PRT_CFG::DRIVE_MODE3)
+                    == Some(PRT_CFG::DRIVE_MODE3::Value::HIGHZ),
             )
         } else if self.pin == 4 {
             (
@@ -576,8 +572,8 @@ impl GpioPin<'_> {
                     .is_set(PRT_CFG::IN_EN4),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE4)
-                    == HIGHZ,
+                    .read_as_enum(PRT_CFG::DRIVE_MODE4)
+                    == Some(PRT_CFG::DRIVE_MODE4::Value::HIGHZ),
             )
         } else if self.pin == 5 {
             (
@@ -586,8 +582,8 @@ impl GpioPin<'_> {
                     .is_set(PRT_CFG::IN_EN5),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE5)
-                    == HIGHZ,
+                    .read_as_enum(PRT_CFG::DRIVE_MODE5)
+                    == Some(PRT_CFG::DRIVE_MODE5::Value::HIGHZ),
             )
         } else if self.pin == 6 {
             (
@@ -596,8 +592,8 @@ impl GpioPin<'_> {
                     .is_set(PRT_CFG::IN_EN6),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE6)
-                    == HIGHZ,
+                    .read_as_enum(PRT_CFG::DRIVE_MODE6)
+                    == Some(PRT_CFG::DRIVE_MODE6::Value::HIGHZ),
             )
         } else {
             (
@@ -606,8 +602,8 @@ impl GpioPin<'_> {
                     .is_set(PRT_CFG::IN_EN7),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE7)
-                    == HIGHZ,
+                    .read_as_enum(PRT_CFG::DRIVE_MODE7)
+                    == Some(PRT_CFG::DRIVE_MODE7::Value::HIGHZ),
             )
         };
         match (input_buffer, high_impedance) {
