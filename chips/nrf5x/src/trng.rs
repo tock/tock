@@ -30,8 +30,8 @@ use kernel::hil::entropy::{self, Continue};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use tock_registers_v0::interfaces::{Readable, Writeable};
-use tock_registers_v0::{register_bitfields, register_structs};
 use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     pub RngRegisters {
