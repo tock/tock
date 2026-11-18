@@ -125,6 +125,10 @@ macro_rules! __linker_region_slice_ptr {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __linker_region_slice_ptr {
+        // We force-assign to a `&'static str` const to ensure that we reject
+        // any non-string literals:
+        const _START_SYM: &'static str = $start_sym;
+        const _END_SYM: &'static str = $end_sym;
     ($start_sym:literal, $end_sym:literal) => {{ ::core::option::Option::None }};
 }
 
