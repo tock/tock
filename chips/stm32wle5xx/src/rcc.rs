@@ -164,9 +164,9 @@ register_bitfields![u32,
         /// Wake-up from Stop and CSS backup clock selection
         STOPWUICK OFFSET(15) NUMBITS(1) [],
         /// PCLK2 high-speed prescaler (APB2)
-        PPRE2 OFFSET(13) NUMBITS(3) [],
+        PPRE2 OFFSET(11) NUMBITS(3) [],
         /// PCLK1 low-speed prescaler (APB1)
-        PPRE1 OFFSET(10) NUMBITS(3) [],
+        PPRE1 OFFSET(8) NUMBITS(3) [],
         /// HCLK1 prescaler (CPU, AHB1, and AHB2)
         HPRE OFFSET(4) NUMBITS(4) [],
         /// System clock switch status

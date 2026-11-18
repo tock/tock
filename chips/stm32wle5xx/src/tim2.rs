@@ -56,7 +56,7 @@ register_structs! {
         (0x048 => dcr: ReadWrite<u32, DCR::Register>),
         /// DMA address for full transfer
         (0x04C => dmar: ReadWrite<u32>),
-        /// TIM5 option register
+        /// TIM2 option register 1
         (0x050 => or1: ReadWrite<u32>),
         (0x054 => _reserved2),
         /// TIM2 Alternate function option register 1
