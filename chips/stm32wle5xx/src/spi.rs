@@ -14,8 +14,8 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers_v0::{register_bitfields, register_structs};
 use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::clocks::Stm32wle5xxClocks;
 use crate::clocks::phclk;

@@ -8,8 +8,8 @@
 
 use kernel::utilities::StaticRef;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable};
-use tock_registers_v0::{register_bitfields, register_structs};
 use tock_registers_v0::registers::{ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 const PWR: StaticRef<PwrRegisters> = unsafe { StaticRef::new(0x5800_0400 as *const _) };
 

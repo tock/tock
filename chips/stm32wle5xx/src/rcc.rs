@@ -4,8 +4,8 @@
 
 use kernel::utilities::StaticRef;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable};
-use tock_registers_v0::{register_bitfields, register_structs};
 use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// Reset and clock control

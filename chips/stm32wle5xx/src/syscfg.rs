@@ -6,8 +6,8 @@ use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::utilities::StaticRef;
 use tock_registers_v0::interfaces::ReadWriteable;
-use tock_registers_v0::{register_bitfields, register_structs};
 use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::gpio;
 
