@@ -13,6 +13,7 @@ semihosting = { version = "0.1.18", features = ["stdio"] }
 sh = { path = "../../capsules/sh" }
 
 kernel = { path = "../../kernel" }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 
 [features]
 config-xcku115an536 = []

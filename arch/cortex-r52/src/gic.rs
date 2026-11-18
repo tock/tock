@@ -15,8 +15,9 @@
 
 #[allow(unused_imports)]
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::{register_bitfields, register_structs};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::interfaces::{Readable, Writeable};
 use crate::reg;
 use crate::config;
 

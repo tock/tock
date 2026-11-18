@@ -204,6 +204,7 @@ dependencies = [
  "kernel",
  "semihosting",
  "sh",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
@@ -2146,6 +2147,7 @@ dependencies = [
  "kernel",
  "semihosting",
  "sh",
+ "tock-registers 0.11.0",
 ]
 
 [[package]]
