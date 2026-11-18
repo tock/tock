@@ -191,8 +191,8 @@ impl<'a> StreamingProcessSlice<'a> {
 
         Ok(StreamingProcessSliceHeader {
             version,
-            halt: flags.read(StreamingProcessSliceFlags::HALT) != 0,
-            exceeded: flags.read(StreamingProcessSliceFlags::EXCEEDED) != 0,
+            halt: flags.is_set(StreamingProcessSliceFlags::HALT),
+            exceeded: flags.is_set(StreamingProcessSliceFlags::EXCEEDED),
             offset: u32::from_ne_bytes(offset_bytes),
         })
     }

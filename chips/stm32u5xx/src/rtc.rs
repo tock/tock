@@ -563,7 +563,7 @@ impl<'a> Rtc<'a> {
         self.bypass_write_protection();
         self.registers.rtc_icsr.modify(RTC_ICSR::INIT::SET);
         let mut cycle_counter = 100000;
-        while self.registers.rtc_icsr.read(RTC_ICSR::INITF) != 1 && cycle_counter > 0 {
+        while !self.registers.rtc_icsr.is_set(RTC_ICSR::INITF) && cycle_counter > 0 {
             cycle_counter -= 1;
         }
         if cycle_counter <= 0 {
@@ -635,7 +635,7 @@ impl<'a> Rtc<'a> {
         // and then re-enable write protection so we don't accidentaly change anything.
         self.registers.rtc_icsr.modify(RTC_ICSR::INIT::CLEAR);
         let mut cycle_counter = 100000;
-        while self.registers.rtc_icsr.read(RTC_ICSR::INITF) != 0 && cycle_counter > 0 {
+        while self.registers.rtc_icsr.is_set(RTC_ICSR::INITF) && cycle_counter > 0 {
             cycle_counter -= 1;
         }
         if cycle_counter <= 0 {

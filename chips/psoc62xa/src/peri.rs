@@ -200,7 +200,7 @@ impl Peri {
                 + DIV_CMD::PA_DIV_SEL.val(255),
         );
 
-        while self.registers.div_cmd.read(DIV_CMD::ENABLE) == 1 {}
+        while self.registers.div_cmd.is_set(DIV_CMD::ENABLE) {}
 
         self.registers
             .clock_ctl_5
@@ -222,7 +222,7 @@ impl Peri {
                 + DIV_CMD::PA_DIV_SEL.val(255),
         );
 
-        while self.registers.div_cmd.read(DIV_CMD::ENABLE) == 1 {}
+        while self.registers.div_cmd.is_set(DIV_CMD::ENABLE) {}
 
         self.registers
             .clock_ctl_15

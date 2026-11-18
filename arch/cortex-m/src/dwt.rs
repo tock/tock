@@ -463,7 +463,7 @@ impl Dwt {
 
     /// Returns whether a cycle counter is present on the chip.
     pub fn is_cycle_counter_present(&self) -> bool {
-        DWT.ctrl.read(Control::NOCYCCNT) == 0
+        !DWT.ctrl.is_set(Control::NOCYCCNT)
     }
 }
 

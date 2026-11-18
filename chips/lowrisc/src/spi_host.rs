@@ -294,7 +294,7 @@ impl SpiHost<'_> {
                 let mut t_byte: u32;
                 let mut tx_slice: [u8; 4];
 
-                if regs.status.read(status::TXQD) != 0 || regs.status.read(status::ACTIVE) != 0 {
+                if regs.status.read(status::TXQD) != 0 || regs.status.is_set(status::ACTIVE) {
                     self.tx_buf.replace(tx_buf);
                     return Err(ErrorCode::BUSY);
                 }

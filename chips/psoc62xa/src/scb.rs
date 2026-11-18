@@ -678,7 +678,10 @@ impl Scb<'_> {
     }
 
     fn uart_is_transmitter_done(&self) -> bool {
-        self.registers.tx_fifo_status.read(TX_FIFO_STATUS::SR_VALID) == 0
+        !self
+            .registers
+            .tx_fifo_status
+            .is_set(TX_FIFO_STATUS::SR_VALID)
     }
 
     pub fn transmit_uart_sync(&self, buffer: &[u8]) {

@@ -159,7 +159,7 @@ impl Hash<'_> {
 
         if let Some(state) = self.state.get() {
             // Has digest calculation completed?
-            if regs.sr.read(SR::DCIS) != 0 {
+            if regs.sr.is_set(SR::DCIS) {
                 // If key is present, then we need to process it accordingly
                 match (state, self.cancelled.get()) {
                     (State::HmacFinalize | State::Run, true) => {
@@ -222,7 +222,7 @@ impl Hash<'_> {
                     _ => (),
                 }
             // Is data input buffer empty?
-            } else if regs.sr.read(SR::DINIS) != 0 {
+            } else if regs.sr.is_set(SR::DINIS) {
                 match (state, self.cancelled.get()) {
                     (State::Add | State::HmacInit | State::HmacPreAuth, true) => {
                         self.cancelled.set(false);
@@ -955,7 +955,7 @@ impl Hash<'_> {
         let regs = self.regs;
         // Set the padding
         if !self.leftover.is_empty() {
-            if regs.sr.read(SR::BUSY) == 0 {
+            if !regs.sr.is_set(SR::BUSY) {
                 // Peripheral is free -> flush the leftover bytes
                 self.flush_leftover();
             } else {

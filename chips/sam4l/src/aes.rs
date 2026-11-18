@@ -216,8 +216,8 @@ impl<'a> Aes<'a> {
     fn busy(&self) -> bool {
         // Are any interrupts set, meaning an encryption operation
         // is in progress?
-        (self.registers.imr.read(Interrupt::IBUFRDY) | self.registers.imr.read(Interrupt::ODATARDY))
-            != 0
+        self.registers.imr.is_set(Interrupt::IBUFRDY)
+            || self.registers.imr.is_set(Interrupt::ODATARDY)
     }
 
     fn set_mode(&self, encrypting: bool, mode: ConfidentialityMode) {
@@ -235,11 +235,11 @@ impl<'a> Aes<'a> {
     }
 
     fn input_buffer_ready(&self) -> bool {
-        self.registers.sr.read(Status::IBUFRDY) != 0
+        self.registers.sr.is_set(Status::IBUFRDY)
     }
 
     fn output_data_ready(&self) -> bool {
-        self.registers.sr.read(Status::ODATARDY) != 0
+        self.registers.sr.is_set(Status::ODATARDY)
     }
 
     fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {

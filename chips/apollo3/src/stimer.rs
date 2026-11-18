@@ -247,7 +247,7 @@ impl<'a> Alarm<'a> for STimer<'a> {
     fn is_armed(&self) -> bool {
         let regs = self.registers;
 
-        regs.stcfg.read(STCFG::COMPARE_A_EN) != 0
+        regs.stcfg.is_set(STCFG::COMPARE_A_EN)
     }
 
     fn minimum_dt(&self) -> Self::Ticks {

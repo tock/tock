@@ -488,10 +488,9 @@ impl<'a> Pwm<'a> {
             .csr
             .modify(CSR::PH_ADV::SET);
         Self::wait_for(100, || {
-            self.registers.ch[channel_number as usize]
+            !self.registers.ch[channel_number as usize]
                 .csr
-                .read(CSR::PH_ADV)
-                == 0
+                .is_set(CSR::PH_ADV)
         })
     }
 
@@ -504,10 +503,9 @@ impl<'a> Pwm<'a> {
             .csr
             .modify(CSR::PH_RET::SET);
         Self::wait_for(100, || {
-            self.registers.ch[channel_number as usize]
+            !self.registers.ch[channel_number as usize]
                 .csr
-                .read(CSR::PH_RET)
-                == 0
+                .is_set(CSR::PH_RET)
         })
     }
 

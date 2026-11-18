@@ -1012,7 +1012,7 @@ impl StateMachine {
             SMNumber::SM2 => FSTAT::TXFULL2,
             SMNumber::SM3 => FSTAT::TXFULL3,
         };
-        self.registers.fstat.read(field) != 0
+        self.registers.fstat.is_set(field)
     }
 
     /// Returns true if the RX FIFO is empty.
@@ -1023,7 +1023,7 @@ impl StateMachine {
             SMNumber::SM2 => FSTAT::RXEMPTY2,
             SMNumber::SM3 => FSTAT::RXEMPTY3,
         };
-        self.registers.fstat.read(field) != 0
+        self.registers.fstat.is_set(field)
     }
 
     /// Returns true if the TX FIFO is empty.
@@ -1034,7 +1034,7 @@ impl StateMachine {
             SMNumber::SM2 => FSTAT::TXEMPTY2,
             SMNumber::SM3 => FSTAT::TXEMPTY3,
         };
-        self.registers.fstat.read(field) != 0
+        self.registers.fstat.is_set(field)
     }
 
     /// Immediately execute an instruction on a state machine.
@@ -1107,7 +1107,7 @@ impl StateMachine {
             SMNumber::SM2 => CTRL::SM2_ENABLE,
             SMNumber::SM3 => CTRL::SM3_ENABLE,
         };
-        self.registers.ctrl.read(field) != 0
+        self.registers.ctrl.is_set(field)
     }
 
     /// Runs function with the state machine paused.

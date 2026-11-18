@@ -773,11 +773,11 @@ impl<'a> Can<'a> {
     }
 
     pub fn find_empty_mailbox(&self) -> Option<usize> {
-        if self.registers.can_tsr.read(CAN_TSR::TME0) == 1 {
+        if self.registers.can_tsr.is_set(CAN_TSR::TME0) {
             Some(0)
-        } else if self.registers.can_tsr.read(CAN_TSR::TME1) == 1 {
+        } else if self.registers.can_tsr.is_set(CAN_TSR::TME1) {
             Some(1)
-        } else if self.registers.can_tsr.read(CAN_TSR::TME2) == 1 {
+        } else if self.registers.can_tsr.is_set(CAN_TSR::TME2) {
             Some(2)
         } else {
             None
@@ -800,16 +800,16 @@ impl<'a> Can<'a> {
     /// transmit mailbox to find out the mailbox that the message was sent from.
     pub fn handle_transmit_interrupt(&self) {
         let mut state = Ok(());
-        if self.registers.can_esr.read(CAN_ESR::BOFF) == 1 {
+        if self.registers.can_esr.is_set(CAN_ESR::BOFF) {
             state = Err(can::Error::BusOff)
         } else {
-            if self.registers.can_tsr.read(CAN_TSR::RQCP0) == 1 {
+            if self.registers.can_tsr.is_set(CAN_TSR::RQCP0) {
                 // check status
-                state = if self.registers.can_tsr.read(CAN_TSR::TXOK0) == 1 {
+                state = if self.registers.can_tsr.is_set(CAN_TSR::TXOK0) {
                     Ok(())
-                } else if self.registers.can_tsr.read(CAN_TSR::TERR0) == 1 {
+                } else if self.registers.can_tsr.is_set(CAN_TSR::TERR0) {
                     Err(can::Error::Transmission)
-                } else if self.registers.can_tsr.read(CAN_TSR::ALST0) == 1 {
+                } else if self.registers.can_tsr.is_set(CAN_TSR::ALST0) {
                     Err(can::Error::ArbitrationLost)
                 } else {
                     Ok(())
@@ -817,12 +817,12 @@ impl<'a> Can<'a> {
                 // mark the interrupt as handled
                 self.registers.can_tsr.modify(CAN_TSR::RQCP0::SET);
             }
-            if self.registers.can_tsr.read(CAN_TSR::RQCP1) == 1 {
-                state = if self.registers.can_tsr.read(CAN_TSR::TXOK1) == 1 {
+            if self.registers.can_tsr.is_set(CAN_TSR::RQCP1) {
+                state = if self.registers.can_tsr.is_set(CAN_TSR::TXOK1) {
                     Ok(())
-                } else if self.registers.can_tsr.read(CAN_TSR::TERR1) == 1 {
+                } else if self.registers.can_tsr.is_set(CAN_TSR::TERR1) {
                     Err(can::Error::Transmission)
-                } else if self.registers.can_tsr.read(CAN_TSR::ALST1) == 1 {
+                } else if self.registers.can_tsr.is_set(CAN_TSR::ALST1) {
                     Err(can::Error::ArbitrationLost)
                 } else {
                     Ok(())
@@ -830,12 +830,12 @@ impl<'a> Can<'a> {
                 // mark the interrupt as handled
                 self.registers.can_tsr.modify(CAN_TSR::RQCP1::SET);
             }
-            if self.registers.can_tsr.read(CAN_TSR::RQCP2) == 1 {
-                state = if self.registers.can_tsr.read(CAN_TSR::TXOK2) == 1 {
+            if self.registers.can_tsr.is_set(CAN_TSR::RQCP2) {
+                state = if self.registers.can_tsr.is_set(CAN_TSR::TXOK2) {
                     Ok(())
-                } else if self.registers.can_tsr.read(CAN_TSR::TERR2) == 1 {
+                } else if self.registers.can_tsr.is_set(CAN_TSR::TERR2) {
                     Err(can::Error::Transmission)
-                } else if self.registers.can_tsr.read(CAN_TSR::ALST2) == 1 {
+                } else if self.registers.can_tsr.is_set(CAN_TSR::ALST2) {
                     Err(can::Error::ArbitrationLost)
                 } else {
                     Ok(())
@@ -860,10 +860,9 @@ impl<'a> Can<'a> {
         &self,
         rx_mailbox: usize,
     ) -> (can::Id, usize, [u8; can::STANDARD_CAN_PACKET_SIZE]) {
-        let message_id = if self.registers.can_rx_mailbox[rx_mailbox]
+        let message_id = if !self.registers.can_rx_mailbox[rx_mailbox]
             .can_rir
-            .read(CAN_RIxR::IDE)
-            == 0
+            .is_set(CAN_RIxR::IDE)
         {
             can::Id::Standard(
                 self.registers.can_rx_mailbox[rx_mailbox]
@@ -895,11 +894,11 @@ impl<'a> Can<'a> {
     }
 
     pub fn handle_fifo0_interrupt(&self) {
-        if self.registers.can_rf0r.read(CAN_RF0R::FULL0) == 1 {
+        if self.registers.can_rf0r.is_set(CAN_RF0R::FULL0) {
             self.registers.can_rf0r.modify(CAN_RF0R::FULL0::SET);
         }
 
-        if self.registers.can_rf0r.read(CAN_RF0R::FOVR0) == 1 {
+        if self.registers.can_rf0r.is_set(CAN_RF0R::FOVR0) {
             self.registers.can_rf0r.modify(CAN_RF0R::FOVR0::SET);
         }
 
@@ -918,11 +917,11 @@ impl<'a> Can<'a> {
     }
 
     pub fn handle_fifo1_interrupt(&self) {
-        if self.registers.can_rf1r.read(CAN_RF1R::FULL1) == 1 {
+        if self.registers.can_rf1r.is_set(CAN_RF1R::FULL1) {
             self.registers.can_rf1r.modify(CAN_RF1R::FULL1::SET);
         }
 
-        if self.registers.can_rf1r.read(CAN_RF1R::FOVR1) == 1 {
+        if self.registers.can_rf1r.is_set(CAN_RF1R::FOVR1) {
             self.registers.can_rf1r.modify(CAN_RF1R::FOVR1::SET);
         }
 
@@ -941,28 +940,28 @@ impl<'a> Can<'a> {
 
     pub fn handle_error_status_interrupt(&self) {
         // Check if there is a status change interrupt
-        if self.registers.can_msr.read(CAN_MSR::WKUI) == 1 {
+        if self.registers.can_msr.is_set(CAN_MSR::WKUI) {
             // mark the interrupt as handled
             self.registers.can_msr.modify(CAN_MSR::WKUI::SET);
         }
-        if self.registers.can_msr.read(CAN_MSR::SLAKI) == 1 {
+        if self.registers.can_msr.is_set(CAN_MSR::SLAKI) {
             // mark the interrupt as handled
             self.registers.can_msr.modify(CAN_MSR::SLAKI::SET);
         }
 
         // Check if there is an error interrupt
         // Warning flag
-        if self.registers.can_esr.read(CAN_ESR::EWGF) == 1 {
+        if self.registers.can_esr.is_set(CAN_ESR::EWGF) {
             self.can_state
                 .set(CanState::RunningError(can::Error::Warning));
         }
         // Passive flag
-        if self.registers.can_esr.read(CAN_ESR::EPVF) == 1 {
+        if self.registers.can_esr.is_set(CAN_ESR::EPVF) {
             self.can_state
                 .set(CanState::RunningError(can::Error::Passive));
         }
         // Bus-off flag
-        if self.registers.can_esr.read(CAN_ESR::BOFF) == 1 {
+        if self.registers.can_esr.is_set(CAN_ESR::BOFF) {
             self.can_state
                 .set(CanState::RunningError(can::Error::BusOff));
         }

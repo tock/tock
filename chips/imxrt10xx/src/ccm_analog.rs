@@ -624,6 +624,6 @@ impl CcmAnalog {
         // Enable the PLL
         self.registers.pll_arm.set.write(PLL_ARM::ENABLE::SET);
         // Wait for lock
-        while self.registers.pll_arm.reg.read(PLL_ARM::LOCK) == 0 {}
+        while !self.registers.pll_arm.reg.is_set(PLL_ARM::LOCK) {}
     }
 }

@@ -338,7 +338,7 @@ impl<'a> Rtc<'a> {
         self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(0));
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
-        while hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE) > 0 {}
+        while hw_ctrl != 0 && self.registers.ctrl.is_set(CTRL::RTC_ACTIVE) {}
 
         let datetime = date_time::DateTimeValues {
             year: 1970,
@@ -355,7 +355,7 @@ impl<'a> Rtc<'a> {
         self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(1));
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
-        while !((hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE)) > 0) {
+        while !(hw_ctrl != 0 && self.registers.ctrl.is_set(CTRL::RTC_ACTIVE)) {
             // wait until rtc starts
         }
 

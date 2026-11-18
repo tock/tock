@@ -77,11 +77,11 @@ impl Prci {
     pub fn switch_to_internal_clock(&self) {
         let regs = self.registers;
         // Enable internal high-frequency clock if it's not enabled
-        if regs.hfrosccfg.read(hfrosccfg::enable) == 0 {
+        if !regs.hfrosccfg.is_set(hfrosccfg::enable) {
             regs.hfrosccfg.modify(hfrosccfg::enable::SET);
         }
         // ... Wait until the clock is ready
-        while regs.hfrosccfg.read(hfrosccfg::ready) == 0 {}
+        while !regs.hfrosccfg.is_set(hfrosccfg::ready) {}
         // ... and now actually switch
         regs.pllcfg
             .modify(pllcfg::sel::CLEAR + pllcfg::bypass::CLEAR);
@@ -97,11 +97,11 @@ impl Prci {
     pub fn enable_external_clock(&self) {
         let regs = self.registers;
         // Make sure external crystal oscillator is enabled
-        if regs.hfxosccfg.read(hfxosccfg::enable) == 0 {
+        if !regs.hfxosccfg.is_set(hfxosccfg::enable) {
             regs.hfxosccfg.modify(hfxosccfg::enable::SET);
         }
         // ... Wait until the clock is ready
-        while regs.hfxosccfg.read(hfxosccfg::ready) == 0 {}
+        while !regs.hfxosccfg.is_set(hfxosccfg::ready) {}
     }
 
     pub fn set_clock_frequency(&self, frequency: ClockFrequency) {
@@ -155,7 +155,7 @@ impl Prci {
                 let start = csr::CSR.mcycle.get();
                 while csr::CSR.mcycle.get() - start < 2200 {}
                 // ... and now wait for the PLL lock
-                while regs.pllcfg.read(pllcfg::lock) == 0 {}
+                while !regs.pllcfg.is_set(pllcfg::lock) {}
                 // ... and finally switch to the PLL output
                 regs.pllcfg.modify(pllcfg::sel::SET);
             }

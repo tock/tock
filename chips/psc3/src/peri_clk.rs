@@ -263,7 +263,7 @@ impl PeriPClk {
                 + DIV_CMD::PA_TYPE_SEL.val(3 /* set PA masks */)
                 + DIV_CMD::PA_DIV_SEL.val(255),
         );
-        while div_cmd.read(DIV_CMD::ENABLE) == 1 {}
+        while div_cmd.is_set(DIV_CMD::ENABLE) {}
     }
 
     /// Configure peripheral clocks for scb and tcpwm0.

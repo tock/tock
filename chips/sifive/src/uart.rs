@@ -205,7 +205,7 @@ impl<'a> Uart<'a> {
         while self.rx_position.get() < self.rx_len.get() {
             let rxdata_copy = self.registers.rxdata.extract();
 
-            if rxdata_copy.read(rxdata::empty) == 1 {
+            if rxdata_copy.is_set(rxdata::empty) {
                 break;
             }
 

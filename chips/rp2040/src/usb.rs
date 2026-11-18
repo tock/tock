@@ -2027,10 +2027,9 @@ impl<'a> UsbCtrl<'a> {
                     let result = client.packet_out(transfer_type, endpoint, packet_bytes);
                     let new_out_state = match result {
                         hil::usb::OutResult::Ok => {
-                            if self.dpsram.ep_buf_ctrl[endpoint]
+                            if !self.dpsram.ep_buf_ctrl[endpoint]
                                 .ep_out_buf_ctrl
-                                .read(EP_BUFFER_CONTROL::DATA_PID0)
-                                == 0
+                                .is_set(EP_BUFFER_CONTROL::DATA_PID0)
                             {
                                 self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.modify(
                                     EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(packet_bytes)
@@ -2148,10 +2147,9 @@ impl<'a> UsbCtrl<'a> {
             slice[idx].set(self.dpsram.ep0_buffer0[idx].get());
         }
 
-        if self.dpsram.ep_buf_ctrl[endpoint]
+        if !self.dpsram.ep_buf_ctrl[endpoint]
             .ep_out_buf_ctrl
-            .read(EP_BUFFER_CONTROL::DATA_PID0)
-            == 0
+            .is_set(EP_BUFFER_CONTROL::DATA_PID0)
         {
             self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.modify(
                 EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(slice.len() as u32)
@@ -2264,10 +2262,9 @@ impl<'a> UsbCtrl<'a> {
                     .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
             }
             1..=N_ENDPOINTS => {
-                if self.dpsram.ep_buf_ctrl[endpoint]
+                if !self.dpsram.ep_buf_ctrl[endpoint]
                     .ep_in_buf_ctrl
-                    .read(EP_BUFFER_CONTROL::DATA_PID0)
-                    == 0
+                    .is_set(EP_BUFFER_CONTROL::DATA_PID0)
                 {
                     self.dpsram.ep_buf_ctrl[endpoint].ep_in_buf_ctrl.modify(
                         EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(0)

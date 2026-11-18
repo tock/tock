@@ -98,7 +98,7 @@ impl PwrMgr {
     pub fn check_clock_propagation(&self) -> bool {
         let regs = self.registers;
 
-        regs.cfg_cdc_sync.read(CFG_CDC_SYNC::SYNC) == 0
+        !regs.cfg_cdc_sync.is_set(CFG_CDC_SYNC::SYNC)
     }
 
     pub fn handle_interrupt(&self) {
@@ -114,7 +114,7 @@ impl PwrMgr {
     pub fn enable_low_power(&self) {
         let regs = self.registers;
 
-        if regs.control.read(CONTROL::LOW_POWER_HINT) != 1 {
+        if !regs.control.is_set(CONTROL::LOW_POWER_HINT) {
             // Next WFI should trigger low power entry
             // Leave the IO clock enabled as we need to get interrupts
             regs.control.write(
