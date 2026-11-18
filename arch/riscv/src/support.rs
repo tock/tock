@@ -75,7 +75,7 @@ macro_rules! __linker_region_slice_ptr {
 
         // The below assembly loads the symbol addresses of `$start_sym` and
         // `$end_sym` into `start` and `end` respectively.
-        let start: usize;
+        let start: *const ();
         let end: usize;
 
         // SAFETY: this RISC-V assembly is guaranteed to run only on RISC-V
@@ -101,16 +101,13 @@ macro_rules! __linker_region_slice_ptr {
 
         // Convert the `start` and (exclusive) `end` address into a raw slice
         // pointer. We use a checked subtraction to avoid silent wraparounds.
-        if let ::core::option::Option::Some(len) = end.checked_sub(start) {
+        if let ::core::option::Option::Some(len) = end.checked_sub(start.addr()) {
             // As documented for this macro, we assume that the range between
             // `$start_sym` (inclusive) and `$end_sym` (exclusive) describes
             // memory whose provenance Rust already considers exposed (see macro
             // documentation).
             ::core::option::Option::Some(
-                ::core::ptr::slice_from_raw_parts_mut(
-                    ::core::ptr::with_exposed_provenance_mut::<u8>(start),
-                    len,
-                )
+                ::core::ptr::slice_from_raw_parts_mut(start, len)
             )
         } else {
             ::core::option::Option::None
@@ -138,11 +135,9 @@ macro_rules! __linker_region_slice_ptr {
 ///
 /// The macro internally uses RISC-V assembly to load the integer addresses of
 /// both symbols *without* creating any intermediate dereferenceable Rust
-/// objects over any parts of the memory region. It then uses
-/// `core::ptr::with_exposed_provenance_mut` to convert the start address into a
-/// pointer, and computes the slice length through a checked subtraction of
-/// `end - start`. It returns `None` if this subtraction underflows, and
-/// `Some(*mut [u8])` if it does not.
+/// objects over any parts of the memory region. It then computes the slice
+/// length through a checked subtraction of `end - start`. It returns `None` if
+/// this subtraction underflows, and `Some(*mut [u8])` if it does not.
 ///
 /// This macro is useful to interact with memory outside of the control of the
 /// Rust abstract machine, such as to reference application flash or RAM, MMIO
@@ -168,14 +163,6 @@ macro_rules! __linker_region_slice_ptr {
 /// creating any Rust references over (a subset of) the memory described by the
 /// resulting raw slice pointer, or performing other unsafe offset-based pointer
 /// arithmetic.
-///
-/// The returned pointer is created using `with_exposed_provenance_mut`. For an
-/// access through it to be sound, it is necessary (but not sufficient) for it
-/// to fall within an allocation whose provenance is considered exposed by Rust,
-/// at the time that this macro is invoked. Memory outside of the control of the
-/// Rust abstract machine (e.g., MMIO or app memory; disjoint from stack,
-/// statics, etc.) is always considered exposed (see [Rust's documentation of
-/// exposed provenance on the core::ptr module][ptr-doc]).
 ///
 /// The macro may rely on the `gp` register to be initialized for linker
 /// relaxations. It is only callable from Rust code, and all other Rust code may
