@@ -7,6 +7,7 @@
 //! imxrt1050 chip: <https://www.nxp.com/design/development-boards/i-mx-evaluation-and-development-boards/i-mx-rt1050-evaluation-kit:MIMXRT1050-EVK>
 
 #![no_std]
+#![recursion_limit = "256"]
 
 pub mod chip;
 pub mod nvic;
