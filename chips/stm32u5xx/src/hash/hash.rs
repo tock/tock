@@ -479,6 +479,7 @@ impl Hash<'_> {
 
     fn clear(&self) {
         self.regs.cr.modify(CR::INIT::SET);
+        self.state.take();
         self.data_length.take();
         self.key_length.take();
         self.data_buffer.map(|buf| buf.reset());

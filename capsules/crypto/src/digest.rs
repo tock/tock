@@ -35,7 +35,7 @@ use kernel::hil::crypto::digest::{
 use kernel::processbuffer::{ReadableProcessBuffer, ReadableProcessSlice, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{ErrorCode, ProcessId, debug};
 
 /// Algorithm identifiers used by command 1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -264,10 +264,13 @@ fn begin<AlgorithmType: DigestAlgorithm, Driver: Digest<AlgorithmType> + 'static
     client: &'static dyn DigestClient<AlgorithmType>,
     len: usize,
 ) -> Result<DriverMutexRef<Driver>, ErrorCode> {
+    // debug!("Entered begin");
     let driver = resource
         .downcast::<Driver>()
         .map_err(|_| ErrorCode::INVAL)?;
+    // debug!("Set the client");
     driver.set_client(client);
+    // debug!("Start digest");
     driver.digest(len)?;
     Ok(driver)
 }
@@ -418,6 +421,7 @@ impl<
     }
 
     fn start(&self, processid: ProcessId, algorithm: Algorithm) -> Result<(), ErrorCode> {
+        // debug!("Entered the start, requested: {:?}", algorithm);
         let supported = match algorithm {
             Algorithm::Md5 => self.md5.mutex.is_some(),
             Algorithm::Sha1 => self.sha1.mutex.is_some(),
@@ -434,20 +438,26 @@ impl<
             Algorithm::Sm3 => self.sm3.mutex.is_some(),
         };
         if !supported {
+            // debug!("Not supported");
             return Err(ErrorCode::NOSUPPORT);
         }
         if self.request.get().is_some() {
+            // debug!("BUSY!");
             return Err(ErrorCode::BUSY);
         }
         let input_len = self
             .apps
             .enter(processid, |_, buffers| {
+                // debug!("Check output buffer");
                 let output = buffers
                     .get_readwrite_processbuffer(rw_allow::OUTPUT)
                     .map_err(|_| ErrorCode::RESERVE)?;
+
+                // debug!("Check output buffer size");
                 if output.len() < algorithm.digest_len() {
                     return Err(ErrorCode::SIZE);
                 }
+                // debug!("Check input buffer");
                 let input = buffers
                     .get_readonly_processbuffer(ro_allow::INPUT)
                     .map_err(|_| ErrorCode::RESERVE)?;
@@ -455,6 +465,7 @@ impl<
             })
             .map_err(ErrorCode::from)??;
 
+        // debug!("Set the request");
         self.request.set(Some(Request {
             processid,
             algorithm,
@@ -462,6 +473,7 @@ impl<
             offset: 0,
             written: false,
         }));
+        // debug!("Request the mutex resource");
         let result = match algorithm {
             Algorithm::Md5 => self.md5.request(),
             Algorithm::Sha1 => self.sha1.request(),
@@ -480,6 +492,7 @@ impl<
         if result.is_err() {
             self.request.set(None);
         }
+        //debug!("Init successful");
         result
     }
 
@@ -545,9 +558,12 @@ impl<
     }
 
     fn finish(&self, result: Result<(), ErrorCode>) {
+        // debug!("Entered finish");
+        //debug!("Result: {:?}", result);
         let request = self.request.take();
         self.active.take().map(ActiveDriver::release);
         if let Some(request) = request {
+            // debug!("There is a request");
             let result = result.and(if request.written {
                 Ok(())
             } else {
@@ -558,6 +574,7 @@ impl<
             } else {
                 0
             };
+            //debug!("Enter the app");
             let _ = self.apps.enter(request.processid, |_, buffers| {
                 let _ = buffers.schedule_upcall(upcall::HASH, (into_statuscode(result), length, 0));
             });
@@ -649,9 +666,12 @@ impl<
     >
 {
     fn ready(&'static self, resource: DriverMutexAny) {
+        // debug!("Entered ready");
         let Some(request) = self.request.get() else {
             return;
         };
+        // Check if the app is alive
+        // debug!("Entered ready");
         let result = self
             .apps
             .enter(request.processid, |_, _| ())
@@ -661,6 +681,7 @@ impl<
             self.finish(Err(error));
             return;
         }
+        //debug!("All the checks passed, start the operation");
         let result = match request.algorithm {
             Algorithm::Md5 => {
                 begin::<Md5, Md5Driver>(resource, self, request.input_len).map(ActiveDriver::Md5)
@@ -704,8 +725,10 @@ impl<
                 begin::<Sm3, Sm3Driver>(resource, self, request.input_len).map(ActiveDriver::Sm3)
             }
         };
+        // debug!("Check if we actually started");
         match result {
             Ok(driver) => {
+                // debug!("START");
                 self.active.replace(driver);
             }
             Err(error) => self.finish(Err(error)),

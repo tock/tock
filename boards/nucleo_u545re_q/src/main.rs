@@ -679,7 +679,7 @@ pub unsafe fn main() {
 
     let (board_kernel, platform, chip) = start();
 
-    debug!("Initialization complete. Entering main loop");
+    // debug!("Initialization complete. Entering main loop");
 
     // Hand over control to the Tock Kernel Loop
     board_kernel.kernel_loop::<NucleoU545RE, ChipHw, { NUM_PROCS as u8 }>(

@@ -22,20 +22,6 @@ pub trait StreamingDigest<A: DigestAlgorithm>: Digest<A> {
     /// The default state is the state with no input absorbed.
     type DigestContext: Context;
 
-    /// Start a new digest operation.
-    ///
-    /// Initializes the digest state for algorithm `A`. To hash a new message,
-    /// the client supplies `DigestContext::default()`, which is equal to the initial state,
-    /// and the driver saves all the necessary information for the upcoming message computation
-    /// calling [`StreamingDigestClient::save_context`].
-    /// This call completes synchronously and does not cause a callback. On success, the driver
-    /// accepts [`Self::update`], [`Self::finalize`], and [`Self::cancel`] for this operation.
-    ///
-    /// The driver does not keep its state across requests.
-    ///
-    /// Returns [`ErrorCode::BUSY`] if an operation is already in progress.
-    fn begin(&self) -> Result<(), ErrorCode>;
-
     /// Absorb `len` bytes of input into the digest.
     ///
     /// The driver resumes from the state supplied through [`StreamingDigestClient::restore_context`],
