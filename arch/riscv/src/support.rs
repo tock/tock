@@ -129,7 +129,7 @@ macro_rules! __linker_region_slice_ptr {
         // any non-string literals:
         const _START_SYM: &'static str = $start_sym;
         const _END_SYM: &'static str = $end_sym;
-    ($start_sym:literal, $end_sym:literal) => {{ ::core::option::Option::None }};
+    ($start_sym:literal, $end_sym:literal) => {{ ::core::option::Option::None::<*mut [::core::primitive::u8]> }};
 }
 
 /// Create a raw slice pointer (`*mut [u8]`) from a memory region described by
