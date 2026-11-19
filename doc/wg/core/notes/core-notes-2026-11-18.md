@@ -35,7 +35,7 @@ Attending:
  - Leon: It gives a fairly nice overview of the register for human consumption
  - Branden: To my memory, this list was never reasoned through, it was pretty organic
  - Branden: But it's also proven sufficient for writing an embedded OS...
- - Johnathan: The one I noted (issue open) is that `read_as_enum` doesn't do any type checking; the only thing it 
+ - Johnathan: The one I noted (issue open) is that `read_as_enum` doesn't do any type checking; the only thing it checks is that the register value type (size) matches.
  - Brad: What `read_as_enum` does require is that the enum implements `TryFromValue`, which is a tock-registers trait; it's a little bit awkward to come up with your own enum in say a chip driver that's sufficient; you'd have to implement this internal trait to tock-registers, which feels odd
  - Brad: The problem is that the `R` (`RegisterLongName`) only binds to the register type, not the field type, so it works for any field in the register
  - Brad: In a lot of cases this isn't really an issue probably, but it could be an issue if you have a register that has essentially the same field over and over, like a GPIO mode field and there's 8 of those in one register; a copied field with different bit offsets will generate different enums internally, and it kind of works, but it's not great
@@ -51,7 +51,7 @@ Attending:
     - https://ferrous-systems.com/blog/hardware-access-rust/
  - Alexandru: We might need to write assembly for tock-register for ARM 64
  - Johnathan: Upstream decided to fix the language
- - Johnathan: On ARM 64, if you're running in a confidential VM environment, the code that the compiler emits for MMIO isn't always valid; the new decision is to only ever emit safe instructions for volatile accesses
+ - Johnathan: On ARM 64, if you're running in a confidential VM environment, the code that the compiler emits for MMIO isn't always emulatable; the new decision is to only ever emit safe instructions for volatile accesses
  - Brad: We have these two types in the signature most places, `<T, R>`; it's not clear why, might just be an artifact in how is was implemented
  - Brad: `T` is essentially the underlying type, e.g., `u32`, and `R` is the register's name
  - Brad: Internally, in 2.0, Johnathan already created a new type (`DataType`, `DT`), and I wonder if we shouldn't just have this single type
