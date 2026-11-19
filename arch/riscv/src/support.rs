@@ -102,17 +102,23 @@ macro_rules! __linker_region_slice_ptr {
         // Convert the `start` and (exclusive) `end` address into a raw slice
         // pointer. We use a checked subtraction to avoid silent wraparounds.
         if let ::core::option::Option::Some(len) = end.checked_sub(start.addr()) {
-            // `start` comes from `asm!`, which Rust treats as opaque code:
-            // the returned pointer may carry any exposed provenance. The
-            // range between `$start_sym` (inclusive) and `$end_sym`
-            // (exclusive) is assumed to be memory outside the Rust abstract
-            // machine, which the `ptr` docs (quoted in this macro's
-            // documentation) say is always considered exposed. Therefore,
-            // `start` may carry valid provenance for the whole region.
-            ::core::option::Option::Some(
-                ::core::ptr::slice_from_raw_parts_mut(start, len)
-            )
+            if len <= ::core::primitive::isize::MAX as ::core::primitive::usize {
+                // `start` comes from `asm!`, which Rust treats as opaque code:
+                // the returned pointer may carry any exposed provenance. The
+                // range between `$start_sym` (inclusive) and `$end_sym`
+                // (exclusive) is assumed to be memory outside the Rust abstract
+                // machine, which the `ptr` docs (quoted in this macro's
+                // documentation) say is always considered exposed. Therefore,
+                // `start` may carry valid provenance for the whole region.
+                ::core::option::Option::Some(
+                    ::core::ptr::slice_from_raw_parts_mut(start, len)
+                )
+            } else {
+                // Proposed slice is too long.
+                ::core::option::Option::None
+            }
         } else {
+            // Proposed slice wrapped around.
             ::core::option::Option::None
         }
     }}
