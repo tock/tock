@@ -9,7 +9,7 @@ use core::marker::PhantomData;
 use kernel::ErrorCode;
 use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks32};
 use kernel::utilities::cells::OptionalCell;
-use tock_registers_next::{Read, Write, register_bitfields, register_map_mmio32};
+use tock_registers::{Read, Write, register_bitfields, register_map_mmio32};
 
 /// Base address of timer group 0 (TRM Table 3.3-3).
 pub const TIMG0_BASE: usize = 0x6001_F000;
@@ -381,7 +381,7 @@ mod tests {
     use super::*;
     use core::cell::Cell;
     use kernel::hil::time::{AlarmClient, Time};
-    use tock_registers_next::{FakeRegister, Safe};
+    use tock_registers::{FakeRegister, Safe};
 
     const T0_INT: u32 = 1 << 0;
     const CONFIG_ALARM_EN: u32 = 1 << 10;
@@ -695,8 +695,7 @@ mod tests {
         }
 
         // INT_CLR is write-only, such that the driver cannot read it.
-        type int_clr<'s> =
-            FakeRegister<&'s Self, INT::Register, tock_registers_next::NoAccess, Safe>;
+        type int_clr<'s> = FakeRegister<&'s Self, INT::Register, tock_registers::NoAccess, Safe>;
         fn int_clr(&self) -> Self::int_clr<'_> {
             FakeRegister::new(self).on_write(|f, v| {
                 f.access();

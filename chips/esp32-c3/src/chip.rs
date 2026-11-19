@@ -13,7 +13,7 @@ use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{self, CSR, mcause, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 use rv32i::syscall::SysCall;
-use tock_registers_next::Mmio32;
+use tock_registers::Mmio32;
 
 use crate::i2c;
 use crate::intc::{Intc, IntcRegisters};
