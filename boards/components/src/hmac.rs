@@ -17,6 +17,7 @@
 //!    ));
 //! ```
 
+use capsules_core::driver_mutex::DriverMutex;
 use capsules_extra::hmac::HmacDriver;
 use core::mem::MaybeUninit;
 use kernel::capabilities::MemoryAllocationCapability;
@@ -26,7 +27,7 @@ use kernel::hil::digest;
 #[macro_export]
 macro_rules! hmac_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        let hmac = kernel::static_buf!(capsules_extra::hmac::HmacDriver<'static, $A, $L>);
+        let hmac = kernel::static_buf!(capsules_extra::hmac::HmacDriver<$A, $L>);
 
         let data_buffer = kernel::static_buf!([u8; 64]);
         let dest_buffer = kernel::static_buf!([u8; $L]);
@@ -35,7 +36,7 @@ macro_rules! hmac_component_static {
     }};
 }
 
-pub type HmacComponentType<H, const L: usize> = capsules_extra::hmac::HmacDriver<'static, H, L>;
+pub type HmacComponentType<H, const L: usize> = capsules_extra::hmac::HmacDriver<H, L>;
 
 pub struct HmacComponent<
     A: 'static + digest::Digest<'static, L>,
@@ -44,7 +45,7 @@ pub struct HmacComponent<
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    hmac: &'static A,
+    hmac: &'static DriverMutex<A>,
     mem_cap: CAP,
 }
 
@@ -57,7 +58,7 @@ impl<
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        hmac: &'static A,
+        hmac: &'static DriverMutex<A>,
         mem_cap: CAP,
     ) -> HmacComponent<A, L, CAP> {
         HmacComponent {
@@ -83,11 +84,11 @@ impl<
 > Component for HmacComponent<A, L, CAP>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<HmacDriver<'static, A, L>>,
+        &'static mut MaybeUninit<HmacDriver<A, L>>,
         &'static mut MaybeUninit<[u8; 64]>,
         &'static mut MaybeUninit<[u8; L]>,
     );
-    type Output = &'static HmacDriver<'static, A, L>;
+    type Output = &'static HmacDriver<A, L>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let data_buffer = s.1.write([0; 64]);
@@ -101,7 +102,7 @@ impl<
                 .create_grant(self.driver_num, &self.mem_cap),
         ));
 
-        self.hmac.set_client(hmac);
+        hmac.register().expect("HMAC mutex client capacity");
 
         hmac
     }

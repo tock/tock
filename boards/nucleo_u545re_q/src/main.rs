@@ -70,7 +70,10 @@ struct NucleoU545RE {
     gpio: &'static GpioDriver,
     crc: &'static capsules_extra::crc::CrcDriver<'static, stm32u545::crc::CRC<'static>>,
     hmac: &'static capsules_extra::hmac::HmacDriver<
-        'static,
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        32,
+    >,
+    sha: &'static components::sha::ShaDriverComponentType<
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         32,
     >,
@@ -107,6 +110,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_extra::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
             capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
@@ -562,10 +566,28 @@ unsafe fn start() -> (
     )
     .finalize(components::gpio_component_static!(GpioHw));
 
+    let sha256_mutex = components::driver_mutex::DriverMutexComponent::new(sha256).finalize(
+        components::driver_mutex_component_static!(
+            stm32u545::hash::sha256::Sha256Adapter<'static>,
+            2
+        ),
+    );
+
+    let sha = components::sha::ShaDriverComponent::new(
+        board_kernel,
+        capsules_extra::sha256_driver::DRIVER_NUM,
+        sha256_mutex,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::sha_driver_component_static!(
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        32
+    ));
+
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
-        sha256,
+        sha256_mutex,
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(hmac_component_static!(
@@ -611,6 +633,7 @@ unsafe fn start() -> (
             gpio,
             crc,
             hmac,
+            sha,
             aes: aes_driver,
             spi,
             date_time,

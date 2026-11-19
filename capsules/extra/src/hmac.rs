@@ -28,6 +28,9 @@
 //! ```
 
 use capsules_core::driver;
+use capsules_core::driver_mutex::{
+    DriverMutex, DriverMutexAny, DriverMutexClient, DriverMutexHandle, DriverMutexRef,
+};
 use kernel::errorcode::into_statuscode;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
@@ -48,7 +51,7 @@ mod rw_allow {
     pub const COUNT: u8 = 3;
 }
 
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::digest;
@@ -73,14 +76,17 @@ enum ShaOperation {
 // Needs to be able to accommodate the largest key sizes, e.g. 512
 const TMP_KEY_BUFFER_SIZE: usize = 512 / 8;
 
-pub struct HmacDriver<'a, H: digest::Digest<'a, DIGEST_LEN>, const DIGEST_LEN: usize> {
-    hmac: &'a H,
+pub struct HmacDriver<H: digest::Digest<'static, DIGEST_LEN> + 'static, const DIGEST_LEN: usize> {
+    hmac: &'static DriverMutex<H>,
+    handle: OptionalCell<DriverMutexHandle>,
+    /// Retained across update commands until finalization completes.
+    guard: RefCell<Option<DriverMutexRef<H>>>,
 
     active: Cell<bool>,
 
     apps: Grant<
         App,
-        UpcallCount<1>,
+        UpcallCount<2>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
@@ -92,8 +98,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, DIGEST_LEN>, const DIGEST_LEN: u
 }
 
 impl<
-    'a,
-    H: digest::Digest<'a, DIGEST_LEN>
+    H: digest::Digest<'static, DIGEST_LEN>
         + digest::HmacMd5
         + digest::HmacSha1
         + digest::HmacSha224
@@ -101,21 +106,23 @@ impl<
         + digest::HmacSha384
         + digest::HmacSha512,
     const DIGEST_LEN: usize,
-> HmacDriver<'a, H, DIGEST_LEN>
+> HmacDriver<H, DIGEST_LEN>
 {
     pub fn new(
-        hmac: &'a H,
+        hmac: &'static DriverMutex<H>,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; DIGEST_LEN],
         grant: Grant<
             App,
-            UpcallCount<1>,
+            UpcallCount<2>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> HmacDriver<'a, H, DIGEST_LEN> {
+    ) -> HmacDriver<H, DIGEST_LEN> {
         HmacDriver {
             hmac,
+            handle: OptionalCell::empty(),
+            guard: RefCell::new(None),
             active: Cell::new(false),
             apps: grant,
             processid: OptionalCell::empty(),
@@ -125,47 +132,74 @@ impl<
         }
     }
 
-    fn run(&self) -> Result<(), ErrorCode> {
+    pub fn register(&'static self) -> Result<(), ErrorCode> {
+        self.handle
+            .set(self.hmac.add_client(self).ok_or(ErrorCode::NOMEM)?);
+        Ok(())
+    }
+
+    fn release(&self) {
+        if let Some(hmac) = self.guard.borrow().as_ref() {
+            hmac.clear_data();
+        }
+        self.guard.borrow_mut().take();
+    }
+
+    fn request(&self) -> Result<(), ErrorCode> {
+        self.active.set(true);
+        self.hmac
+            .request(self.handle.get().ok_or(ErrorCode::OFF)?)
+            .inspect_err(|_| {
+                self.active.set(false);
+                self.processid.clear();
+            })
+    }
+
+    fn run(&self, configure: bool) -> Result<(), ErrorCode> {
+        let guard = self.guard.borrow();
+        let hmac = guard.as_ref().ok_or(ErrorCode::OFF)?;
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
                 .enter(processid, |app, kernel_data| {
-                    kernel_data
-                        .get_readonly_processbuffer(ro_allow::KEY)
-                        .and_then(|key| {
-                            key.enter(|k| {
-                                if let Some(op) = &app.sha_operation {
-                                    let mut tmp_key_buffer: [u8; TMP_KEY_BUFFER_SIZE] =
-                                        [0; TMP_KEY_BUFFER_SIZE];
-                                    let key_len = core::cmp::min(k.len(), TMP_KEY_BUFFER_SIZE);
+                    if configure {
+                        kernel_data
+                            .get_readonly_processbuffer(ro_allow::KEY)
+                            .and_then(|key| {
+                                key.enter(|k| {
+                                    if let Some(op) = &app.sha_operation {
+                                        let mut tmp_key_buffer: [u8; TMP_KEY_BUFFER_SIZE] =
+                                            [0; TMP_KEY_BUFFER_SIZE];
+                                        let key_len = core::cmp::min(k.len(), TMP_KEY_BUFFER_SIZE);
 
-                                    k[..key_len].copy_to_slice(&mut tmp_key_buffer[..key_len]);
+                                        k[..key_len].copy_to_slice(&mut tmp_key_buffer[..key_len]);
 
-                                    match op {
-                                        ShaOperation::Md5 => {
-                                            self.hmac.set_mode_hmacmd5(&tmp_key_buffer[..key_len])
+                                        match op {
+                                            ShaOperation::Md5 => {
+                                                hmac.set_mode_hmacmd5(&tmp_key_buffer[..key_len])
+                                            }
+                                            ShaOperation::Sha1 => {
+                                                hmac.set_mode_hmacsha1(&tmp_key_buffer[..key_len])
+                                            }
+                                            ShaOperation::Sha224 => {
+                                                hmac.set_mode_hmacsha224(&tmp_key_buffer[..key_len])
+                                            }
+                                            ShaOperation::Sha256 => {
+                                                hmac.set_mode_hmacsha256(&tmp_key_buffer[..key_len])
+                                            }
+                                            ShaOperation::Sha384 => {
+                                                hmac.set_mode_hmacsha384(&tmp_key_buffer[..key_len])
+                                            }
+                                            ShaOperation::Sha512 => {
+                                                hmac.set_mode_hmacsha512(&tmp_key_buffer[..key_len])
+                                            }
                                         }
-                                        ShaOperation::Sha1 => {
-                                            self.hmac.set_mode_hmacsha1(&tmp_key_buffer[..key_len])
-                                        }
-                                        ShaOperation::Sha224 => self
-                                            .hmac
-                                            .set_mode_hmacsha224(&tmp_key_buffer[..key_len]),
-                                        ShaOperation::Sha256 => self
-                                            .hmac
-                                            .set_mode_hmacsha256(&tmp_key_buffer[..key_len]),
-                                        ShaOperation::Sha384 => self
-                                            .hmac
-                                            .set_mode_hmacsha384(&tmp_key_buffer[..key_len]),
-                                        ShaOperation::Sha512 => self
-                                            .hmac
-                                            .set_mode_hmacsha512(&tmp_key_buffer[..key_len]),
+                                    } else {
+                                        Err(ErrorCode::INVAL)
                                     }
-                                } else {
-                                    Err(ErrorCode::INVAL)
-                                }
+                                })
                             })
-                        })
-                        .unwrap_or(Err(ErrorCode::RESERVE))?;
+                            .unwrap_or(Err(ErrorCode::RESERVE))?;
+                    }
 
                     kernel_data
                         .get_readonly_processbuffer(ro_allow::DATA)
@@ -192,7 +226,7 @@ impl<
                                     self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
                                 );
                                 lease_buf.slice(0..static_buffer_len);
-                                if let Err(e) = self.hmac.add_mut_data(lease_buf) {
+                                if let Err(e) = hmac.add_mut_data(lease_buf) {
                                     self.data_buffer.replace(e.1.take());
                                     return Err(e.0);
                                 }
@@ -206,14 +240,14 @@ impl<
     }
 
     fn calculate_digest(&self) -> Result<(), ErrorCode> {
+        let guard = self.guard.borrow();
+        let hmac = guard.as_ref().ok_or(ErrorCode::OFF)?;
+        self.active.set(true);
         self.data_copied.set(0);
 
-        if let Err(e) = self
-            .hmac
-            .run(self.dest_buffer.take().ok_or(ErrorCode::RESERVE)?)
-        {
+        if let Err(e) = hmac.run(self.dest_buffer.take().ok_or(ErrorCode::RESERVE)?) {
             // Error, clear the processid and data
-            self.hmac.clear_data();
+            hmac.clear_data();
             self.processid.clear();
             self.dest_buffer.replace(e.1);
 
@@ -224,14 +258,14 @@ impl<
     }
 
     fn verify_digest(&self) -> Result<(), ErrorCode> {
+        let guard = self.guard.borrow();
+        let hmac = guard.as_ref().ok_or(ErrorCode::OFF)?;
+        self.active.set(true);
         self.data_copied.set(0);
 
-        if let Err(e) = self
-            .hmac
-            .verify(self.dest_buffer.take().ok_or(ErrorCode::RESERVE)?)
-        {
+        if let Err(e) = hmac.verify(self.dest_buffer.take().ok_or(ErrorCode::RESERVE)?) {
             // Error, clear the processid and data
-            self.hmac.clear_data();
+            hmac.clear_data();
             self.processid.clear();
             self.dest_buffer.replace(e.1);
 
@@ -242,6 +276,10 @@ impl<
     }
 
     fn check_queue(&self) {
+        if self.processid.is_none() {
+            self.active.set(false);
+            self.release();
+        }
         for appiter in self.apps.iter() {
             // If an app is already running let it complete
             if self.processid.is_some() {
@@ -252,12 +290,15 @@ impl<
             if let Some(processid) = appiter.enter(|app, _| app.pending_run_app.take()) {
                 // Mark this driver as being in use.
                 self.processid.set(processid);
-                // Actually make the buzz happen.
-                if let Err(e) = self.run() {
-                    self.hmac.clear_data();
+                // Request the mutex after leaving the app's grant. Startup
+                // continues in ready() once the resource becomes available.
+                if let Err(e) = self.request() {
+                    self.active.set(false);
+                    self.release();
                     self.processid.clear();
-                    let _ = self.apps.enter(processid, |_, kernel_data| {
-                        kernel_data.schedule_upcall(0, (into_statuscode(e.into()), 0, 0))
+                    let _ = self.apps.enter(processid, |app, kernel_data| {
+                        let upcall = usize::from(app.op.get() == Some(UserSpaceOp::Verify));
+                        kernel_data.schedule_upcall(upcall, (into_statuscode(Err(e)), 0, 0))
                     });
                 }
             }
@@ -266,8 +307,7 @@ impl<
 }
 
 impl<
-    'a,
-    H: digest::Digest<'a, DIGEST_LEN>
+    H: digest::Digest<'static, DIGEST_LEN>
         + digest::HmacMd5
         + digest::HmacSha1
         + digest::HmacSha224
@@ -275,21 +315,63 @@ impl<
         + digest::HmacSha384
         + digest::HmacSha512,
     const DIGEST_LEN: usize,
-> digest::ClientData<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
+> DriverMutexClient for HmacDriver<H, DIGEST_LEN>
+{
+    fn ready(&'static self, resource: DriverMutexAny) {
+        if let Ok(guard) = resource.downcast::<H>() {
+            guard.set_client(self);
+            self.guard.replace(Some(guard));
+            if let Err(e) = self.run(true) {
+                self.processid.take().map(|processid| {
+                    let _ = self.apps.enter(processid, |app, kernel_data| {
+                        let upcall = usize::from(app.op.get() == Some(UserSpaceOp::Verify));
+                        let _ =
+                            kernel_data.schedule_upcall(upcall, (into_statuscode(Err(e)), 0, 0));
+                    });
+                });
+                self.check_queue();
+            }
+        }
+    }
+}
+
+impl<
+    H: digest::Digest<'static, DIGEST_LEN>
+        + digest::HmacMd5
+        + digest::HmacSha1
+        + digest::HmacSha224
+        + digest::HmacSha256
+        + digest::HmacSha384
+        + digest::HmacSha512,
+    const DIGEST_LEN: usize,
+> digest::ClientData<DIGEST_LEN> for HmacDriver<H, DIGEST_LEN>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
     fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {}
 
-    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
+        self.data_buffer.replace(data.take());
+        if let Err(e) = result {
+            self.processid.take().map(|id| {
+                let _ = self.apps.enter(id, |app, kernel_data| {
+                    let upcall = usize::from(app.op.get() == Some(UserSpaceOp::Verify));
+                    let _ = kernel_data.schedule_upcall(upcall, (into_statuscode(Err(e)), 0, 0));
+                });
+            });
+            self.check_queue();
+            return;
+        }
+        let guard = self.guard.borrow();
+        let Some(hmac) = guard.as_ref() else {
+            return;
+        };
         self.processid.map(move |id| {
             self.apps
                 .enter(id, move |app, kernel_data| {
                     let mut data_len = 0;
                     let mut exit = false;
                     let mut static_buffer_len = 0;
-
-                    self.data_buffer.replace(data.take());
 
                     self.data_buffer.map(|buf| {
                         let ret = kernel_data
@@ -320,7 +402,7 @@ impl<
 
                         if ret == Err(ErrorCode::RESERVE) {
                             // No data buffer, clear the processid and data
-                            self.hmac.clear_data();
+                            hmac.clear_data();
                             self.processid.clear();
                             exit = true;
                         }
@@ -344,9 +426,10 @@ impl<
                                 lease_buf.slice(..(data_len - copied_data))
                             }
 
-                            if self.hmac.add_mut_data(lease_buf).is_err() {
+                            if let Err((_, buffer)) = hmac.add_mut_data(lease_buf) {
+                                self.data_buffer.replace(buffer.take());
                                 // Error, clear the processid and data
-                                self.hmac.clear_data();
+                                hmac.clear_data();
                                 self.processid.clear();
                                 return;
                             }
@@ -390,6 +473,7 @@ impl<
                                 kernel_data.schedule_upcall(1, (into_statuscode(e.into()), 0, 0));
                         }
                     } else {
+                        self.active.set(false);
                         let _ = kernel_data.schedule_upcall(0, (0, 0, 0));
                     }
                 })
@@ -402,13 +486,13 @@ impl<
                 })
         });
 
+        drop(guard);
         self.check_queue();
     }
 }
 
 impl<
-    'a,
-    H: digest::Digest<'a, DIGEST_LEN>
+    H: digest::Digest<'static, DIGEST_LEN>
         + digest::HmacMd5
         + digest::HmacSha1
         + digest::HmacSha224
@@ -416,14 +500,13 @@ impl<
         + digest::HmacSha384
         + digest::HmacSha512,
     const DIGEST_LEN: usize,
-> digest::ClientHash<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
+> digest::ClientHash<DIGEST_LEN> for HmacDriver<H, DIGEST_LEN>
 {
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; DIGEST_LEN]) {
+        self.release();
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_, kernel_data| {
-                    self.hmac.clear_data();
-
                     let pointer = digest[0] as *mut u8;
 
                     let _ = kernel_data
@@ -458,14 +541,13 @@ impl<
                 })
         });
 
-        self.check_queue();
         self.dest_buffer.replace(digest);
+        self.check_queue();
     }
 }
 
 impl<
-    'a,
-    H: digest::Digest<'a, DIGEST_LEN>
+    H: digest::Digest<'static, DIGEST_LEN>
         + digest::HmacMd5
         + digest::HmacSha1
         + digest::HmacSha224
@@ -473,18 +555,17 @@ impl<
         + digest::HmacSha384
         + digest::HmacSha512,
     const DIGEST_LEN: usize,
-> digest::ClientVerify<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
+> digest::ClientVerify<DIGEST_LEN> for HmacDriver<H, DIGEST_LEN>
 {
     fn verification_done(
         &self,
         result: Result<bool, ErrorCode>,
         compare: &'static mut [u8; DIGEST_LEN],
     ) {
+        self.release();
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_app, kernel_data| {
-                    self.hmac.clear_data();
-
                     let _ = match result {
                         Ok(equal) => kernel_data.schedule_upcall(1, (0, equal as usize, 0)),
                         Err(e) => kernel_data.schedule_upcall(1, (into_statuscode(e.into()), 0, 0)),
@@ -502,8 +583,8 @@ impl<
                 })
         });
 
-        self.check_queue();
         self.dest_buffer.replace(compare);
+        self.check_queue();
     }
 }
 
@@ -520,8 +601,7 @@ impl<
 /// - `2`: Allow a buffer for storing the digest. The kernel will fill this with
 ///   the HMAC digest before calling the `hash_done` callback.
 impl<
-    'a,
-    H: digest::Digest<'a, DIGEST_LEN>
+    H: digest::Digest<'static, DIGEST_LEN>
         + digest::HmacMd5
         + digest::HmacSha1
         + digest::HmacSha224
@@ -529,7 +609,7 @@ impl<
         + digest::HmacSha384
         + digest::HmacSha512,
     const DIGEST_LEN: usize,
-> SyscallDriver for HmacDriver<'a, H, DIGEST_LEN>
+> SyscallDriver for HmacDriver<H, DIGEST_LEN>
 {
     // Subscribe to HmacDriver events.
     //
@@ -566,6 +646,19 @@ impl<
         _data2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
+        // An idle update may belong to a process which has since exited.
+        if !self.active.get()
+            && self
+                .processid
+                .get()
+                .is_some_and(|id| self.apps.enter(id, |_, _| ()).is_err())
+        {
+            self.processid.clear();
+            self.release();
+        }
+        if self.active.get() && self.processid.get() == Some(processid) && command_num != 0 {
+            return CommandReturn::failure(ErrorCode::BUSY);
+        }
         let match_or_empty_or_nonexistant = self.processid.map_or(true, |owning_app| {
             // We have recorded that an app has ownership of the HMAC.
 
@@ -640,8 +733,15 @@ impl<
                 }
             });
 
-            return if let Err(e) = self.run() {
-                self.hmac.clear_data();
+            self.active.set(true);
+            let result = if self.guard.borrow().is_some() {
+                self.run(false)
+            } else {
+                self.request()
+            };
+            return if let Err(e) = result {
+                self.release();
+                self.active.set(false);
                 self.processid.clear();
                 self.check_queue();
                 CommandReturn::failure(e)
@@ -725,6 +825,9 @@ impl<
                     3 => {
                         if app_match {
                             if let Err(e) = self.calculate_digest() {
+                                self.processid.clear();
+                                self.active.set(false);
+                                self.release();
                                 let _ = kernel_data.schedule_upcall(
                                     0,
                                     (kernel::errorcode::into_statuscode(e.into()), 0, 0),
@@ -781,6 +884,9 @@ impl<
                                 });
 
                             if let Err(e) = self.verify_digest() {
+                                self.processid.clear();
+                                self.active.set(false);
+                                self.release();
                                 let _ = kernel_data
                                     .schedule_upcall(1, (into_statuscode(e.into()), 0, 0));
                             }
