@@ -75,7 +75,7 @@ macro_rules! __linker_region_slice_ptr {
 
         // The below assembly loads the symbol addresses of `$start_sym` and
         // `$end_sym` into `start` and `end` respectively.
-        let start: *const ();
+        let start: *mut u8;
         let end: usize;
 
         // SAFETY: this RISC-V assembly is guaranteed to run only on RISC-V
