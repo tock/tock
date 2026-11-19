@@ -4,12 +4,15 @@
 
 use kernel::utilities::StaticRef;
 use tock_registers_v0::interfaces::Readable;
-use tock_registers_v0::register_bitfields;
 use tock_registers_v0::registers::ReadOnly;
+use tock_registers_v0::{register_bitfields, register_structs};
 
-struct Uid64Registers {
-    uid_high: ReadOnly<u32, UIDHIGH::Register>,
-    uid_low: ReadOnly<u32, UIDLOW::Register>,
+register_structs! {
+    Uid64Registers {
+        (0x0 => uid_high: ReadOnly<u32, UIDHIGH::Register>),
+        (0x4 => uid_low: ReadOnly<u32, UIDLOW::Register>),
+        (0x8 => @END),
+    }
 }
 
 register_bitfields![u32,
