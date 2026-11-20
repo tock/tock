@@ -1575,10 +1575,12 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
             self.registers
                 .clkcfg
                 .modify(CLKCFG::LOWPER.val((low_per - 1) / 2));
+            self.registers.mspicfg.modify(MSPICFG::SPHA::CLEAR);
         } else {
             self.registers
                 .clkcfg
                 .modify(CLKCFG::LOWPER.val(low_per.saturating_sub(2) / 2));
+            self.registers.mspicfg.modify(MSPICFG::SPHA::SET);
         }
 
         self.spi_phase.set(phase);
