@@ -2,67 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of_mut;
 
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart;
-use kernel::hil::uart::Configure;
-use kernel::utilities::io_write::IoWrite;
+use kernel::utilities::StaticRef;
 
 use stm32f446re::chip_specs::Stm32f446Specs;
+use stm32f446re::clocks::phclk::{PCLK1, PeripheralClock, PeripheralClockType};
+use stm32f446re::dma::Dma1;
 use stm32f446re::gpio::PinId;
+use stm32f446re::usart::{USART2_BASE, Usart, UsartPanicWriterConfig, UsartRegisters};
 
-/// Writer is used by kernel::debug to panic message to the serial port.
-pub struct Writer {
-    initialized: bool,
-}
-
-/// Global static for debug writer
-pub static mut WRITER: Writer = Writer { initialized: false };
-
-impl Writer {
-    /// Indicate that USART has already been initialized. Trying to double
-    /// initialize USART2 causes STM32F446RE to go into in in-deterministic state.
-    pub fn set_initialized(&mut self) {
-        self.initialized = true;
-    }
-}
-
-impl Write for Writer {
-    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        let rcc = stm32f446re::rcc::Rcc::new();
-        let clocks: stm32f446re::clocks::Clocks<Stm32f446Specs> =
-            stm32f446re::clocks::Clocks::new(&rcc);
-        let uart = stm32f446re::usart::Usart::new_usart2(&clocks);
-
-        if !self.initialized {
-            self.initialized = true;
-
-            let _ = uart.configure(uart::Parameters {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-                width: uart::Width::Eight,
-            });
-        }
-
-        for &c in buf {
-            uart.send_byte(c);
-        }
-        buf.len()
-    }
-}
+/// The USART the panic handler writes to, which is the one the console uses.
+const PANIC_USART: StaticRef<UsartRegisters> = USART2_BASE;
 
 /// Panic handler.
 #[panic_handler]
@@ -79,15 +33,21 @@ pub fn panic_fmt(info: &PanicInfo) -> ! {
     pin.set_ports_ref(&gpio_ports);
     let led = &mut led::LedHigh::new(&pin);
 
-    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
-
-    unsafe {
-        debug::panic_old(
-            &mut [led],
-            writer,
-            info,
-            &cortexm4::support::nop,
-            crate::PANIC_RESOURCES.get(),
-        )
-    }
+    debug::panic::<_, Usart<'_, Dma1<'_>>, _, _>(
+        &mut [led],
+        UsartPanicWriterConfig {
+            registers: PANIC_USART,
+            clock: PeripheralClock::new(PeripheralClockType::APB1(PCLK1::USART2), &clocks),
+            params: uart::Parameters {
+                baud_rate: 115200,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+                width: uart::Width::Eight,
+            },
+        },
+        info,
+        &cortexm4::support::nop,
+        crate::PANIC_RESOURCES.get(),
+    )
 }
