@@ -100,9 +100,6 @@ pub unsafe fn start() -> (
 
     let (board_kernel, base, peripherals, _, chip) = raspberry_pi_pico::setup(output);
 
-    // Set the UART used for panic
-    (*core::ptr::addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
-
     // LED
     let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, RPGpioPin<'static>>,

@@ -10,8 +10,10 @@ use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
     Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
 };
+use kernel::platform::chip::PanicWriter;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers_v0::registers::ReadWrite;
 use tock_registers_v0::{register_bitfields, register_structs};
@@ -20,7 +22,7 @@ use crate::clocks;
 
 register_structs! {
 
-    UartRegisters {
+    pub UartRegisters {
         /// Data Register, UARTDR
         (0x000 => uartdr: ReadWrite<u32, UARTDR::Register>),
         /// Receive Status Register/Error Clear Register, UARTRSR/UARTECR
@@ -341,10 +343,10 @@ enum UARTStateRX {
     AbortRequested,
 }
 
-const UART0_BASE: StaticRef<UartRegisters> =
+pub const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40070000 as *const UartRegisters) };
 
-const UART1_BASE: StaticRef<UartRegisters> =
+pub const UART1_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40078000 as *const UartRegisters) };
 
 pub struct Uart<'a> {
@@ -521,88 +523,6 @@ impl<'a> Uart<'a> {
             && (self.registers.uartcr.is_set(UARTCR::RXE)
                 || self.registers.uartcr.is_set(UARTCR::TXE))
     }
-
-    pub fn debug_configure(&self, params: Parameters) -> Result<(), ErrorCode> {
-        self.disable();
-        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
-
-        let clk = self.clocks.get_frequency(clocks::Clock::Peripheral);
-
-        // Calculate baud rate
-        let baud_rate_div = 8 * clk / params.baud_rate;
-        let mut baud_ibrd = baud_rate_div >> 7;
-        let mut baud_fbrd = (baud_rate_div & 0x7f).div_ceil(2);
-
-        if baud_ibrd == 0 {
-            baud_ibrd = 1;
-            baud_fbrd = 0;
-        } else if baud_ibrd >= 65535 {
-            baud_ibrd = 65535;
-            baud_fbrd = 0;
-        }
-
-        self.registers
-            .uartibrd
-            .write(UARTIBRD::BAUD_DIVINT.val(baud_ibrd));
-        self.registers
-            .uartfbrd
-            .write(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
-
-        self.registers.uartlcr_h.modify(UARTLCR_H::BRK::SET);
-        // Configure the word length
-        match params.width {
-            Width::Six => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_6),
-            Width::Seven => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_7),
-            Width::Eight => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_8),
-        }
-
-        // Configure parity
-        match params.parity {
-            Parity::None => {
-                self.registers.uartlcr_h.modify(UARTLCR_H::PEN::CLEAR);
-                self.registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
-            }
-
-            Parity::Odd => {
-                self.registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
-                self.registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
-            }
-            Parity::Even => {
-                self.registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
-                self.registers.uartlcr_h.modify(UARTLCR_H::EPS::SET);
-            }
-        }
-
-        // Set the stop bit length - 2 stop bits
-        match params.stop_bits {
-            StopBits::One => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::CLEAR),
-            StopBits::Two => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::SET),
-        }
-
-        // Set flow control
-        if params.hw_flow_control {
-            self.registers.uartcr.modify(UARTCR::RTSEN::SET);
-            self.registers.uartcr.modify(UARTCR::CTSEN::SET);
-        } else {
-            self.registers.uartcr.modify(UARTCR::RTSEN::CLEAR);
-            self.registers.uartcr.modify(UARTCR::CTSEN::CLEAR);
-        }
-        self.registers.uartlcr_h.modify(UARTLCR_H::BRK::CLEAR);
-
-        // FIFO is not precise enough for receive
-        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
-
-        // Enable uart and transmit
-        self.registers
-            .uartcr
-            .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET + UARTCR::RXE::SET);
-
-        self.registers
-            .uartdmacr
-            .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
-
-        Ok(())
-    }
 }
 
 impl DeferredCallClient for Uart<'_> {
@@ -638,86 +558,93 @@ impl DeferredCallClient for Uart<'_> {
     }
 }
 
+/// Bring the UART up for the given parameters and peripheral clock.
+///
+/// Shared by the [`Configure`] implementation and by the panic writer, which
+/// uses this when the kernel did not configure the UART before the panic
+/// occurred.
+fn configure_registers(registers: &UartRegisters, pclk_freq: u32, params: Parameters) {
+    registers.uartcr.modify(UARTCR::UARTEN::CLEAR);
+    registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
+
+    // Calculate baud rate
+    let baud_rate_div = 8 * pclk_freq / params.baud_rate;
+    let mut baud_ibrd = baud_rate_div >> 7;
+    let mut baud_fbrd = (baud_rate_div & 0x7f).div_ceil(2);
+
+    if baud_ibrd == 0 {
+        baud_ibrd = 1;
+        baud_fbrd = 0;
+    } else if baud_ibrd >= 65535 {
+        baud_ibrd = 65535;
+        baud_fbrd = 0;
+    }
+
+    registers
+        .uartibrd
+        .write(UARTIBRD::BAUD_DIVINT.val(baud_ibrd));
+    registers
+        .uartfbrd
+        .write(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
+
+    registers.uartlcr_h.modify(UARTLCR_H::BRK::SET);
+    // Configure the word length
+    match params.width {
+        Width::Six => registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_6),
+        Width::Seven => registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_7),
+        Width::Eight => registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_8),
+    }
+
+    // Configure parity
+    match params.parity {
+        Parity::None => {
+            registers.uartlcr_h.modify(UARTLCR_H::PEN::CLEAR);
+            registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
+        }
+
+        Parity::Odd => {
+            registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
+            registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
+        }
+        Parity::Even => {
+            registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
+            registers.uartlcr_h.modify(UARTLCR_H::EPS::SET);
+        }
+    }
+
+    // Set the stop bit length - 2 stop bits
+    match params.stop_bits {
+        StopBits::One => registers.uartlcr_h.modify(UARTLCR_H::STP2::CLEAR),
+        StopBits::Two => registers.uartlcr_h.modify(UARTLCR_H::STP2::SET),
+    }
+
+    // Set flow control
+    if params.hw_flow_control {
+        registers.uartcr.modify(UARTCR::RTSEN::SET);
+        registers.uartcr.modify(UARTCR::CTSEN::SET);
+    } else {
+        registers.uartcr.modify(UARTCR::RTSEN::CLEAR);
+        registers.uartcr.modify(UARTCR::CTSEN::CLEAR);
+    }
+    registers.uartlcr_h.modify(UARTLCR_H::BRK::CLEAR);
+
+    // FIFO is not precise enough for receive
+    registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
+
+    // Enable uart and transmit
+    registers
+        .uartcr
+        .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET + UARTCR::RXE::SET);
+
+    registers
+        .uartdmacr
+        .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
+}
+
 impl Configure for Uart<'_> {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
-        self.disable();
-        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
-
-        let clk = self.clocks.get_frequency(clocks::Clock::Peripheral);
-
-        // Calculate baud rate
-        let baud_rate_div = 8 * clk / params.baud_rate;
-        let mut baud_ibrd = baud_rate_div >> 7;
-        let mut baud_fbrd = (baud_rate_div & 0x7f).div_ceil(2);
-
-        if baud_ibrd == 0 {
-            baud_ibrd = 1;
-            baud_fbrd = 0;
-        } else if baud_ibrd >= 65535 {
-            baud_ibrd = 65535;
-            baud_fbrd = 0;
-        }
-
-        self.registers
-            .uartibrd
-            .write(UARTIBRD::BAUD_DIVINT.val(baud_ibrd));
-        self.registers
-            .uartfbrd
-            .write(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
-
-        self.registers.uartlcr_h.modify(UARTLCR_H::BRK::SET);
-        // Configure the word length
-        match params.width {
-            Width::Six => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_6),
-            Width::Seven => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_7),
-            Width::Eight => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_8),
-        }
-
-        // Configure parity
-        match params.parity {
-            Parity::None => {
-                self.registers.uartlcr_h.modify(UARTLCR_H::PEN::CLEAR);
-                self.registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
-            }
-
-            Parity::Odd => {
-                self.registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
-                self.registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
-            }
-            Parity::Even => {
-                self.registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
-                self.registers.uartlcr_h.modify(UARTLCR_H::EPS::SET);
-            }
-        }
-
-        // Set the stop bit length - 2 stop bits
-        match params.stop_bits {
-            StopBits::One => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::CLEAR),
-            StopBits::Two => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::SET),
-        }
-
-        // Set flow control
-        if params.hw_flow_control {
-            self.registers.uartcr.modify(UARTCR::RTSEN::SET);
-            self.registers.uartcr.modify(UARTCR::CTSEN::SET);
-        } else {
-            self.registers.uartcr.modify(UARTCR::RTSEN::CLEAR);
-            self.registers.uartcr.modify(UARTCR::CTSEN::CLEAR);
-        }
-        self.registers.uartlcr_h.modify(UARTLCR_H::BRK::CLEAR);
-
-        // FIFO is not precise enough for receive
-        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
-
-        // Enable uart and transmit
-        self.registers
-            .uartcr
-            .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET + UARTCR::RXE::SET);
-
-        self.registers
-            .uartdmacr
-            .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
-
+        let pclk_freq = self.clocks.get_frequency(clocks::Clock::Peripheral);
+        configure_registers(&self.registers, pclk_freq, params);
         Ok(())
     }
 }
@@ -808,5 +735,65 @@ impl<'a> Receive<'a> for Uart<'a> {
         } else {
             Ok(())
         }
+    }
+}
+
+struct UartPanicWriter {
+    registers: StaticRef<UartRegisters>,
+}
+
+impl IoWrite for UartPanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        for &byte in buf {
+            while self.registers.uartfr.is_set(UARTFR::TXFF) {}
+            self.registers.uartdr.write(UARTDR::DATA.val(byte as u32));
+        }
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for the synchronous UART panic writer.
+pub struct UartPanicWriterConfig<'a> {
+    pub registers: StaticRef<UartRegisters>,
+    /// The chip's `Clocks`, used to look up the peripheral clock frequency
+    /// for computing the baud rate.
+    ///
+    /// This should be the chip's real, already-configured `Clocks` instance
+    /// (e.g. via a board-level static the kernel binds at boot), not a
+    /// freshly constructed one: `Clocks` tracks peripheral frequencies in
+    /// software, not something read back from a hardware register, so a
+    /// fresh instance would not know what the kernel already configured.
+    ///
+    /// `None` if that static was not bound yet (e.g. the panic happened
+    /// before the chip's peripherals were constructed). In that case the
+    /// UART is left as is, rather than configuring it with a baud rate
+    /// computed from an unknown clock.
+    pub clock: Option<&'a clocks::Clocks>,
+    /// The parameters to configure the UART with.
+    pub params: Parameters,
+}
+
+impl<'a> PanicWriter for Uart<'a> {
+    type Config = UartPanicWriterConfig<'a>;
+
+    fn create_panic_writer(
+        config: Self::Config,
+        _panic: &core::panic::PanicInfo,
+    ) -> impl IoWrite + core::fmt::Write {
+        let registers = config.registers;
+
+        if let Some(clock) = config.clock {
+            let pclk_freq = clock.get_frequency(clocks::Clock::Peripheral);
+            configure_registers(&registers, pclk_freq, config.params);
+        }
+
+        UartPanicWriter { registers }
     }
 }

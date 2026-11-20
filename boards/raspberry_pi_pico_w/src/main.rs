@@ -118,9 +118,6 @@ pub unsafe fn start() -> (
 
     let (board_kernel, base, peripherals, mux_alarm, chip) = raspberry_pi_pico::setup(output);
 
-    // Set the UART used for panic
-    (*core::ptr::addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
-
     // WIFI
 
     let cs = peripherals.pins.get_pin(RPGpio::GPIO25);
