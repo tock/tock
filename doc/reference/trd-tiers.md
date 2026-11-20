@@ -7,8 +7,8 @@ Code Tiers
 **Status:** Draft <br/>
 **Author:** Brad Campbell, Amit Levy<br/>
 **Draft-Created:** 2025/12/15 <br/>
-**Draft-Modified:** 2025/12/15 <br/>
-**Draft-Version:** 2 <br/>
+**Draft-Modified:** 2026/11/20 <br/>
+**Draft-Version:** 3 <br/>
 **Draft-Discuss:** devel@lists.tockos.org<br/>
 
 Abstract
@@ -18,7 +18,7 @@ As an operating system, Tock has numerous subsytems to support a variety of
 hardware platforms, kernel features, and use cases. With a continuously growing
 code base, different code modules and files receive a different level of
 scrutiny and have different levels of significance for the overall project.
-However, this scrutiny is implicit to code authors and reviewers. Code Tiers
+However, this scrutiny and importance is often implicit to code authors and reviewers. Code Tiers
 addresses this, by adding annotations in the source directly to denote the
 importance and scrutiny applied to each code module. This helps clarify to
 contributors the expectations for changes to a particular module and signals to
@@ -32,9 +32,13 @@ Software development is commonly structured based on stability
 guarantees where during code review developers ensure that
 functionality that was promised to remain unchanged is in fact
 unchanged, or, the version number is incremented. Tock does include
+certain but limited
 stability guarantees, and we find that established software
 engineering practices are sufficient to maintain these (e.g., semantic
-versioning and unit testing).
+versioning and unit testing). However, because what is promised to be stable
+is relatively narrow, applying only to the low-level interface between
+userspace and the kernel, stability guarantees are ineffective to guide code review
+on internal Tock interfaces and subsystems, which is the majority of code contributions.
 
 What is less commonly expressed in software projects is the degree to
 which particular code has been reviewed, validated, considered, and
@@ -52,14 +56,29 @@ change impacts vetted code and review it appropriately. Otherwise,
 seemingly innocuous (but incorrect) changes could have significant
 impacts to Tock security.
 
-Marking code's "trust tier" explicitly can have major benefits to code
+One version of this insight can be extracted from the code base automatically.
+Using control-flow analysis techniques, the amount of code affected by any
+change can be automatically determined. In addition to quantity, which code
+and crates are affected, and how many different subsystems are affected, can
+be determined. This automated analysis can help illuminate the extent to
+which a change might have effects outside of the immediately changed code,
+and this impact may not be obvious when working on a particular subsystem.
+
+We identify, however, that automated analysis is insufficient to fully
+understand the implication of an arbitrary change to the code base. Certain
+properties of a function or module may not be readily apparent based on
+either a code base analysis like a control flow analysis, or from project and
+contribution metadata, like commit history. Code Tiers is an approach to
+capture those implications that cannot be inferred automatically.
+
+Manually annotating code with "trust tier" context can have major benefits to code
 review as well as user trust in Tock's security. For reviewers and
 contributors alike, it can help guide and prepare contributors for the
 level of scrutiny their contributions might receive. For example, if a
-contribution changes code marked "Critical," it should be clearer that
+contribution changes code marked "critical," it should be clearer that
 such changes will require more scrutiny than code marked
-"Experimental." Similarly, explicit annotations might deter
-contributors from _unnecessarily_ modifying code in higher trust tiers
+"experimental." Similarly, explicit annotations might deter
+contributors from _unnecessarily_ modifying code in high trust tiers
 in contributions that are otherwise unrelated. For users, it can help
 inform which subsystems are the most well-scrutinized and tested and
 which are unwise to rely on without further auditing.
@@ -68,108 +87,144 @@ Explicit annotations in the code itself can also enable tools to
 enforce related rules. For example, functions in highly scrutinized
 code should not call functions in experimental code.
 
-2 Tiers
+2 Code Tier Methodology
 ===============================
 
-Tock code is tiered based on two dimensions:
+Exposing code tiers is focused on adding context to the code base that is
+necessary for code review and security that cannot be automatically inferred.
+That is, this mechanism should try to make expert intuition and general
+project understanding explicit in the code base directly. However, it should
+not duplicate what can be done with automated tools or the language.
 
-1. **Assurance**: How proven, tested, or verified the code is.
-2. **Importance**: How critical the code is to the Tock project or its threat
-   model.
-
-These dimensions capture the underlying significance of any piece of Tock code,
-revealing its relevance to the project and expectations for correctness.
-
-2.1 Assurance
+2.1 Automated Analysis
 -------------------------------
 
-The assurance tier describes the status of how the code has been shown to be
-correct. This indicates to what extant the code should be considered working,
-and what the expectation is for edits to the code.
+Tock should use automated analysis to determine the impact and severity of
+proposed code changes. This reduces the burden of manually annotating code,
+and updates as the code base changes, extends, or is refactored.
 
-| Tier # | Tier                | Description                                        |
-|--------|---------------------|----------------------------------------------------|
-| 1      | Formally Verified   | Code is checked by formal verification tools       |
-| 2      | Extensively Tested  | Code is tested in CI and extensively used          |
-| 3      | Functionally Tested | Code is tested in CI or other automated checks     |
-| 4      | Normal              | Code is tested for correctness when it was written |
+Tock has traditionally included some automated analysis for understanding the
+impacts of a change. For example:
 
-2.1.1 Assurance Tier Descriptions
+- Understanding code size effects. An automated tool compares the size of
+  built kernels before and after each PR.
+- Understanding stack size effects. A tool measures the largest stack frames
+  for any given kernel build.
+
+To further this, additional automated analysis should be considered and
+implemented. This document sketches out the desired analyses to identify what
+is not included in the manual annotations.
+
+- Number of affected functions: For every changed function in a proposed
+  patch, use the control flow graph to determine how many other functions are
+  affected as those functions call (directly or indirectly) the modified
+  function.
+- Number of affected unsafe blocks: Use the control flow graph to determine
+  how many unsafe blocks contain code that is affected by this change.
+
+2.2 Rust-based Annotations
 -------------------------------
 
-- **Formally Verified**: This code is checked by a static verification tool
-  with the necessary annotations and proofs included in the Tock source
-  code. This is likely accompanied by extensive test cases, including
-  on-hardware tests. Any changes must include updated checks, such as the
-  necessary annotations and proofs or new tests.
+Some code context is conveyed through language mechanisms. As Tock is
+implemented in Rust, Tock uses Rust's mechanisms to annotated code.
 
-- **Extensively Tested**: This code is tested with a combination of Rust unit
-  tests, integration tests, and automatic CI tests. The code is also widely
-  used over a significant time (i.e., multiple years) on multiple hardware
-  platforms by multiple users. This code is highly scrutinized during any
-  proposed changes. Extensive testing may be required to validate changes.
+The most prominent example is marking functions and traits as `unsafe` to
+convey there are pre-conditions that callers and implementers must discharge
+to avoid unsound code. Functions and traits marked `unsafe` are accompanied
+by a `/// # Safety` comment explaining the requirements.
 
-- **Functionally Tested**: This code is tested with some combination of Rust
-  unit tests, integration tests, and automatic CI tests. Changes must pass
-  or update existing tests, and new tests may be required for any new
-  code.
-
-- **Normal**: This is the default tier for all Tock code not otherwise
-  classified into another tier. The code was tested by running it in an
-  appropriate context and verifying expected behavior.
-
-2.2 Importance
+2.3 Manual Annotations
 -------------------------------
 
-The importance tier describes how important the code is within the Tock
-project and especially its threat model.
+For context and impact that cannot be quantified automatically, or where the
+automatic analysis tools generate misleading outputs, manual annotations
+provide explicit context to code in the code base.
 
-| Tier # | Tier         | Description                                        |
-|--------|--------------|----------------------------------------------------|
-| 1      | Critical     | Code is central to Tock and its threat model       |
-| 2      | Widely Used  | Code is widely used in most Tock instances         |
-| 3      | Normal       | Code is a normal part of the Tock project          |
-| 4      | Experimental | Code is new, unfinished, and/or being designed     |
+Because these annotations are intentionally subjective, based on experience,
+and reflect intended designs not captured by the semantics of the programming
+language, the annotations should not be focused on objective rankings or
+scorings. That is, the manual annotations should _not_ be based on an
+explicit hierarchy or try to provide code with an absolute score. While
+objective metrics like a hierarchy or score have appeal, they ultimately are
+too rigid to capture the subtleties in real code bases, lead to unproductive
+discussions about the "correct" classification, and hinder adoption by making
+annotating difficult.
 
-2.2.1 Importance Tier Descriptions
+Instead, the annotations should only strive to provide missing context
+necessary for code review and capturing security requirements. These
+annotations need not represent a single dimension of classification, be
+comprehensive along a single dimension, or be mutually exclusive. They should
+be flexible enough to capture implicit context while remaining intuitive to
+be effectively communicative.
+
+3 Code Tier Tags
+===============================
+
+Code is annotated with a list of tags. The tags convey something related to
+the context of the code, its importance, its assurance, or another property
+that is not conveyed by the programming language or computable by an
+automated analysis.
+
+The tags are well defined with clear meanings for the annotated code. By
+having a fixed set of tags that are consistent throughout the code base,
+different modules and crates can be compared and analyzed based on the tags.
+Compared to an unconstrained written description, this promotes some
+consistency in the code base.
+
+Notably, the tags are not ranked or scored, and there is no ordering function
+between tags. This makes them flexible, and introduces enough subjectivity
+that they can be used across a code base and by multiple developers. Whereas
+any numeric-based approach inevitably requires normalization against a common
+baseline, which can be difficult to establish across an entire code base,
+tags can naturally be understood in the context of a subsystem or crate.
+
+3.1 Defined Tags
 -------------------------------
 
-- **Critical**: This code is directly related to Tock's system-level security
-  guarantees. Correctness is critical for Tock to uphold its threat model.
-  This code is highly scrutinized during any proposed changes. Changes
-  often require extensive discussions and careful audits.
+| Tag                   | Description                                    |
+|-----------------------|------------------------------------------------|
+| threat-model-critical | Code directly impacts the Tock threat model    |
+| experimental          | Code is new, unfinished, and/or being designed |
+| formally-verified     | Code is checked by formal verification tools   |
 
-- **Widely Used**: This code is not necessarily related to Tock's security
-  model, but is widely used and tested, is necessary for correct operation
-  of many platforms, and has been carefully implemented. Changes must be
-  extensively tested.
+3.1.1 Tag Descriptions
+-------------------------------
 
-- **Normal**: This is the default tier for all Tock code not otherwise
-  classified into another tier.
+- **threat-model-critical**: This code is directly related to Tock's
+  system-level security guarantees. Correctness is critical for Tock to
+  uphold its threat model. This code is highly scrutinized during any
+  proposed changes. Changes often require extensive discussions and careful
+  audits.
 
-- **Experimental**: This code is new, a work-in-progress, or otherwise an
+- **experimental**: This code is new, a work-in-progress, or otherwise an
   experimental subsystem or module within Tock. It likely will change
   substantially and may be not fully implemented or working. New
   contributions will not receive significant scrutiny to support rapid
   development.
 
-3 Annotation Mechanism
+- **formally-verified**: This code is checked by a static verification tool
+  with the necessary annotations and proofs included in the Tock source
+  code. This is likely accompanied by extensive test cases, including
+  on-hardware tests. Any changes must include updated checks, such as the
+  necessary annotations and proofs or new tests.
+
+4 Annotation Mechanism
 ===============================
 
-Code is assigned tiers in Tock using comments on the source code, leveraging
+Code is annotated in Tock using comments on the source code, leveraging
 the same infrastructure as doc comments and safety comments.
 
 Any code in Tock that can be commented with a doc comment can be annotated
-with tiers.
+with tags.
 
-The code's tier is specified with a top-level header `Code Tier`. Each tier is
-specified as a list with the tier name. The format is like this:
+The code's tier is specified with a top-level header `Code Tier`. Then the
+tags are listed. Any additional context needed to explain the tags can then
+be included.
 
 ```
 /// # Code Tier
 ///
-/// - Assurance: <Assurance tier>
-/// - Importance: <Importance tier>
+/// Tags: <tag 1>, <tag 2>, <tag N>
 ///
 /// <Optional description or comments>
 ```
@@ -181,36 +236,29 @@ For example:
 ///
 /// # Code Tier
 ///
-/// - Assurance: Critical
-/// - Importance: Extensively Tested
+/// Tags: threat-model-critical
+/// 
+/// A correctly initialized process is crucial to uphold Tock's threat model
+/// guarantees, particularly concerning isolation between processes.
 pub fn process_standard_create() -> ProcessStandard;
 ```
 
-3.1 Default Tier
--------------------------------
-
-If there is no annotation present code is, by default, in the Normal assurance
-tier and the Normal importance tier.
-
-4 Using the Code Tier Annotations
+5 Using the Code Tier Annotations
 ===============================
 
 Annotating code tiers enables some automated processes to aid Tock development.
 This list is not comprehensive, but outlines some anticipated benefits of
 annotating code tiers.
 
-1. Detecting code which relies on a lower tier. Code in the highest assurance
-   tiers(i.e., Formally Verified and Extensively Tested) may have an implicit
-   assumption that it only uses or calls code in the same or higher tier.
-   Similarly, code in a high importance tier may not expect to depend on code in
-   a low importance tier. As an extreme example, code in the Critical importance
-   tier should not rely on code in the Experimental importance tier. With
-   annotated code, static analysis can determine if there are any possible
-   execution paths where any code relies on lower-tier code.
+1. Detecting code with likely mismatches in expectations. Code with certain
+   tags, such as threat-model-critical, likely should not rely on code tagged
+   experimental. With annotated code, static analysis can determine if there are
+   any possible execution paths where any code with a certain tag relies on code
+   with other, potentially incompatible tags.
 
    With Tock's modularity, it is possible that certain kernel configurations
-   would unexpectedly cause high tier code to rely on low tier code. This
-   analysis would help Tock developers and users detect these scenarios.
+   would unexpectedly cause this type of mismatch. This analysis would help
+   Tock developers and users detect these scenarios.
 
 2. Code review assistance. Reviewing Tock PRs does not require the same scrutiny
    across all code. However, the required scrutiny is typically determined
@@ -218,20 +266,15 @@ annotating code tiers.
    for code review is made explicit.
 
 3. Avoiding undetected changes to trusted code. A contribution may change code
-   that is in the normal tier, but that code is used by code in a higher tier.
-   Control flow analysis from code in higher tiers would reveal the potential
-   impact of this change and mark the contribution for increased scrutiny.
+   that is not tagged and is not flagged by automated analysis, but that code is
+   used by code with certain tags. Control flow analysis from code with specific
+   tags would reveal the potential impact of this change and mark the
+   contribution for increased scrutiny.
 
-5 Open Questions
+6 Open Questions
 ===============================
 
-1. Is higher tier code relying on lower tier code an error or a warning? If a
-   warning, how do we specify the cases where we want it to be an error? For
-   example, we may mark a function as a high tier, and then examine all code it
-   depends on to ensure it is at the same tier or higher. We then want to be
-   able to record that, so any future change that makes that no longer hold is
-   flagged. If an error, how do we specify the cases that we don't want to cause
-   CI to fail?
+
 
 
 Author Addresses
