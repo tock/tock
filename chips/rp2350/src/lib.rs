@@ -20,15 +20,15 @@ pub mod xosc;
 
 use cortexm33::{CortexM33, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
-extern "C" {
+unsafe extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
-    fn _estack();
+    unsafe fn _estack();
 }
 
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
+    unsafe(link_section = ".vectors")
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
@@ -51,7 +51,10 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM33::SYSTICK_HANDLER, // SysTick
 ];
 
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    unsafe(link_section = ".irqs")
+)]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 52] = [
@@ -108,11 +111,3 @@ pub static IRQS: [unsafe extern "C" fn(); 52] = [
     unhandled_interrupt,    // (50)
     unhandled_interrupt,    // (51)
 ];
-
-extern "C" {
-    static mut _szero: usize;
-    static mut _ezero: usize;
-    static mut _etext: usize;
-    static mut _srelocate: usize;
-    static mut _erelocate: usize;
-}

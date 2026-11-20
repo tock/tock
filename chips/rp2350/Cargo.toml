@@ -6,7 +6,7 @@
 name = "rp2350"
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 tock-registers-v0 = { features = ["register_types"], workspace = true }

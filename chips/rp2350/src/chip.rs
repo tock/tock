@@ -115,7 +115,9 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
     }
 
     unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
-        CortexM33::print_cortexm_state(writer);
+        unsafe {
+            CortexM33::print_cortexm_state(writer);
+        }
     }
 }
 
