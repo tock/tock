@@ -245,6 +245,11 @@ pub unsafe fn main() {
                 kernel::capabilities::CpuStateControlCapability
             ))
         }),
+        Some(|| {
+            cortexm0p::support::hardfault(&kernel::create_capability!(
+                kernel::capabilities::CpuStateControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(

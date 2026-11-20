@@ -244,6 +244,11 @@ where
         alarm_mux,
         process_printer,
         None,
+        Some(|| {
+            cortexm::support::hardfault(&kernel::create_capability!(
+                kernel::capabilities::CpuStateControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
