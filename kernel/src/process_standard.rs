@@ -446,7 +446,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     /// Application memory layout:
     ///
     /// ```text
-    ///     ╒════════ ← memory_start + memory_len
+    ///     ╒════════ ← memory + memory.len()
     ///  ╔═ │ Grant Pointers
     ///  ║  │ ──────
     ///  ║  │ Upcall Queue
@@ -470,16 +470,14 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     ///  E  │                                    S B
     ///  D  │ ──────  ← current_stack_pointer      L
     ///     │                                    ║ E
-    ///  ╚═ ╘════════ ← memory_start            ═╝
+    ///  ╚═ ╘════════ ← memory                  ═╝
     /// ```
     ///
-    /// The start of process memory. We store this as a pointer and length and
+    /// The start of process memory. We store this as a raw pointer and
     /// not a slice due to Rust aliasing rules. If we were to store a slice,
     /// then any time another slice to the same memory or an ProcessBuffer is
     /// used in the kernel would be undefined behavior.
-    memory_start: *const u8,
-    /// Number of bytes of memory allocated to this process.
-    memory_len: usize,
+    memory: *const [u8],
 
     /// Reference to the slice of `GrantPointerEntry`s stored in the process's
     /// memory reserved for the kernel. These driver numbers are zero and
@@ -501,12 +499,15 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
 
     /// Process flash segment. This is the region of nonvolatile flash that
     /// the process occupies.
-    flash: &'static [u8],
+    ///
+    /// Stored as a raw pointer, not a reference, because a process may be
+    /// able to initiate writes to its own flash while this field exists.
+    flash: *const [u8],
 
     /// The footers of the process binary (may be zero-sized), which are metadata
     /// about the process not covered by integrity. Used, among other things, to
     /// store signatures.
-    footers: &'static [u8],
+    footers: *const [u8],
 
     /// Collection of pointers to the TBF header in flash.
     header: tock_tbf::types::TbfHeader<'static>,
@@ -1618,7 +1619,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             flash_non_protected_start: self.flash_non_protected_start(),
             flash_integrity_end: self
                 .flash
-                .as_ptr()
+                .cast::<u8>()
                 .wrapping_add(self.header.get_binary_end() as usize),
             flash_end: self.flash_end(),
             sram_start: self.mem_start() as usize,
@@ -1720,7 +1721,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         } else {
             // PIC, need to specify the addresses.
             let sram_start = self.mem_start() as usize;
-            let flash_start = self.flash.as_ptr() as usize;
+            let flash_start = self.flash.addr();
             let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
             let _ = writer.write_fmt(format_args!(
@@ -2063,12 +2064,6 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let (_padding, allocated_memory) =
             unsafe { raw_slice_split_at_mut(allocated_padded_memory, app_memory_start_offset) };
 
-        // We continue to sub-slice the `allocated_memory` into
-        // process-accessible and kernel-owned memory. Prior to that, store the
-        // start and length ofthe overall allocation:
-        let allocated_memory_start = allocated_memory.cast();
-        let allocated_memory_len = allocated_memory.len();
-
         // Slice off the process-accessible memory:
         //
         // SAFETY: `min_process_memory_size` must be within `allocated_memory`.
@@ -2236,8 +2231,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 kernel: kernel,
                 chip: chip,
                 allow_high_water_mark: Cell::new(initial_allow_high_water_mark),
-                memory_start: allocated_memory_start,
-                memory_len: allocated_memory_len,
+                memory: allocated_memory,
                 header: pb.header,
                 kernel_memory_break: Cell::new(kernel_memory_break),
                 app_break: Cell::new(initial_app_brk),
@@ -2324,7 +2318,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             }
         }
 
-        let flash_start: *const u8 = process.flash.as_ptr();
+        let flash_start: *const u8 = process.flash.cast::<u8>();
         let app_start =
             flash_start.wrapping_add(process.header.get_app_start_offset() as usize) as usize;
         let init_addr: *const () = flash_start
@@ -2361,8 +2355,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 source: FunctionCallSource::Kernel,
                 pc: init_fn,
                 argument0: app_start,
-                argument1: process.memory_start as usize,
-                argument2: process.memory_len,
+                argument1: process.memory.addr(),
+                argument2: process.memory.len(),
                 argument3: (process.app_break.get() as usize).into(),
             }));
         });
@@ -2418,7 +2412,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Allocate MPU region for flash.
         let app_mpu_flash = self.chip.mpu().allocate_region(
-            self.flash.as_ptr(),
+            self.flash.cast::<u8>(),
             self.flash.len(),
             self.flash.len(),
             mpu::Permissions::ReadExecuteOnly,
@@ -2456,8 +2450,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
             self.mem_start(),
-            self.memory_len,
-            self.memory_len, //we want exactly as much as we had before restart
+            self.memory.len(),
+            self.memory.len(), //we want exactly as much as we had before restart
             min_process_memory_size,
             initial_kernel_memory_size,
             mpu::Permissions::ReadWriteOnly,
@@ -2561,8 +2555,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             source: FunctionCallSource::Kernel,
             pc: init_fn,
             argument0: app_start,
-            argument1: self.memory_start as usize,
-            argument2: self.memory_len,
+            argument1: self.memory.addr(),
+            argument2: self.memory.len(),
             argument3: (self.app_break.get() as usize).into(),
         }))
     }
@@ -2722,17 +2716,17 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
     /// The start address of allocated RAM for this process.
     fn mem_start(&self) -> *const u8 {
-        self.memory_start
+        self.memory.cast::<u8>()
     }
 
     /// The first address after the end of the allocated RAM for this process.
     fn mem_end(&self) -> *const u8 {
-        self.memory_start.wrapping_add(self.memory_len)
+        self.memory.cast::<u8>().wrapping_add(self.memory.len())
     }
 
     /// The start address of the flash region allocated for this process.
     fn flash_start(&self) -> *const u8 {
-        self.flash.as_ptr()
+        self.flash.cast::<u8>()
     }
 
     /// Get the first address of process's flash that isn't protected by the
@@ -2740,13 +2734,13 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// potentially other state the kernel is storing on behalf of the process,
     /// and cannot be edited by the process.
     fn flash_non_protected_start(&self) -> usize {
-        (self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize
+        self.flash.addr() + self.header.get_protected_size() as usize
     }
 
     /// The first address after the end of the flash region allocated for this
     /// process.
     fn flash_end(&self) -> usize {
-        self.flash.as_ptr().addr().wrapping_add(self.flash.len())
+        self.flash.addr().wrapping_add(self.flash.len())
     }
 
     /// The lowest address of the grant region for the process.
