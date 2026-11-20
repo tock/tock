@@ -28,28 +28,6 @@ pub const XLEN: usize = 1 << XLEN_LOG2;
 /// This is `5` on RISCV-32 (`XLEN` = 32) and `6` on RISCV-64 (`XLEN` = 64).
 pub const XLEN_LOG2: usize = usize::BITS.trailing_zeros() as usize;
 
-extern "C" {
-    // Where the end of the stack region is (and hence where the stack should
-    // start), and the start of the stack region.
-    static _estack: usize;
-    static _sstack: usize;
-
-    // Boundaries of the .bss section.
-    static mut _szero: usize;
-    static mut _ezero: usize;
-
-    // Where the .data section is stored in flash.
-    static mut _etext: usize;
-
-    // Boundaries of the .data section.
-    static mut _srelocate: usize;
-    static mut _erelocate: usize;
-
-    // The global pointer, value set in the linker script
-    #[link_name = "__global_pointer$"]
-    static __global_pointer: usize;
-}
-
 /// Entry point of all programs
 ///
 /// This assembly does three functions:
@@ -66,13 +44,34 @@ extern "C" {
 // object formats (Mach-O, PE, ...) that reject a bare section name like
 // this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
-#[cfg_attr(riscv_bare_metal, link_section = ".riscv.start")]
+//
+// # Safety
+//
+// `link_section` allows us to place data and code in arbitrary locations. We
+// ensure that the .riscv.start is intended for this purpose and is valid for
+// executable code.
+#[cfg_attr(riscv_bare_metal, unsafe(link_section = ".riscv.start"))]
+// # Safety
+//
+// - INPUTS: This does not use any input registers.
+// - OUTPUTS: This writes to four caller-saved registers: a0, a1, a2, and a3
+//   and no callee-saved registers.
+// - This does not fall-through. It unconditionally jumps to main().
 #[unsafe(naked)]
 // We don't want the function name symbol to be mangled in order to be able to refer to
 // it the linker script. It is not currently being used in the provided linker script
 // for the supported boards, however it might be needed in the future or for downstream developers
 // providing their own linker scripts, where this symbol might be used to point to the entry point
 // (i.e. ENTRY(_start), or verify the placement via asserts or perform memory layout calculations).
+//
+// # Safety
+//
+// We use `initialize_ram_jump_to_main` as a symbol in the linker file. This is
+// the only user of the name `initialize_ram_jump_to_main` and no other symbol
+// may use the same name.
+//
+// Note: this requires a global/uniqueness guarantee.
+// See <https://github.com/tock/tock/issues/5250>.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     use core::arch::naked_asm;
@@ -93,14 +92,14 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     .option push
     .option norelax
 
-    la gp, {gp}                 // Set the global pointer from linker script.
+    la gp, __global_pointer$    // Set the global pointer from linker script.
 
     // Re-enable linker relaxations.
     .option pop
 
     // Initialize the stack pointer register. This comes directly from
     // the linker script.
-    la sp, {estack}             // Set the initial stack pointer.
+    la sp, _estack              // Set the initial stack pointer.
 
     // Set s0 (the frame pointer) to the start of the stack.
     add  s0, sp, zero           // s0 = sp
@@ -113,8 +112,8 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 
     // Start by initializing .bss memory. The Tock linker script defines
     // `_szero` and `_ezero` to mark the .bss segment.
-    la a0, {sbss}               // a0 = first address of .bss
-    la a1, {ebss}               // a1 = first address after .bss
+    la a0, _szero               // a0 = first address of .bss
+    la a1, _ezero               // a1 = first address after .bss
 
 100: // bss_init_loop
     beq  a0, a1, 101f           // If a0 == a1, we are done.
@@ -126,9 +125,9 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 
     // Now initialize .data memory. This involves coping the values right at the
     // end of the .text section (in flash) into the .data section (in RAM).
-    la a0, {sdata}              // a0 = first address of data section in RAM
-    la a1, {edata}              // a1 = first address after data section in RAM
-    la a2, {etext}              // a2 = address of stored data initial values
+    la a0, _srelocate           // a0 = first address of data section in RAM
+    la a1, _erelocate           // a1 = first address after data section in RAM
+    la a2, _etext               // a2 = address of stored data initial values
 
 200: // data_init_loop
     beq  a0, a1, 201f           // If we have reached the end of the .data
@@ -145,14 +144,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     // With that initial setup out of the way, we now branch to the main
     // code, likely defined in a board's main.rs.
     j main
-        ",
-        gp = sym __global_pointer,
-        estack = sym _estack,
-        sbss = sym _szero,
-        ebss = sym _ezero,
-        sdata = sym _srelocate,
-        edata = sym _erelocate,
-        etext = sym _etext,
+        "
     );
 }
 
@@ -278,13 +270,38 @@ pub enum PermissionMode {
 // object formats (Mach-O, PE, ...) that reject a bare section name like
 // this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
-#[cfg_attr(riscv_bare_metal, link_section = ".riscv.trap")]
+//
+// # Safety
+//
+// `link_section` allows us to place data and code in arbitrary locations. We
+// ensure that the .riscv.trap is intended for this purpose and is valid for
+// executable code.
+#[cfg_attr(riscv_bare_metal, unsafe(link_section = ".riscv.trap"))]
 // We need the `start_trap` function to be 256 byte aligned. The linker script
 // includes a check for whether a symbol named `start_trap` exists. If it does,
 // it makes sure to align the `.riscv.trap` section on a 256 byte
 // boundary. Thus, ensure that this function is exported under this stable
 // symbol name.
-#[export_name = "start_trap"]
+//
+// # Safety
+//
+// `export_name` allows us to choose a custom name for this symbol which could
+// collide with another symbol with the same name. We use `start_trap` as a
+// symbol in the linker file to ensure alignment. This is the only use of the
+// name `start_trap` and no other symbol may use the same name.
+//
+// Note: this requires a global/uniqueness guarantee.
+// See <https://github.com/tock/tock/issues/5250>.
+#[unsafe(export_name = "start_trap")]
+// # Safety
+//
+// - INPUTS: This does not assume anything about the contents of any registers.
+//   It reads all registers to store their values.
+// - OUTPUTS: This writes two callee-saved registers, s0 and s1. s0 is saved to
+//   mscratch and restored. s1 is only written if a custom trap handler is in
+//   use, and the custom trap handler must restore s1.
+// - This does not fall-through. If there is no custom trap handler it calls
+//   `mret`. If there is a custom trap handler, it jumps to that handler.
 #[unsafe(naked)]
 pub extern "C" fn start_trap() -> ! {
     use core::arch::naked_asm;
@@ -326,7 +343,7 @@ pub extern "C" fn start_trap() -> ! {
 
     // Load the address of the bottom of the stack (`_sstack`) into our
     // newly freed-up s0 register.
-    la s0, {sstack}               // s0 = _sstack
+    la s0, _sstack                // s0 = _sstack
 
     // Compare the kernel stack pointer to the bottom of the stack. If
     // the stack pointer is above the bottom of the stack, then continue
@@ -338,7 +355,7 @@ pub extern "C" fn start_trap() -> ! {
     // valid stack to run the panic code. We do this by just starting
     // over with the kernel stack and placing the stack pointer at the
     // top of the original stack.
-    la sp, {estack}               // sp = _estack
+    la sp, _estack                // sp = _estack
 
 200: // _start_kernel_trap_continue
 
@@ -423,8 +440,6 @@ pub extern "C" fn start_trap() -> ! {
     // mepc we will return to where the exception occurred.
     mret
         ",
-        estack = sym _estack,
-        sstack = sym _sstack,
         XLEN = const XLEN,
         XLEN_LOG2 = const XLEN_LOG2,
     );
@@ -451,8 +466,28 @@ pub extern "C" fn start_trap() -> ! {
 pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
     use core::arch::asm;
     let res;
-    asm!(
-        "
+
+    // SAFETY: This complies with the asm safety requirements:
+    // - INPUTS:
+    //   - This uses `a0`, which is specified as an input from `command`.
+    //   - This uses `a1`, which is specified as an input from `arg0`.
+    //   - This uses `a2`, which is specified as an input from `arg1`.
+    // - OUTPUTS:
+    //   - This writes `a0` which is specified as an output to `res`.
+    // - Options set:
+    // - Options not set:
+    //   - nomem: The debugger could read and write memory?
+    //   - nostack: The debugger could use the stack?
+    //   - preserves_flags: no meaning on RISC-V without floating-point or
+    //     vector extensions
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on riscv
+    //   - raw: not required
+    unsafe {
+        asm!(
+            "
     .balign 16                    // ensure 16 byte alignment
     .option push                  // enable the following options:
     .option norelax               // - norelax: do not replace these instructions
@@ -461,12 +496,13 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
     ebreak                        // trap to debugger
     srai x0, x0, 7                // useless instruction (writes to x0), but serves as second sentinel
     .option pop
-        ",
-        in("a0") command,         // a0 holds command (and return code)
-        in("a1") arg0,            // a1 holds first argument
-        in("a2") arg1,            // a2 holds second argument
-        lateout("a0") res,        // semihosting replaces a0 with return code
-    );
+            ",
+            in("a0") command,         // a0 holds command (and return code)
+            in("a1") arg0,            // a1 holds first argument
+            in("a2") arg1,            // a2 holds second argument
+            lateout("a0") res,        // semihosting replaces a0 with return code
+        );
+    }
     res
 }
 
