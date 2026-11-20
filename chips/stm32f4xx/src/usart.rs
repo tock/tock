@@ -7,8 +7,10 @@ use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
+use kernel::platform::chip::PanicWriter;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers_v0::registers::ReadWrite;
@@ -370,14 +372,6 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         }
     }
 
-    // for use by panic in io.rs
-    pub fn send_byte(&self, byte: u8) {
-        // loop till TXE (Transmit data register empty) becomes 1
-        while !self.registers.sr.is_set(SR::TXE) {}
-
-        self.registers.dr.set(byte.into());
-    }
-
     // enable DMA TX from the peripheral side
     fn enable_tx(&self) {
         self.registers.cr3.modify(CR3::DMAT::SET);
@@ -517,33 +511,37 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         }
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
-        // USARTDIV calculation based on stm32-rs stm32f4xx-hal:
-        // https://github.com/stm32-rs/stm32f4xx-hal/blob/v0.20.0/src/serial/uart_impls.rs#L145
-        //
-        // The equation to calculate USARTDIV is this:
-        //
-        // (Taken from STM32F411xC/E Reference Manual, Section 19.3.4, Equation 1)
-        //
-        // 16 bit oversample: OVER8 = 0
-        // 8 bit oversample:  OVER8 = 1
-        //
-        // USARTDIV =          (pclk)
-        //            ------------------------
-        //            8 x (2 - OVER8) x (baud)
-        //
-        // BUT, the USARTDIV has 4 "fractional" bits, which effectively means that we need to
-        // "correct" the equation as follows:
-        //
-        // USARTDIV =      (pclk) * 16
-        //            ------------------------
-        //            8 x (2 - OVER8) x (baud)
-        //
-        // When OVER8 is enabled, we can only use the lowest three fractional bits, so we'll need
-        // to shift those last four bits right one bit
-
-        let pclk_freq = self.clock.0.get_frequency();
-
+    // USARTDIV calculation based on stm32-rs stm32f4xx-hal:
+    // https://github.com/stm32-rs/stm32f4xx-hal/blob/v0.20.0/src/serial/uart_impls.rs#L145
+    //
+    // The equation to calculate USARTDIV is this:
+    //
+    // (Taken from STM32F411xC/E Reference Manual, Section 19.3.4, Equation 1)
+    //
+    // 16 bit oversample: OVER8 = 0
+    // 8 bit oversample:  OVER8 = 1
+    //
+    // USARTDIV =          (pclk)
+    //            ------------------------
+    //            8 x (2 - OVER8) x (baud)
+    //
+    // BUT, the USARTDIV has 4 "fractional" bits, which effectively means that we need to
+    // "correct" the equation as follows:
+    //
+    // USARTDIV =      (pclk) * 16
+    //            ------------------------
+    //            8 x (2 - OVER8) x (baud)
+    //
+    // When OVER8 is enabled, we can only use the lowest three fractional bits, so we'll need
+    // to shift those last four bits right one bit
+    //
+    // Takes the registers rather than `&self` so that the panic writer, which
+    // has no access to the driver instance, can reuse this calculation.
+    fn set_baud_rate_registers(
+        registers: &UsartRegisters,
+        baud_rate: u32,
+        pclk_freq: u32,
+    ) -> Result<(), ErrorCode> {
         let (mantissa, fraction) = if (pclk_freq / 16) >= baud_rate {
             // We have the ability to oversample to 16 bits, take advantage of it.
             //
@@ -551,7 +549,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
             // closest scale, rather than the floored behavior of normal integer division.
             let div = (pclk_freq + (baud_rate / 2)) / baud_rate;
 
-            self.registers.cr1.modify(CR1::OVER8::CLEAR);
+            registers.cr1.modify(CR1::OVER8::CLEAR);
 
             (div >> 4, div & 0x0F)
         } else if (pclk_freq / 8) >= baud_rate {
@@ -561,7 +559,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
             // See note above regarding `baud` and rounding.
             let div = ((pclk_freq * 2) + (baud_rate / 2)) / baud_rate;
 
-            self.registers.cr1.modify(CR1::OVER8::SET);
+            registers.cr1.modify(CR1::OVER8::SET);
 
             // Ensure the the fractional bits (only 3) are right-aligned.
             (div >> 4, (div & 0x0F) >> 1)
@@ -569,8 +567,46 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
             return Err(ErrorCode::INVAL);
         };
 
-        self.registers.brr.modify(BRR::DIV_Mantissa.val(mantissa));
-        self.registers.brr.modify(BRR::DIV_Fraction.val(fraction));
+        registers.brr.modify(BRR::DIV_Mantissa.val(mantissa));
+        registers.brr.modify(BRR::DIV_Fraction.val(fraction));
+        Ok(())
+    }
+
+    /// Bring the USART up for the given parameters and peripheral clock
+    /// frequency.
+    ///
+    /// Shared by the [`hil::uart::Configure`] implementation and by the
+    /// panic writer, which uses this when the kernel did not configure the
+    /// USART before the panic occurred.
+    ///
+    /// Only the baud rate from `params` is honored; the remaining parameters
+    /// are fixed at the reset configuration of 8 data bits, no parity, and
+    /// one stop bit.
+    fn configure_registers(
+        registers: &UsartRegisters,
+        params: hil::uart::Parameters,
+        pclk_freq: u32,
+    ) -> Result<(), ErrorCode> {
+        // Configure the word length - 0: 1 Start bit, 8 Data bits, n Stop bits
+        registers.cr1.modify(CR1::M::CLEAR);
+
+        // Set the stop bit length - 00: 1 Stop bits
+        registers.cr2.modify(CR2::STOP.val(0b00_u32));
+
+        // Set no parity
+        registers.cr1.modify(CR1::PCE::CLEAR);
+
+        Self::set_baud_rate_registers(registers, params.baud_rate, pclk_freq)?;
+
+        // Enable transmit block
+        registers.cr1.modify(CR1::TE::SET);
+
+        // Enable receive block
+        registers.cr1.modify(CR1::RE::SET);
+
+        // Enable USART
+        registers.cr1.modify(CR1::UE::SET);
+
         Ok(())
     }
 
@@ -674,27 +710,7 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
             panic!("Currently we only support uart setting of 8N1, no hardware flow control");
         }
 
-        // Configure the word length - 0: 1 Start bit, 8 Data bits, n Stop bits
-        self.registers.cr1.modify(CR1::M::CLEAR);
-
-        // Set the stop bit length - 00: 1 Stop bits
-        self.registers.cr2.modify(CR2::STOP.val(0b00_u32));
-
-        // Set no parity
-        self.registers.cr1.modify(CR1::PCE::CLEAR);
-
-        self.set_baud_rate(params.baud_rate)?;
-
-        // Enable transmit block
-        self.registers.cr1.modify(CR1::TE::SET);
-
-        // Enable receive block
-        self.registers.cr1.modify(CR1::RE::SET);
-
-        // Enable USART
-        self.registers.cr1.modify(CR1::UE::SET);
-
-        Ok(())
+        Self::configure_registers(&self.registers, params, self.clock.0.get_frequency())
     }
 }
 
@@ -772,5 +788,90 @@ impl ClockInterface for UsartClock<'_> {
 
     fn disable(&self) {
         self.0.disable();
+    }
+}
+
+struct UsartPanicWriter {
+    registers: StaticRef<UsartRegisters>,
+}
+
+impl IoWrite for UsartPanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        for &byte in buf {
+            while !self.registers.sr.is_set(SR::TXE) {}
+            self.registers.dr.set(byte as u32);
+        }
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UsartPanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for the synchronous USART panic writer.
+///
+/// A USART which the kernel already configured is used as is. Otherwise, this
+/// captures everything needed to set it up for panic display.
+pub struct UsartPanicWriterConfig<'a> {
+    pub registers: StaticRef<UsartRegisters>,
+    /// The USART's peripheral clock.
+    ///
+    /// The panic writer enables this itself, so that it can configure and use
+    /// the USART even if the kernel never clocked it (e.g. the panic happened
+    /// before the console was set up).
+    pub clock: phclk::PeripheralClock<'a>,
+    /// The parameters to fall back to when the kernel did not set a baud rate.
+    ///
+    /// A USART which the kernel already configured is used as is, so that the
+    /// panic output keeps the settings of the console it interrupts.
+    pub params: hil::uart::Parameters,
+}
+
+impl<'a, DMA: dma::StreamServer<'a>> PanicWriter for Usart<'a, DMA> {
+    type Config = UsartPanicWriterConfig<'a>;
+
+    fn create_panic_writer(
+        config: Self::Config,
+        _panic: &core::panic::PanicInfo,
+    ) -> impl IoWrite + core::fmt::Write {
+        let registers = config.registers;
+
+        // Ensure the USART is actually clocked, regardless of whether the
+        // kernel already did so. This guarantees that the register writes
+        // below take effect and that polling the status flags in `write()`
+        // will not spin forever.
+        config.clock.enable();
+
+        // A transfer may have been in flight when the panic occurred. Stop the
+        // peripheral from issuing further DMA requests, so that the bytes this
+        // writer polls out are not interleaved with DMA-driven ones.
+        registers.cr3.modify(CR3::DMAT::CLEAR + CR3::DMAR::CLEAR);
+
+        if registers.brr.read(BRR::DIV_Mantissa) != 0 {
+            // The kernel already set a baud rate, so the USART is configured.
+            // Keep that configuration and only make sure the transmitter is on
+            // and that no interrupts fire while the bytes are polled out.
+            registers.cr1.modify(
+                CR1::TE::SET
+                    + CR1::UE::SET
+                    + CR1::TXEIE::CLEAR
+                    + CR1::TCIE::CLEAR
+                    + CR1::RXNEIE::CLEAR,
+            );
+        } else {
+            // No baud rate was set yet, so configure the USART from `params`
+            // and its actual peripheral clock frequency. Unlike other chips,
+            // this does not go through `hil::uart::Configure` on a fresh
+            // `Usart`, because constructing one would claim another deferred
+            // call slot.
+            let _ =
+                Self::configure_registers(&registers, config.params, config.clock.get_frequency());
+        }
+
+        UsartPanicWriter { registers }
     }
 }
