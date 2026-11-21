@@ -12,21 +12,26 @@ use enum_primitive::enum_from_primitive;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 pub use rp2xxx::pads::{DriveStrength, SlewRate};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::chip::Processor;
-#[repr(C)]
-struct GpioPin {
-    status: ReadOnly<u32, GPIOx_STATUS::Register>,
-    ctrl: ReadWrite<u32, GPIOx_CTRL::Register>,
+register_structs! {
+    GpioPin {
+        (0x000 => status: ReadOnly<u32, GPIOx_STATUS::Register>),
+        (0x004 => ctrl: ReadWrite<u32, GPIOx_CTRL::Register>),
+        (0x008 => @END),
+    }
 }
-#[repr(C)]
-struct GpioProc {
-    enable: [ReadWrite<u32, GPIO_INTxx::Register>; 4],
-    force: [ReadWrite<u32, GPIO_INTxx::Register>; 4],
-    status: [ReadWrite<u32, GPIO_INTxx::Register>; 4],
+register_structs! {
+    GpioProc {
+        (0x000 => enable: [ReadWrite<u32, GPIO_INTxx::Register>; 4]),
+        (0x010 => force: [ReadWrite<u32, GPIO_INTxx::Register>; 4]),
+        (0x020 => status: [ReadWrite<u32, GPIO_INTxx::Register>; 4]),
+        (0x030 => @END),
+    }
 }
 
 register_structs! {

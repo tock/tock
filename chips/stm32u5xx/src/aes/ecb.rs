@@ -8,8 +8,8 @@ use core::marker::PhantomData;
 use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AESKeySize};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use stm32u5xx_unsafe::aes::{AesDmaBuffers, AesRegistersManager, Data, Interrupt};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 
 use crate::dma::Dma;
 pub const AES_IV_SIZE: usize = 16;

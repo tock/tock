@@ -37,9 +37,9 @@ use kernel::hil::symmetric_encryption::AES128;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
 pub use nrf5x_unsafe::aes::AesEcbRegisters;
 pub use nrf5x_unsafe::aes::AesEcbRegistersManager;
+use tock_registers_v0::interfaces::{Readable, Writeable};
 
 const KEY_START: usize = 0;
 const PLAINTEXT_START: usize = 16;

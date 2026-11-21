@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/top_earlgrey/ip/ast/data/ast.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of registers in the Array-B
 pub const AST_PARAM_NUM_REGS_B: u32 = 5;
 /// Number of USB valid beacon pulses for clock to re-calibrate

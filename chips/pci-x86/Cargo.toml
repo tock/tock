@@ -9,7 +9,7 @@ authors.workspace = true
 edition = "2024"
 
 [dependencies]
-tock-registers.workspace = true
+tock-registers-nodefault.workspace = true
 x86 = { path = "../../arch/x86" }
 
 [lints]

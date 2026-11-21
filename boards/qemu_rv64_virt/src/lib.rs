@@ -15,13 +15,13 @@ use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
-use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use qemu_rv64_virt_chip::chip::{QemuRv64VirtChip, QemuRv64VirtDefaultPeripherals};
 use rv64i::csr;
 use rv64i::dma_fence::RiscvCoherentDmaFence;
 use rv64i::interrupt_controller::InterruptController;
+use tock_registers_v0::interfaces::ReadWriteable;
 
 pub mod io;
 

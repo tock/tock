@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use kernel::utilities::registers::register_bitfields;
+use tock_registers_v0::register_bitfields;
 
 // Default to 32 bit if compiling for debug/testing.
 #[cfg(not(target_arch = "riscv64"))]

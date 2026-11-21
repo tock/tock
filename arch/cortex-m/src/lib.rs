@@ -166,31 +166,13 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
-    // These constants are defined in the linker script.
-    //
-    // # Safety
-    //
-    // Linker script symbols are value-less entities, a concept that does not
-    // map onto any actual Rust type (as of July 2026).  This method only uses
-    // these declarations to pass their address to the assembly. By declaring
-    // these variables within this naked fn, we ensure that no Rust code
-    // attempts to access them, and assert that the assembly will take only the
-    // address, which is well-defined.
-    unsafe extern "C" {
-        static _szero: u8;
-        static _ezero: u8;
-        static _etext: u8;
-        static _srelocate: u8;
-        static _erelocate: u8;
-    }
-
     use core::arch::naked_asm;
     naked_asm!(
         "
     // Start by initializing .bss memory. The Tock linker script defines
     // `_szero` and `_ezero` to mark the .bss segment.
-    ldr r0, ={sbss}     // r0 = first address of .bss
-    ldr r1, ={ebss}     // r1 = first address after .bss
+    ldr r0, =_szero     // r0 = first address of .bss
+    ldr r1, =_ezero     // r1 = first address after .bss
 
     movs r2, #0         // r2 = 0
 
@@ -208,9 +190,9 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 
     // Now initialize .data memory. This involves coping the values right at the
     // end of the .text section (in flash) into the .data section (in RAM).
-    ldr r0, ={sdata}    // r0 = first address of data section in RAM
-    ldr r1, ={edata}    // r1 = first address after data section in RAM
-    ldr r2, ={etext}    // r2 = address of stored data initial values
+    ldr r0, =_srelocate // r0 = first address of data section in RAM
+    ldr r1, =_erelocate // r1 = first address after data section in RAM
+    ldr r2, =_etext     // r2 = address of stored data initial values
 
 200: // data_init_loop
     cmp r1, r0          // We increment r0. Check if we have reached the end
@@ -227,12 +209,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     // Now that memory has been initialized, we can jump to main() where the
     // board initialization takes place and Rust code starts.
     bl main
-        ",
-        sbss = sym _szero,
-        ebss = sym _ezero,
-        sdata = sym _srelocate,
-        edata = sym _erelocate,
-        etext = sym _etext,
+        "
     );
 }
 

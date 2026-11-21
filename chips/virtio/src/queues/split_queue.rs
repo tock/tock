@@ -21,8 +21,9 @@ use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::dma_slice::{DmaSubSliceMut, DmaSubSliceMutImmut};
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{InMemoryRegister, register_bitfields};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::register_bitfields;
+use tock_registers_v0::registers::InMemoryRegister;
 
 use super::super::queues::{Virtqueue, VirtqueueAddresses};
 use super::super::transports::VirtIOTransport;

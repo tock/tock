@@ -21,8 +21,8 @@ use riscv_csr::csr::{
     MCYCLEH, MINSTRETH, MSECCFGH, PMPCFG1, PMPCFG3, PMPCFG5, PMPCFG7, PMPCFG9, PMPCFG11, PMPCFG13,
     PMPCFG15,
 };
-use tock_registers::fields::FieldValue;
-use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::fields::FieldValue;
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 
 pub mod mcause;
 pub mod mcycle;

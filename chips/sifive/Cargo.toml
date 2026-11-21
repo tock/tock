@@ -9,6 +9,7 @@ authors.workspace = true
 edition = "2024"
 
 [dependencies]
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
 

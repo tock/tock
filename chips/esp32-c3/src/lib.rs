@@ -12,14 +12,11 @@ pub mod i2c;
 pub mod intc;
 pub mod interrupts;
 pub mod rng;
+pub mod spi;
 pub mod sysreg;
+pub mod timg;
 pub mod usb_serial_jtag;
 pub mod ws2812;
-
-pub mod timg {
-    pub use esp32::timg::{ClockSource, TIMG0_BASE, TIMG1_BASE};
-    pub type TimG<'a> = esp32::timg::TimG<'a, esp32::timg::Freq20MHz, true>;
-}
 
 /// Entry point of the kernel.
 ///

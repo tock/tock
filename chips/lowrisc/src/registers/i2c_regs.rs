@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/i2c/data/i2c.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Depth of FMT, RX, TX, and ACQ FIFOs
 pub const I2C_PARAM_FIFO_DEPTH: u32 = 64;
 /// Number of alerts

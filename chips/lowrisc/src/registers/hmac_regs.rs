@@ -9,9 +9,9 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/hmac/data/hmac.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::WriteOnly;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::registers::WriteOnly;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of words for digest/ key
 pub const HMAC_PARAM_NUM_WORDS: u32 = 8;
 /// Number of alerts

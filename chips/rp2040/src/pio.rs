@@ -15,39 +15,44 @@ use core::cell::Cell;
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 use kernel::{ErrorCode, debug};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
 
-#[repr(C)]
-struct InstrMem {
-    // Write-only access to instruction memory locations 0-31
-    instr_mem: ReadWrite<u32, INSTR_MEMx::Register>,
+register_structs! {
+    InstrMem {
+        // Write-only access to instruction memory locations 0-31
+        (0x000 => instr_mem: ReadWrite<u32, INSTR_MEMx::Register>),
+        (0x004 => @END),
+    }
 }
 
-#[repr(C)]
-struct StateMachineReg {
-    // Clock divisor register for state machine x
-    // Frequency = clock freq / (CLKDIV_INT + CLKDIV_FRAC / 256)
-    clkdiv: ReadWrite<u32, SMx_CLKDIV::Register>,
-    // Execution/behavioural settings for state machine x
-    execctrl: ReadWrite<u32, SMx_EXECCTRL::Register>,
-    // Control behaviour of the input/output shift registers for
-    // state machine x
-    shiftctrl: ReadWrite<u32, SMx_SHIFTCTRL::Register>,
-    // Current instruction address of state machine x
-    addr: ReadOnly<u32, SMx_ADDR::Register>,
-    // Read to see the instruction currently addressed by state
-    // machine x’s program counter Write to execute an instruction
-    // immediately (including jumps) and then resume execution.
-    instr: ReadWrite<u32, SMx_INSTR::Register>,
-    // State machine pin control
-    pinctrl: ReadWrite<u32, SMx_PINCTRL::Register>,
+register_structs! {
+    StateMachineReg {
+        // Clock divisor register for state machine x
+        // Frequency = clock freq / (CLKDIV_INT + CLKDIV_FRAC / 256)
+        (0x000 => clkdiv: ReadWrite<u32, SMx_CLKDIV::Register>),
+        // Execution/behavioural settings for state machine x
+        (0x004 => execctrl: ReadWrite<u32, SMx_EXECCTRL::Register>),
+        // Control behaviour of the input/output shift registers for
+        // state machine x
+        (0x008 => shiftctrl: ReadWrite<u32, SMx_SHIFTCTRL::Register>),
+        // Current instruction address of state machine x
+        (0x00C => addr: ReadOnly<u32, SMx_ADDR::Register>),
+        // Read to see the instruction currently addressed by state
+        // machine x’s program counter Write to execute an instruction
+        // immediately (including jumps) and then resume execution.
+        (0x010 => instr: ReadWrite<u32, SMx_INSTR::Register>),
+        // State machine pin control
+        (0x014 => pinctrl: ReadWrite<u32, SMx_PINCTRL::Register>),
+        (0x018 => @END),
+    }
 }
 
 register_structs! {
