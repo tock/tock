@@ -8,10 +8,10 @@ use core::fmt::Write;
 use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::Chip;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr;
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
 use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
 
 use crate::plic::PLIC;
 use kernel::hil::time::Freq32KHz;

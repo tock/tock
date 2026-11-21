@@ -32,11 +32,11 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AES128};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use lowrisc::flash_ctrl::FlashMPConfig;
 use rv32i::csr;
+use tock_registers_v0::interfaces::ReadWriteable;
 
 pub mod io;
 mod otbn;

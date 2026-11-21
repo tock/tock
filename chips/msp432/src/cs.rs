@@ -7,10 +7,9 @@
 use kernel::platform::chip::NoClockControl;
 use kernel::utilities::StaticRef;
 use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 pub const MCLK_HZ: u32 = 48_000_000;
 pub const HSMCLK_HZ: u32 = 12_000_000;

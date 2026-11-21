@@ -27,10 +27,9 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    self, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     pub SpiRegisters {
@@ -410,7 +409,7 @@ impl<'a> SpiHw<'a> {
     fn get_active_csr<'s>(
         &'s self,
         spi: &SpiRegisterManager<'a, 's>,
-    ) -> &'s registers::ReadWrite<u32, ChipSelectParams::Register> {
+    ) -> &'s ReadWrite<u32, ChipSelectParams::Register> {
         match self.get_active_peripheral(spi) {
             Peripheral::Peripheral0 => &spi.registers.csr[0],
             Peripheral::Peripheral1 => &spi.registers.csr[1],

@@ -12,10 +12,9 @@
 // 3. Remove unused
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    ReadWrite, RegisterLongName, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
+use tock_registers_v0::{RegisterLongName, register_bitfields, register_structs};
 
 /// Many CCM_ANALOG registers are laid out with additional set, clear, and toggle
 /// registers. This groups them together into an extended register.

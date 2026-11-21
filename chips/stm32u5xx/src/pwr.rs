@@ -3,8 +3,9 @@
 // Copyright Tock Contributors 2026.
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// Power control

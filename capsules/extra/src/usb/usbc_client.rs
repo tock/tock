@@ -16,8 +16,8 @@ use super::usbc_client_ctrl::ClientCtrl;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
-use kernel::utilities::registers::InMemoryRegister;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::InMemoryRegister;
 
 const VENDOR_ID: u16 = 0x6667;
 const PRODUCT_ID: u16 = 0xabcd;

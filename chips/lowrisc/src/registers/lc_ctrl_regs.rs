@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/lc_ctrl/data/lc_ctrl.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Width of SiliconCreatorId revision field.
 pub const LC_CTRL_PARAM_SILICON_CREATOR_ID_WIDTH: u32 = 16;
 /// Width of ProductId revision field.

@@ -29,7 +29,7 @@ use kernel::hil::uart::{
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::io_write::IoWrite;
 use tock_cells::take_cell::TakeCell;
-use tock_registers::{LocalRegisterCopy, register_bitfields};
+use tock_registers_v0::{LocalRegisterCopy, register_bitfields};
 
 /// Base I/O port address of the standard COM1 serial device.
 pub const COM1_BASE: u16 = 0x03F8;

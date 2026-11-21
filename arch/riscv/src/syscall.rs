@@ -772,7 +772,7 @@ impl<I: InterruptController> kernel::syscall::UserspaceKernelBoundary for SysCal
             XLEN_LOG2 = const crate::XLEN_LOG2,
         );
 
-        use kernel::utilities::registers::LocalRegisterCopy;
+        use tock_registers_v0::LocalRegisterCopy;
         let mut cause = LocalRegisterCopy::<usize, mcause::mcause::Register>::new(state.mcause);
         cause.modify(mcause::mcause::reason.val(I::exccode(state.mcause)));
 

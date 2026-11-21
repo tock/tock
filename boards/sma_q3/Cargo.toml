@@ -13,6 +13,7 @@ build = "../build.rs"
 edition.workspace = true
 
 [dependencies]
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 components = { path = "../components" }
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }

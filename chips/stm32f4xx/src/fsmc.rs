@@ -10,8 +10,9 @@ use kernel::hil::bus8080::{Bus8080, BusAddr8080, BusWidth, Client};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// FSMC peripheral interface
@@ -251,7 +252,7 @@ impl<'a> Fsmc<'a> {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     #[inline]
     fn write_reg(&self, bank: FsmcBanks, addr: u16) {
-        use kernel::utilities::registers::interfaces::Writeable;
+        use tock_registers_v0::interfaces::Writeable;
         self.bank[bank as usize].map(|bank| bank.reg.set(addr));
         unsafe {
             use core::arch::asm;
@@ -262,7 +263,7 @@ impl<'a> Fsmc<'a> {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     #[inline]
     fn write_data(&self, bank: FsmcBanks, data: u16) {
-        use kernel::utilities::registers::interfaces::Writeable;
+        use tock_registers_v0::interfaces::Writeable;
         self.bank[bank as usize].map(|bank| bank.ram.set(data));
         unsafe {
             use core::arch::asm;

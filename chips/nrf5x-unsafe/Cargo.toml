@@ -11,6 +11,7 @@ edition = "2024"
 [dependencies]
 cortexm4f = { path = "../../arch/cortex-m4f" }
 kernel = { path = "../../kernel" }
+tock-registers-v0 = { features = ["register_types"], workspace = true }
 
 [lints]
 workspace = true

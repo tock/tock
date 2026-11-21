@@ -26,7 +26,7 @@ use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::{Readable, Writeable};
 
 /// Use 1 Interrupt transfer IN/OUT endpoint
 const ENDPOINT_NUM: usize = 1;

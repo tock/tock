@@ -5,10 +5,10 @@
 use core::cell::Cell;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
-use kernel::utilities::registers::{
-    Field, FieldValue, ReadOnly, ReadWrite, register_bitfields, register_structs,
-};
+use tock_registers_v0::fields::{Field, FieldValue};
+use tock_registers_v0::interfaces::{ReadWriteable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 /// Base address for USART1 in Secure Alias mode.
 const USART1_BASE_ADDR: u32 = 0x5001_3800;

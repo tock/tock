@@ -20,11 +20,11 @@ use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 use rv32i::interrupt_controller::InterruptController;
+use tock_registers_v0::interfaces::ReadWriteable;
 
 pub mod io;
 

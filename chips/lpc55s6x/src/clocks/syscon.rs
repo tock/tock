@@ -15,9 +15,8 @@
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     /// SYSCON

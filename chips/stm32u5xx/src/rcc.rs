@@ -4,8 +4,9 @@
 // Copyright OxidOS Automotive 2026.
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 
 // The PWR peripheral is needed for setting the voltage scale and enabling the EPOD booster
 use crate::pwr::{Pwr, VoltageScale};

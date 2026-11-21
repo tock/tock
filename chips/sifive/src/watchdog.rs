@@ -5,8 +5,9 @@
 //! Watchdog driver.
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
+use tock_registers_v0::interfaces::Writeable;
+use tock_registers_v0::registers::{ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 register_structs! {
     pub WatchdogRegisters {

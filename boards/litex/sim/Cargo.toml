@@ -10,6 +10,7 @@ build = "../../build.rs"
 edition.workspace = true
 
 [dependencies]
+tock-registers-v0.workspace = true
 components = { path = "../../components" }
 rv32i = { path = "../../../arch/rv32i" }
 kernel = { path = "../../../kernel" }

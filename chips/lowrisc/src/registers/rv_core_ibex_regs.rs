@@ -9,8 +9,8 @@
 // Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/rv_core_ibex/data/rv_core_ibex.hjson
-use kernel::utilities::registers::ReadWrite;
-use kernel::utilities::registers::{register_bitfields, register_structs};
+use tock_registers_v0::registers::ReadWrite;
+use tock_registers_v0::{register_bitfields, register_structs};
 /// Number of software triggerable alerts
 pub const RV_CORE_IBEX_PARAM_NUM_SW_ALERTS: u32 = 2;
 /// Number of translatable regions per ibex bus

@@ -16,6 +16,8 @@
 
 #![no_std]
 
+extern crate tock_registers_nodefault as tock_registers;
+
 mod bdf;
 pub use self::bdf::Bdf;
 

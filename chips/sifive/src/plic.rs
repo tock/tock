@@ -7,9 +7,10 @@
 use core::cell::Cell;
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::LocalRegisterCopy;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use tock_registers_v0::LocalRegisterCopy;
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 /// Place the register map definition in a private module to disallow direct access to it's
 /// fields from the Plic struct implementation, which should only use a getter/setter with

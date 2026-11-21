@@ -22,10 +22,9 @@ use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::clocks;
 use crate::gpio::RPGpio;
@@ -109,18 +108,20 @@ register_bitfields![u32,
 
 const NUMBER_CHANNELS: usize = 8;
 
-#[repr(C)]
-struct Channel {
-    // Control and status register
-    csr: ReadWrite<u32, CSR::Register>,
-    // Division register
-    div: ReadWrite<u32, DIV::Register>,
-    // Direct access to the PWM counter register
-    ctr: ReadWrite<u32, CTR::Register>,
-    // Counter compare values register
-    cc: ReadWrite<u32, CC::Register>,
-    // Counter wrap value register
-    top: ReadWrite<u32, TOP::Register>,
+register_structs! {
+    Channel {
+        // Control and status register
+        (0x000 => csr: ReadWrite<u32, CSR::Register>),
+        // Division register
+        (0x004 => div: ReadWrite<u32, DIV::Register>),
+        // Direct access to the PWM counter register
+        (0x008 => ctr: ReadWrite<u32, CTR::Register>),
+        // Counter compare values register
+        (0x00C => cc: ReadWrite<u32, CC::Register>),
+        // Counter wrap value register
+        (0x010 => top: ReadWrite<u32, TOP::Register>),
+        (0x014 => @END),
+    }
 }
 
 register_structs! {
