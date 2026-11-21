@@ -29,6 +29,7 @@ use kernel::hil::uart::{
 };
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, hil};
 use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
