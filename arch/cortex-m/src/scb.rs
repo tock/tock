@@ -375,6 +375,27 @@ pub unsafe fn disable_fpca() {
     {
         panic!("Unable to disable FPU");
     }
+
+    // Clear the floating point context, possibly left active by a prior boot stage.
+    //
+    // ### Safety
+    //
+    // We are in privileged thread mode during chip init, where CONTROL is
+    // writable. Only the FPCA bit is cleared; other CONTROL bits are
+    // preserved. The kernel is built soft-float, so no live FP state is lost.
+    // CONTROL writes must be followed by an ISB.
+    unsafe {
+        asm!(
+            "
+            mrs {tmp}, CONTROL
+            bic {tmp}, {tmp}, #4
+            msr CONTROL, {tmp}
+            isb
+            ",
+            tmp = out(reg) _,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
 }
 
 // Mock implementation for tests on Travis-CI.

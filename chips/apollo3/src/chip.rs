@@ -119,11 +119,6 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
             crate::scb::disable_fpca();
         }
 
-        // This ensures the FPU is actually disabled
-        unsafe {
-            crate::actually_disable_fpu();
-        }
-
         cortexm4f::nvic::disable_all();
         cortexm4f::nvic::clear_all_pending();
         cortexm4f::nvic::enable_all();
