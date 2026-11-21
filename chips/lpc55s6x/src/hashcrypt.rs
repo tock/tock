@@ -34,10 +34,9 @@ use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut, SubSliceMutImmut};
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
-};
+use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers_v0::{register_bitfields, register_structs};
 
 use crate::clocks::Clock;
 
