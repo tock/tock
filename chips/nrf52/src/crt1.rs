@@ -13,15 +13,25 @@ use cortexm4f::{CortexM4F, CortexMVariant, initialize_ram_jump_to_main, scb, unh
  * Copyright 2016, Michael Andersen <m.andersen@eecs.berkeley.edu>
  */
 
-extern "C" {
+// # Safety
+//
+// This is only used to get an address and must not be called.
+// See https://github.com/tock/tock/issues/5314 for more information.
+unsafe extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
-    fn _estack();
+    unsafe fn _estack();
 }
 
+// # Safety
+//
+// ## `link_section`
+//
+// `link_section` allows us to place data and code in arbitrary locations.
+// .vectors is intended for the vector table and the vectors are not mutable.
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
+    unsafe(link_section = ".vectors")
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
@@ -61,9 +71,16 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM4F::SYSTICK_HANDLER,
 ];
 
+// # Safety
+//
+// ## `link_section`
+//
+// `link_section` allows us to place data and code in arbitrary locations.
+// .vectors is intended for the vector and interrupt tables and the interrupt
+// handler table is not mutable.
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
+    unsafe(link_section = ".vectors")
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
@@ -81,23 +98,37 @@ pub(crate) unsafe fn fix_errata() {
     // http://infocenter.nordicsemi.com/pdf/nRF52832_Errata_v1.2.pdf
 
     // Workaround for Errata 12
-    // "COMP: Reference ladder not correctly callibrated" found at the Errate doc
-    core::ptr::write_volatile(
-        0x40013540i32 as *mut u32,
-        (core::ptr::read_volatile(0x10000324i32 as *mut u32) & 0x1f00u32) >> 8i32,
-    );
+    // "COMP: Reference ladder not correctly callibrated" found at the Errata doc
+    //
+    // SAFETY: These are valid readable and writable memory addresses on nRF52
+    // MCUs.
+    unsafe {
+        core::ptr::write_volatile(
+            0x40013540i32 as *mut u32,
+            (core::ptr::read_volatile(0x10000324i32 as *mut u32) & 0x1f00u32) >> 8i32,
+        );
+    }
 
     // Workaround for Errata 16
     // "System: RAM may be corrupt on wakeup from CPU IDLE" found at the Errata doc
-    core::ptr::write_volatile(0x4007c074i32 as *mut u32, 3131961357u32);
+    //
+    // SAFETY: These is a valid writable memory address on nRF52 MCUs.
+    unsafe {
+        core::ptr::write_volatile(0x4007c074i32 as *mut u32, 3131961357u32);
+    }
 
     // Workaround for Errata 31
     // "CLOCK: Calibration values are not correctly loaded from FICR at reset"
     // found at the Errata doc
-    core::ptr::write_volatile(
-        0x4000053ci32 as *mut u32,
-        (core::ptr::read_volatile(0x10000244i32 as *mut u32) & 0xe000u32) >> 13i32,
-    );
+    //
+    // SAFETY: These are valid readable and writable memory addresses on nRF52
+    // MCUs.
+    unsafe {
+        core::ptr::write_volatile(
+            0x4000053ci32 as *mut u32,
+            (core::ptr::read_volatile(0x10000244i32 as *mut u32) & 0xe000u32) >> 13i32,
+        );
+    }
 
     // Only needed for preview hardware
     // // Workaround for Errata 32
@@ -114,14 +145,22 @@ pub(crate) unsafe fn fix_errata() {
 
     // Workaround for Errata 37
     // "RADIO: Encryption engine is slow by default" found at the Errata document doc
-    core::ptr::write_volatile(0x400005a0i32 as *mut u32, 0x3u32);
+    //
+    // SAFETY: This is a valid writable memory address on nRF52 MCUs.
+    unsafe {
+        core::ptr::write_volatile(0x400005a0i32 as *mut u32, 0x3u32);
+    }
 
     // Workaround for Errata 57
     // "NFCT: NFC Modulation amplitude" found at the Errata doc
-    core::ptr::write_volatile(0x40005610i32 as *mut u32, 0x5u32);
-    core::ptr::write_volatile(0x40005688i32 as *mut u32, 0x1u32);
-    core::ptr::write_volatile(0x40005618i32 as *mut u32, 0x0u32);
-    core::ptr::write_volatile(0x40005614i32 as *mut u32, 0x3fu32);
+    //
+    // SAFETY: These are valid writable memory addresses on nRF52 MCUs.
+    unsafe {
+        core::ptr::write_volatile(0x40005610i32 as *mut u32, 0x5u32);
+        core::ptr::write_volatile(0x40005688i32 as *mut u32, 0x1u32);
+        core::ptr::write_volatile(0x40005618i32 as *mut u32, 0x0u32);
+        core::ptr::write_volatile(0x40005614i32 as *mut u32, 0x3fu32);
+    }
 
     // Workaround for Errata 66
     // "TEMP: Linearity specification not met with default settings" found at the Errata doc
@@ -147,10 +186,15 @@ pub(crate) unsafe fn fix_errata() {
     // Workaround for Errata 108
     // "RAM: RAM content cannot be trusted upon waking up from System ON Idle
     // or System OFF mode" found at the Errata doc
-    core::ptr::write_volatile(
-        0x40000ee4i32 as *mut u32,
-        core::ptr::read_volatile(0x10000258i32 as *mut u32) & 0x4fu32,
-    );
+    //
+    // SAFETY: These are valid readable and writable memory addresses on nRF52
+    // MCUs.
+    unsafe {
+        core::ptr::write_volatile(
+            0x40000ee4i32 as *mut u32,
+            core::ptr::read_volatile(0x10000258i32 as *mut u32) & 0x4fu32,
+        );
+    }
 }
 
 /// Explicitly tell the core where Tock's vector table is located.
