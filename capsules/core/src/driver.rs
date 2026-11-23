@@ -81,6 +81,7 @@ pub enum NUM {
     Eui64                 = 0x30006,
     EthernetTap           = 0x30007,
     Wifi                  = 0x30008,
+    BluetoothHci          = 0x30009,
 
     // Cryptography
     Rng                   = 0x40001,
