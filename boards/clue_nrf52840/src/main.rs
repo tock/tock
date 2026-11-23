@@ -103,13 +103,9 @@ const NUM_PROCS: usize = 8;
 type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
 type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
-static mut CDC_REF_FOR_PANIC: Option<
-    &'static capsules_extra::usb::cdc::CdcAcm<
-        'static,
-        nrf52::usbd::Usbd,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-    >,
-> = None;
+static CDC_REF_FOR_PANIC: SingleThreadValue<
+    nrf52_components::usb_panic_writer::CdcPanicWriterData,
+> = SingleThreadValue::new();
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
     SingleThreadValue::new();
@@ -480,7 +476,16 @@ unsafe fn start() -> (
         nrf52::usbd::Usbd,
         nrf52::rtc::Rtc
     ));
-    CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
+
+    // Setup resources for the panic handler
+    let panic_buf = static_init!(
+        [u8; nrf52_components::usb_panic_writer::BUF_LEN],
+        [0; nrf52_components::usb_panic_writer::BUF_LEN]
+    );
+    let _ = CDC_REF_FOR_PANIC
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            nrf52_components::usb_panic_writer::CdcPanicWriterData::new(cdc, panic_buf),
+        );
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
