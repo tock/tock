@@ -1401,7 +1401,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         let low_per = if self.spi_phase.get() == ClockPhase::SampleLeading {
             (tot_per - 1) / 2
         } else {
-            (tot_per - 2) / 2
+            tot_per.saturating_sub(2) / 2
         };
 
         self.registers.clkcfg.write(
@@ -1468,10 +1468,12 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
             self.registers
                 .clkcfg
                 .modify(CLKCFG::LOWPER.val((low_per - 1) / 2));
+            self.registers.mspicfg.modify(MSPICFG::SPHA::CLEAR);
         } else {
             self.registers
                 .clkcfg
-                .modify(CLKCFG::LOWPER.val((low_per - 2) / 2));
+                .modify(CLKCFG::LOWPER.val(low_per.saturating_sub(2) / 2));
+            self.registers.mspicfg.modify(MSPICFG::SPHA::SET);
         }
 
         self.spi_phase.set(phase);
