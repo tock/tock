@@ -253,6 +253,35 @@ impl<'a> StreamingProcessSlice<'a> {
             .unwrap_or((&mut [][..]).into())
     }
 
+    /// Number of bytes that can still be appended to the slice.
+    ///
+    /// A chunk of at most this length is guaranteed to fit, so a driver that
+    /// consumes data from a source it cannot put back can check for space
+    /// before taking the data out of that source.
+    ///
+    /// Returns `0` for a slice that is halted after having overflowed, as no
+    /// further chunk can be appended to it.
+    ///
+    /// This function fails with:
+    /// - `INVAL`: if the version is not `0`, or the reserved flags are not
+    ///   cleared.
+    /// - `SIZE`: if the underlying slice is not large enough to fit the flags
+    ///   field and the offset field.
+    pub fn remaining_capacity(&self) -> Result<usize, ErrorCode> {
+        let header = self.get_header()?;
+
+        if header.exceeded && header.halt {
+            return Ok(0);
+        }
+
+        // A process-supplied offset can exceed the payload length; saturating
+        // keeps that from underflowing into a large capacity.
+        Ok(self
+            .payload_slice()
+            .len()
+            .saturating_sub(header.offset as usize))
+    }
+
     /// Append a chunk of data to the slice.
     ///
     /// If the underlying slice has a correct `flags` and `offset` value, is not
@@ -484,5 +513,42 @@ mod tests {
         assert_eq!(hdr.offset, 0);
         assert_eq!(hdr.halt, false);
         assert_eq!(hdr.exceeded, true);
+    }
+
+    #[test]
+    fn test_remaining_capacity() {
+        let process_slice: &WriteableProcessSlice = (&mut [][..]).into();
+        assert_eq!(
+            StreamingProcessSlice::new(process_slice).remaining_capacity(),
+            Err(ErrorCode::SIZE)
+        );
+
+        let mut buffer = [0_u8; 8 + 4];
+        let process_slice: &WriteableProcessSlice = (&mut buffer[..]).into();
+        let s = StreamingProcessSlice::new(process_slice);
+        assert_eq!(s.remaining_capacity(), Ok(4));
+
+        // A chunk of exactly the remaining capacity fits, and consumes it.
+        assert_eq!(s.append_chunk(b"abc"), Ok((true, 3)));
+        assert_eq!(s.remaining_capacity(), Ok(1));
+        assert_eq!(s.append_chunk(b"d"), Ok((false, 4)));
+        assert_eq!(s.remaining_capacity(), Ok(0));
+
+        // Halted after overflowing: nothing further can be appended.
+        assert_eq!(s.append_chunk(b"e"), Err(ErrorCode::SIZE));
+        let mut hdr = s.get_header().unwrap();
+        assert_eq!(hdr.exceeded, true);
+        hdr.halt = true;
+        s.write_header(hdr).unwrap();
+        assert_eq!(s.remaining_capacity(), Ok(0));
+
+        // An offset past the end of the payload does not underflow.
+        let mut buffer = [0_u8; 8 + 4];
+        let process_slice: &WriteableProcessSlice = (&mut buffer[..]).into();
+        let s = StreamingProcessSlice::new(process_slice);
+        let mut hdr = s.get_header().unwrap();
+        hdr.offset = 64;
+        s.write_header(hdr).unwrap();
+        assert_eq!(s.remaining_capacity(), Ok(0));
     }
 }

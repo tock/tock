@@ -17,6 +17,7 @@ pub mod app_loader;
 pub mod appid;
 pub mod atecc508a;
 pub mod ble;
+pub mod bluetooth_hci;
 pub mod bme280;
 pub mod bmm150;
 pub mod bmp280;

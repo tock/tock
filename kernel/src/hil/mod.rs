@@ -7,6 +7,7 @@
 pub mod adc;
 pub mod analog_comparator;
 pub mod ble_advertising;
+pub mod bluetooth_hci;
 pub mod bus8080;
 pub mod buzzer;
 pub mod can;
