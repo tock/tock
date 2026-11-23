@@ -82,23 +82,3 @@ pub static IRQS: [unsafe extern "C" fn(); 32] = [CortexM4F::GENERIC_ISR; 32];
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static PATCH: [unsafe extern "C" fn(); 16] = [unhandled_interrupt; 16];
-
-// The SVC call in this function means that we need to ensure it's inlined in
-// `main()` otherwise we end up with a clobbered stack.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-#[inline(always)]
-pub unsafe fn actually_disable_fpu() {
-    use core::arch::asm;
-
-    // This ensures the FPU is actually disabled
-    asm!("svc 0xff", out("r0") _, out("r1") _, out("r2") _, out("r3") _, out("r12") _);
-}
-
-// Mock implementation for tests
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
-pub unsafe fn actually_disable_fpu() {
-    // Prevent unused code warning.
-    scb::disable_fpca();
-
-    unimplemented!()
-}
