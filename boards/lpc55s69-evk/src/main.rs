@@ -365,6 +365,7 @@ unsafe fn start() -> (
         hw_flow_control: false,
     };
     uart.configure(params).unwrap();
+    uart.enable_dma(&peripherals.dma0);
 
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
 
