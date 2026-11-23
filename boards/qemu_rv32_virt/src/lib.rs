@@ -18,6 +18,7 @@ use kernel::platform::SyscallDriverLookup;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
+use qemu_rv32_virt_chip::plic::{Plic, PLIC_BASE};
 use rv32i::csr;
 use rv32i::dma_fence::RiscvCoherentDmaFence;
 use rv32i::interrupt_controller::InterruptController;
@@ -667,9 +668,11 @@ pub unsafe fn start(
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
 
+    let plic = static_init!(Plic, Plic::new(PLIC_BASE));
+
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
-        QemuRv32VirtChip::new(peripherals, hardware_timer, epmp),
+        QemuRv32VirtChip::new(plic, peripherals, hardware_timer, epmp),
     );
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);

@@ -5,7 +5,6 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
-use core::ptr::addr_of;
 
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
@@ -15,7 +14,6 @@ use tock_registers_v0::interfaces::{ReadWriteable, Readable};
 
 use rv64i::csr::{CSR, mcause, mie::mie, mip::mip};
 
-use crate::plic::PLIC;
 use sifive::plic::Plic;
 
 use crate::interrupts;
@@ -25,6 +23,21 @@ use virtio::transports::mmio::VirtIOMMIODevice;
 type QemuRv64VirtPMP = rv64i::pmp::PMPUserMPU<8, rv64i::pmp::simple::SimplePMP<16>>;
 
 pub type QemuRv64VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
+
+/// Reference to the PLIC instance, used only by the free-standing trap
+/// handler functions near the bottom of this file.
+///
+/// Those functions are installed directly as the hart's trap vector (via
+/// `export_name`) and so cannot be passed a reference as an ordinary
+/// argument; this is the only way for them to reach the PLIC. It is written
+/// to exactly once, in [`QemuRv64VirtChip::new`], before interrupts are ever
+/// enabled, and is read-only from then on, so there is no concurrent access
+/// to guard against.
+///
+/// Note that we only ever read/write this `static mut` by value (copying the
+/// `Option<&'static Plic>` in or out) and never form a reference to the
+/// static item itself, so this does not require `addr_of!`/`addr_of_mut!`.
+static mut PLIC: Option<&'static Plic> = None;
 
 pub struct QemuRv64VirtChip<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: rv64i::syscall::SysCall,
@@ -77,14 +90,22 @@ impl InterruptService for QemuRv64VirtDefaultPeripherals<'_> {
 
 impl<'a, I: InterruptService + 'a> QemuRv64VirtChip<'a, I> {
     pub unsafe fn new(
+        plic: &'static Plic,
         plic_interrupt_service: &'a I,
         timer: &'a QemuRv64VirtClint<'a>,
         pmp: rv64i::pmp::simple::SimplePMP<16>,
     ) -> Self {
+        // SAFETY: `new()` is only ever called once, during board
+        // initialization, before interrupts are enabled, so this write
+        // cannot race with the trap handler reading `PLIC`.
+        unsafe {
+            PLIC = Some(plic);
+        }
+
         Self {
             userspace_kernel_boundary: rv64i::syscall::SysCall::new(),
             pmp: rv64i::pmp::PMPUserMPU::new(pmp),
-            plic: &*addr_of!(PLIC),
+            plic,
             timer,
             plic_interrupt_service,
         }
@@ -226,16 +247,18 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // We received an interrupt, disable interrupts while we handle them
             CSR.mie.modify(mie::mext::CLEAR);
 
+            // SAFETY: `PLIC` is written to exactly once, in
+            // `QemuRv64VirtChip::new()`, before interrupts are enabled.
+            let plic = unsafe { PLIC }.unwrap();
+
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
             loop {
-                let interrupt = (*addr_of!(PLIC)).next_pending();
-
-                match interrupt {
+                match plic.next_pending() {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        (*addr_of!(PLIC)).save_interrupt(irq);
+                        plic.save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts
