@@ -10,8 +10,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
@@ -69,6 +67,10 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new();
+
+/// The chip's real, already-configured `Clocks`, made available to io.rs so
+/// the panic writer can compute the correct baud rate.
+static PANIC_CLOCKS: SingleThreadValue<&'static rp2040::clocks::Clocks> = SingleThreadValue::new();
 
 type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040ComponentType<
     capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
@@ -261,6 +263,10 @@ pub unsafe fn start() -> (
         );
 
     let clocks = static_init!(rp2040::clocks::Clocks, rp2040::clocks::Clocks::new());
+    let _ = PANIC_CLOCKS
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            clocks,
+        );
     let resets = static_init!(rp2040::resets::Resets, rp2040::resets::Resets::new());
     let peripherals = static_init!(
         Rp2040DefaultPeripherals,
@@ -295,9 +301,6 @@ pub unsafe fn start() -> (
 
     // Unreset all peripherals
     resets.unreset_all_except(&[], true);
-
-    // Set the UART used for panic
-    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
