@@ -10,7 +10,7 @@ edition = "2024"
 
 [dependencies]
 kernel = { path = "../../kernel" }
-tock-registers-v0 = { features = ["register_types"], workspace = true }
+tock-registers-v0 = { default-features = true, workspace = true }
 
 [lints]
 workspace = true
