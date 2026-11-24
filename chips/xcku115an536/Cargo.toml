@@ -1,0 +1,20 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "xcku115an536"
+version.workspace = true
+authors.workspace = true
+edition = "2024"
+
+[dependencies]
+semihosting = { version = "0.1.18", features = ["stdio"] }
+sh = { path = "../../capsules/sh" }
+
+tock-registers-v0 = { features = ["register_types"], workspace = true }
+kernel = { path = "../../kernel" }
+cortexr52 = { path = "../../arch/cortex-r52", features = ["config-xcku115an536"] }
+
+[lints]
+workspace = true

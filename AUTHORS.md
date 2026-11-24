@@ -22,6 +22,7 @@ Organizations that have contributed code to Tock include:
   * University of Virginia
   * Western Digital
   * Wyliodrin
+  * Ampere / Renault Group
 
 _Note: the above list may be incomplete. If your organization has supported you in
 contributing to Tock, and wish to be acknowledged, please update this list accordingly._
