@@ -11,20 +11,20 @@
 //! Generally, Tock peripherals are modeled by two structures, such as:
 //!
 //! ```rust
-//! # use kernel::utilities::StaticRef;
-//! # use tock_registers_v0::registers::ReadWrite;
-//! # struct ChipSpecificPeripheralClock {};
-//! /// The MMIO Structure.
-//! #[repr(C)]
-//! #[allow(dead_code)]
-//! pub struct PeripheralRegisters {
-//!     control: ReadWrite<u32>,
-//!     interrupt_mask: ReadWrite<u32>,
+//! # use tock_registers_v0::{register_map_mmio32, Read, Write};
+//! # fn main() {}
+//! # struct ChipSpecificPeripheralClock {}
+//! register_map_mmio32! {
+//!     /// The MMIO Structure.
+//!     peripheral_registers {
+//!         0 => control: u32 { Read, Write },
+//!         4 => interrupt_mask: u32 { Read, Write },
+//!     }
 //! }
 //!
 //! /// The Tock object that holds all information for this peripheral.
 //! pub struct PeripheralHardware<'a> {
-//!     mmio_address: StaticRef<PeripheralRegisters>,
+//!     mmio_address: peripheral_registers::Real,
 //!     clock: &'a ChipSpecificPeripheralClock,
 //! }
 //! ```
@@ -37,28 +37,28 @@
 //!
 //! ```rust
 //! # use kernel::utilities::peripheral_management::PeripheralManager;
-//! # use kernel::utilities::StaticRef;
-//! # use tock_registers_v0::registers::ReadWrite;
-//! # use tock_registers_v0::interfaces::Writeable;
+//! # use tock_registers_v0::{register_map_mmio32, Read, Write};
 //! # use kernel::ErrorCode;
 //! # use kernel::hil;
-//! # struct PeripheralRegisters { control: ReadWrite<u32> };
-//! # struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
+//! # fn main() {}
+//! # register_map_mmio32![peripheral_registers { 0 => control: u32 { Read, Write } }];
+//! # struct PeripheralHardware { mmio_address: peripheral_registers::Real }
+//! # use peripheral_registers::Interface;
 //! impl hil::uart::Configure for PeripheralHardware {
 //!     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
 //!         let peripheral = &PeripheralManager::new(self);
-//!         peripheral.registers.control.set(0x0);
-//!         //         ^^^^^^^^^-- This is type &PeripheralRegisters
+//!         peripheral.registers.control().set(0x0);
+//!         //         ^^^^^^^^^-- This is type peripheral_registers::Real
 //!         Ok(())
 //!     }
 //! }
 //! # use kernel::utilities::peripheral_management::PeripheralManagement;
 //! # use kernel::platform::chip::NoClockControl;
 //! # impl PeripheralManagement<NoClockControl> for PeripheralHardware {
-//! #     type RegisterType = PeripheralRegisters;
+//! #     type RegisterType = peripheral_registers::Real;
 //!
-//! #     fn get_registers(&self) -> &PeripheralRegisters {
-//! #         &*self.mmio_address
+//! #     fn get_registers(&self) -> &peripheral_registers::Real {
+//! #         &self.mmio_address
 //! #     }
 //! #     fn get_clock(&self) -> &NoClockControl { unsafe { &kernel::platform::chip::NO_CLOCK_CONTROL } }
 //! #     fn before_peripheral_access(&self, _c: &NoClockControl, _r: &Self::RegisterType) {}
@@ -188,24 +188,24 @@ where
 ///
 /// ```
 /// # use kernel::utilities::peripheral_management::PeripheralManager;
-/// # use kernel::utilities::StaticRef;
-/// # use tock_registers_v0::registers::ReadWrite;
-/// # use tock_registers_v0::interfaces::Writeable;
-/// # pub struct PeripheralRegisters { control: ReadWrite<u32> };
-/// # pub struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
+/// # use tock_registers_v0::{register_map_mmio32, Read, Write};
+/// # fn main() {}
+/// # register_map_mmio32![peripheral_registers { 0 => control: u32 { Read, Write } }];
+/// # pub struct PeripheralHardware { mmio_address: peripheral_registers::Real }
 /// impl PeripheralHardware {
 ///     fn example(&self) {
+///         use peripheral_registers::Interface;
 ///         let peripheral = &PeripheralManager::new(self);
-///         peripheral.registers.control.set(0x1);
+///         peripheral.registers.control().set(0x1);
 ///     }
 /// }
 /// # use kernel::utilities::peripheral_management::PeripheralManagement;
 /// # use kernel::platform::chip::NoClockControl;
 /// # impl PeripheralManagement<NoClockControl> for PeripheralHardware {
-/// #     type RegisterType = PeripheralRegisters;
+/// #     type RegisterType = peripheral_registers::Real;
 ///
-/// #     fn get_registers(&self) -> &PeripheralRegisters {
-/// #         &*self.mmio_address
+/// #     fn get_registers(&self) -> &peripheral_registers::Real {
+/// #         &self.mmio_address
 /// #     }
 /// #     fn get_clock(&self) -> &NoClockControl { unsafe { &kernel::platform::chip::NO_CLOCK_CONTROL } }
 /// #     fn before_peripheral_access(&self, _c: &NoClockControl, _r: &Self::RegisterType) {}
