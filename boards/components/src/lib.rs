@@ -93,6 +93,7 @@ pub mod segger_rtt;
 pub mod servo;
 pub mod sh1106;
 pub mod sha;
+pub mod shift_register;
 pub mod sht3x;
 pub mod sht4x;
 pub mod shtc3;

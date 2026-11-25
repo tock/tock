@@ -54,6 +54,7 @@ These implement a driver to setup and read various physical sensors.
   sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.
 - **[HC-SR04](src/hc_sr04.rs)**: Ultrasonic distance sensor
+- **[SR74HC](src/sr74hc.rs)**: GPIO-controlled shift register driver.
 
 These drivers provide support for various ICs.
 
@@ -150,6 +151,7 @@ These provide common and better abstractions for userspace.
 - **[Text Screen](src/text_screen.rs)**: Text-based displays.
 - **[Touch](src/touch.rs)**: User touch panels.
 - **[Distance](src/distance.rs)**: Distance sensor.
+- **[Shift Register](src/shift_register.rs)**: Userspace interface for shift registers.
 
 
 Virtualized Sensor Capsules for Userspace
