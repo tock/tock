@@ -44,7 +44,7 @@ impl<Sr: ShiftRegister> SyscallDriver for ShiftRegisterDriver<'_, Sr> {
                 if r2 >= (1 << Sr::BITS) {
                     return CommandReturn::failure(ErrorCode::SIZE);
                 }
-                let rez = self.shift_register.write(r2);
+                self.shift_register.write(r2);
                 CommandReturn::success()
             }
 
