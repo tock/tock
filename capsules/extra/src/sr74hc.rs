@@ -2,14 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
+//! Driver for SR74HC Shift Register
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let sr = components::shift_register::ShiftRegisterComponent::new(
+//!     latch,
+//!     clock,
+//!     data,
+//! )
+//! .finalize(components::shift_register_component_static!(
+//!     GpioHw
+//! ));
+//! ```
+
 use kernel::hil::gpio::Configure;
 use kernel::hil::{gpio::Output, shift_register::ShiftRegister};
 
 /// Simplified SR74HC Driver type to be used with one pin type.
 pub type Sr74HC<P> = Sr74HCGeneric<P, P, P>;
 
-/// Driver for SR74HC Shift Register
-///
 /// Controls pins might come from different pin implementations, as boards might use
 /// GPIO extenders.
 pub struct Sr74HCGeneric<PL: Configure + Output, PC: Configure + Output, PD: Configure + Output> {
@@ -32,7 +46,7 @@ impl<P: Configure + Output> Sr74HC<P> {
 }
 
 impl<P: Configure + Output> ShiftRegister for Sr74HC<P> {
-    fn write(&self, value: usize) -> Result<(), kernel::ErrorCode> {
+    fn write(&self, value: usize) {
         self.latch.clear();
         for i in 0..8 {
             if (value & (1 << i)) != 0 {
@@ -47,7 +61,6 @@ impl<P: Configure + Output> ShiftRegister for Sr74HC<P> {
             self.latch.clear();
             self.latch.set();
         }
-        Ok(())
     }
 
     const BITS: usize = 4;

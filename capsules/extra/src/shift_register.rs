@@ -2,6 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
+//!  Userspace Interface for SR74HC shift register
+//!
+//!  ### `command_number`
+//!
+//!  - '0': writes a number. Returns ErrorCode FAIL if the value is larger than the maximum size
+//!  - '1': returns the number of bits
+//!
+
 use kernel::hil::shift_register::ShiftRegister;
 
 use kernel::ErrorCode;
@@ -22,11 +30,6 @@ impl<'a, Sr: ShiftRegister> ShiftRegisterDriver<'a, Sr> {
 }
 
 impl<Sr: ShiftRegister> SyscallDriver for ShiftRegisterDriver<'_, Sr> {
-    /// ### `command_number`
-    ///
-    /// - '0': writes a number. Returns ErrorCode FAIL if the value is larger than the maximum size
-    /// - '1': returns the number of bits
-    ///
     fn command(
         &self,
         command_number: usize,
@@ -42,11 +45,7 @@ impl<Sr: ShiftRegister> SyscallDriver for ShiftRegisterDriver<'_, Sr> {
                     return CommandReturn::failure(ErrorCode::SIZE);
                 }
                 let rez = self.shift_register.write(r2);
-                if rez == Ok(()) {
-                    CommandReturn::success()
-                } else {
-                    CommandReturn::failure(ErrorCode::FAIL)
-                }
+                CommandReturn::success()
             }
 
             2 => CommandReturn::success_u32(Sr::BITS as u32),
