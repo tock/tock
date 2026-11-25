@@ -11,7 +11,7 @@ use kernel::platform::chip::InterruptService;
 use rv32i::csr::{CSR, mcause, mie::mie};
 use rv32i::pmp::{PMPUserMPU, kernel_protection::KernelProtectionPMP};
 use rv32i::syscall::SysCall;
-use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::{Read, Write as _};
 
 use crate::interrupt_controller::VexRiscvInterruptController;
 

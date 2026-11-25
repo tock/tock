@@ -12,7 +12,7 @@ use kernel::utilities::StaticRef;
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
 use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 use rv32i::syscall::SysCall;
-use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::{Read, Write as _};
 
 use crate::pic::Pic;
 use crate::pic::PicRegisters;

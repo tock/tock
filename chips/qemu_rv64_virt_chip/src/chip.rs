@@ -11,7 +11,7 @@ use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
 
-use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::{Read, Write as _};
 
 use rv64i::csr::{CSR, mcause, mie::mie, mip::mip};
 

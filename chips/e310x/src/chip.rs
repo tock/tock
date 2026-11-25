@@ -11,7 +11,7 @@ use kernel::platform::chip::Chip;
 use rv32i::csr;
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
 use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
-use tock_registers_v0::interfaces::{ReadWriteable, Readable};
+use tock_registers_v0::{Read, Write as _};
 
 use crate::plic::PLIC;
 use kernel::hil::time::Freq32KHz;

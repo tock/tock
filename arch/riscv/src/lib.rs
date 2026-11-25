@@ -8,7 +8,7 @@
 
 use core::fmt::Write;
 
-use tock_registers_v0::interfaces::Readable;
+use tock_registers_v0::Read;
 
 pub mod clic;
 pub mod csr;

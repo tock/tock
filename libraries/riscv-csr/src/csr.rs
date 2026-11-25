@@ -6,9 +6,7 @@
 
 use core::marker::PhantomData;
 
-use tock_registers_v0::fields::Field;
-use tock_registers_v0::interfaces::{Readable, Writeable};
-use tock_registers_v0::{RegisterLongName, UIntLike};
+use tock_registers_v0::{DataType, Read, Register, Write, fields::Field};
 
 pub const MINSTRETH: usize = 0xB82;
 pub const MINSTRET: usize = 0xB02;
@@ -108,32 +106,29 @@ pub const PMPADDR62: usize = 0x3EE;
 pub const PMPADDR63: usize = 0x3EF;
 
 /// Read/Write registers.
-#[derive(Copy, Clone)]
-pub struct ReadWriteRiscvCsr<T: UIntLike, R: RegisterLongName, const V: usize> {
-    associated_register: PhantomData<R>,
-    associated_length: PhantomData<T>,
+pub struct ReadWriteRiscvCsr<DT: DataType<Value = usize>, const V: usize> {
+    associated_dt: PhantomData<DT>,
 }
 
 // morally speaking, these should be implemented; however not yet needed
-//pub struct WriteOnlyRiscvCsr<T: UIntLike, R: RegisterLongName = ()> {
-//value: T,
-//associated_register: PhantomData<R>}
+//pub struct WriteOnlyRiscvCsr<DT: DataType<Value = usize>> {
+//value: DT::Value,
+//associated_dt: PhantomData<DT>}
 
-//pub struct ReadOnlyRiscvCsr<T: UIntLike, R: RegisterLongName = ()> {
-//value: T,
-//associated_register: PhantomData<R>}
+//pub struct ReadOnlyRiscvCsr<DT: DataType<Value = usize>> {
+//value: DT::Value,
+//associated_dt: PhantomData<DT>}
 
-impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
+impl<DT: DataType<Value = usize>, const V: usize> ReadWriteRiscvCsr<DT, V> {
     pub const fn new() -> Self {
         ReadWriteRiscvCsr {
-            associated_register: PhantomData,
-            associated_length: PhantomData,
+            associated_dt: PhantomData,
         }
     }
 
     // Special methods only available on RISC-V CSRs, not found in the
     // usual tock-registers interface, others implemented through the
-    // respective [`Readable`] and [`Writeable`] trait implementations
+    // respective [`Read`] and [`Write`] trait implementations
 
     /// Atomically swap the contents of a CSR
     ///
@@ -279,7 +274,7 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
     ///
     /// The previous value of the field is returned.
     #[inline]
-    pub fn read_and_set_field(&self, field: Field<usize, R>) -> usize {
+    pub fn read_and_set_field(&self, field: Field<usize, DT::LongName>) -> usize {
         field.read(self.read_and_set_bits(field.mask << field.shift))
     }
 
@@ -291,21 +286,32 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
     ///
     /// The previous value of the field is returned.
     #[inline]
-    pub fn read_and_clear_field(&self, field: Field<usize, R>) -> usize {
+    pub fn read_and_clear_field(&self, field: Field<usize, DT::LongName>) -> usize {
         field.read(self.read_and_clear_bits(field.mask << field.shift))
     }
 }
 
-impl<R: RegisterLongName, const V: usize> Readable for ReadWriteRiscvCsr<usize, R, V> {
-    type T = usize;
-    type R = R;
+// Manually implement Clone and Copy because #[derive(Clone, Copy)] generates
+// bounds on DT that are too restrictive.
+impl<DT: DataType<Value = usize>, const V: usize> Clone for ReadWriteRiscvCsr<DT, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
 
+impl<DT: DataType<Value = usize>, const V: usize> Copy for ReadWriteRiscvCsr<DT, V> {}
+
+impl<DT: DataType<Value = usize>, const V: usize> Register for ReadWriteRiscvCsr<DT, V> {
+    type DataType = DT;
+}
+
+impl<DT: DataType<Value = usize>, const V: usize> Read for ReadWriteRiscvCsr<DT, V> {
     #[cfg(all(
         any(target_arch = "riscv32", target_arch = "riscv64"),
         target_os = "none"
     ))]
     #[inline]
-    fn get(&self) -> usize {
+    fn get(self) -> usize {
         use core::arch::asm;
         let r: usize;
         unsafe {
@@ -319,21 +325,18 @@ impl<R: RegisterLongName, const V: usize> Readable for ReadWriteRiscvCsr<usize, 
         any(target_arch = "riscv32", target_arch = "riscv64"),
         target_os = "none"
     )))]
-    fn get(&self) -> usize {
+    fn get(self) -> usize {
         unimplemented!("reading RISC-V CSR {}", V)
     }
 }
 
-impl<R: RegisterLongName, const V: usize> Writeable for ReadWriteRiscvCsr<usize, R, V> {
-    type T = usize;
-    type R = R;
-
+impl<DT: DataType<Value = usize>, const V: usize> Write for ReadWriteRiscvCsr<DT, V> {
     #[cfg(all(
         any(target_arch = "riscv32", target_arch = "riscv64"),
         target_os = "none"
     ))]
     #[inline]
-    fn set(&self, val_to_set: usize) {
+    fn set(self, val_to_set: usize) {
         use core::arch::asm;
         unsafe {
             asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const V);
@@ -344,7 +347,7 @@ impl<R: RegisterLongName, const V: usize> Writeable for ReadWriteRiscvCsr<usize,
         any(target_arch = "riscv32", target_arch = "riscv64"),
         target_os = "none"
     )))]
-    fn set(&self, _val_to_set: usize) {
+    fn set(self, _val_to_set: usize) {
         unimplemented!("writing RISC-V CSR {}", V)
     }
 }
