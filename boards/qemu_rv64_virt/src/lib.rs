@@ -21,7 +21,7 @@ use qemu_rv64_virt_chip::chip::{QemuRv64VirtChip, QemuRv64VirtDefaultPeripherals
 use rv64i::csr;
 use rv64i::dma_fence::RiscvCoherentDmaFence;
 use rv64i::interrupt_controller::InterruptController;
-use tock_registers_v0::interfaces::ReadWriteable;
+use tock_registers_v0::Write;
 
 pub mod io;
 

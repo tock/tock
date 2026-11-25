@@ -4,7 +4,7 @@
 
 //! RISC-V support for configuring and decoding traps per interrupt controller.
 
-use tock_registers_v0::{LocalRegisterCopy, interfaces::Writeable};
+use tock_registers_v0::{LocalRegisterCopy, Write};
 
 use crate::csr;
 use crate::csr::mcause::mcause;

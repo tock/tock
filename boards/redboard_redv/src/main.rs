@@ -26,7 +26,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 use rv32i::interrupt_controller::InterruptController;
-use tock_registers_v0::interfaces::ReadWriteable;
+use tock_registers_v0::Write;
 
 pub mod io;
 

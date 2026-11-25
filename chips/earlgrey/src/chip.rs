@@ -11,7 +11,7 @@ use kernel::platform::chip::{Chip, InterruptService};
 use rv32i::csr::{CSR, mcause, mie::mie, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, TORUserPMP};
 use rv32i::syscall::SysCall;
-use tock_registers_v0::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers_v0::{Read, Write as _};
 
 use crate::chip_config::EarlGreyConfig;
 use crate::interrupts;

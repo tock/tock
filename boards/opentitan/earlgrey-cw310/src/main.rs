@@ -36,7 +36,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use lowrisc::flash_ctrl::FlashMPConfig;
 use rv32i::csr;
-use tock_registers_v0::interfaces::ReadWriteable;
+use tock_registers_v0::Write;
 
 pub mod io;
 mod otbn;

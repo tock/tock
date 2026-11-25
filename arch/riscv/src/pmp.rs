@@ -2184,9 +2184,7 @@ pub mod kernel_protection_mml_epmp {
     use core::cell::Cell;
     use core::fmt;
     use kernel::platform::mpu;
-    use tock_registers_v0::LocalRegisterCopy;
-    use tock_registers_v0::fields::FieldValue;
-    use tock_registers_v0::interfaces::{Readable, Writeable};
+    use tock_registers_v0::{LocalRegisterCopy, Read, Write, fields::FieldValue};
 
     // ---------- Kernel memory-protection PMP memory region wrapper types -----
     //

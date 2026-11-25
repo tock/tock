@@ -9,9 +9,9 @@ testbench for VeeR EL2, so the Pic is not expected to handle any interrupts. */
 use core::sync::atomic::{AtomicU32, Ordering};
 use kernel::utilities::StaticRef;
 use riscv_csr::csr::ReadWriteRiscvCsr;
-use tock_registers_v0::interfaces::{Readable, Writeable};
+use tock_registers_v0::interfaces::Writeable;
 use tock_registers_v0::registers::ReadWrite;
-use tock_registers_v0::{register_bitfields, register_structs};
+use tock_registers_v0::{Read, Write, register_bitfields, register_structs};
 
 /// Bitmap data structure to hold the interrupt number of pending interrupts.
 ///
@@ -101,12 +101,12 @@ register_bitfields![usize,
 #[allow(dead_code)]
 pub struct Pic {
     registers: StaticRef<PicRegisters>,
-    meivt: ReadWriteRiscvCsr<usize, MEIVT::Register, 0xBC8>,
-    meipt: ReadWriteRiscvCsr<usize, MEIPT::Register, 0xBC9>,
-    meicpct: ReadWriteRiscvCsr<usize, MEICPCT::Register, 0xBCA>,
-    meicidpl: ReadWriteRiscvCsr<usize, MEICIDPL::Register, 0xBCB>,
-    meicurpl: ReadWriteRiscvCsr<usize, MEICURPL::Register, 0xBCC>,
-    meihap: ReadWriteRiscvCsr<usize, MEIHAP::Register, 0xFC8>,
+    meivt: ReadWriteRiscvCsr<MEIVT::Register, 0xBC8>,
+    meipt: ReadWriteRiscvCsr<MEIPT::Register, 0xBC9>,
+    meicpct: ReadWriteRiscvCsr<MEICPCT::Register, 0xBCA>,
+    meicidpl: ReadWriteRiscvCsr<MEICIDPL::Register, 0xBCB>,
+    meicurpl: ReadWriteRiscvCsr<MEICURPL::Register, 0xBCC>,
+    meihap: ReadWriteRiscvCsr<MEIHAP::Register, 0xFC8>,
 }
 
 impl Pic {
