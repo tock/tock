@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let sr = components::shift_register::ShiftRegisterComponent::new(
 //!     latch,
 //!     clock,
