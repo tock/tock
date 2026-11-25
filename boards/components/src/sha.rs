@@ -11,10 +11,12 @@
 //!    const SHA_DIGEST_LEN: usize = 32;
 //!    type ShaDriver = components::sha::ShaDriverComponentType<Sha, SHA_DIGEST_LEN>;
 //!
+//!    let sha_mutex = components::driver_mutex::DriverMutexComponent::new(sha)
+//!        .finalize(components::driver_mutex_component_static!(Sha, 1));
 //!    let sha_driver = components::sha::ShaDriverComponent::new(
 //!        board_kernel,
 //!        capsules_extra::sha::DRIVER_NUM,
-//!        sha,
+//!        sha_mutex,
 //!    )
 //!    .finalize(components::sha_driver_component_static!(
 //!        Sha,
@@ -22,6 +24,7 @@
 //!    ));
 //! ```
 
+use capsules_core::driver_mutex::DriverMutex;
 use capsules_extra::sha256_driver::ShaDriver;
 use core::mem::MaybeUninit;
 use kernel::capabilities::MemoryAllocationCapability;
@@ -33,7 +36,7 @@ use kernel::hil::digest;
 macro_rules! sha_driver_component_static {
     ($A:ty, $L:expr$(,)?) => {{
         let sha_driver =
-            kernel::static_buf!(capsules_extra::sha256_driver::ShaDriver<'static, $A, $L>);
+            kernel::static_buf!(capsules_extra::sha256_driver::ShaDriver<$A, $L>);
 
         let data_buffer = kernel::static_buf!([u8; 64]);
         let dest_buffer = kernel::static_buf!([u8; $L]);
@@ -42,7 +45,7 @@ macro_rules! sha_driver_component_static {
     }};
 }
 
-pub type ShaDriverComponentType<A, const L: usize> = ShaDriver<'static, A, L>;
+pub type ShaDriverComponentType<A, const L: usize> = ShaDriver<A, L>;
 
 pub struct ShaDriverComponent<
     A: 'static + digest::DigestDataHash<'static, L>,
@@ -51,7 +54,7 @@ pub struct ShaDriverComponent<
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    sha: &'static A,
+    sha: &'static DriverMutex<A>,
     mem_cap: CAP,
 }
 
@@ -64,7 +67,7 @@ impl<
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        sha: &'static A,
+        sha: &'static DriverMutex<A>,
         mem_cap: CAP,
     ) -> Self {
         Self {
@@ -83,12 +86,12 @@ impl<
 > Component for ShaDriverComponent<A, L, CAP>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<ShaDriver<'static, A, L>>,
+        &'static mut MaybeUninit<ShaDriver<A, L>>,
         &'static mut MaybeUninit<[u8; 64]>,
         &'static mut MaybeUninit<[u8; L]>,
     );
 
-    type Output = &'static ShaDriver<'static, A, L>;
+    type Output = &'static ShaDriver<A, L>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let data_buffer = s.1.write([0; 64]);
@@ -102,7 +105,7 @@ impl<
                 .create_grant(self.driver_num, &self.mem_cap),
         ));
 
-        self.sha.set_client(sha);
+        sha.register().expect("SHA mutex client capacity");
 
         sha
     }
