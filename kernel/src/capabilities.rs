@@ -70,6 +70,14 @@ pub unsafe trait ProcessManagementCapability {}
 /// Capabilities can only be created in trusted crates that can use `unsafe`.
 pub unsafe trait ProcessStartCapability {}
 
+/// The `ProcessRestartCapability` allows the holder to restart a process.
+///
+/// This is separate from and a subset of the functionality the
+/// `ProcessManagementCapability` possesses. This provides a
+/// finer grained permission for restarting a process without granting
+/// all process management functionality.
+pub unsafe trait ProcessRestartCapability {}
+
 /// The `MainLoopCapability` capability allows the holder to start executing as
 /// well as manage the main scheduler loop in Tock.
 ///

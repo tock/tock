@@ -14,45 +14,18 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
-#[derive(Copy, Clone, Debug)]
-struct Expiration<T: Ticks> {
-    reference: T,
-    dt: T,
-}
+pub mod util {
+    use kernel::hil::time::{Alarm, Ticks};
 
-#[derive(Copy, Clone)]
-pub struct AlarmData<T: Ticks> {
-    expiration: Option<Expiration<T>>,
-}
-
-const ALARM_CALLBACK_NUM: usize = 0;
-const NUM_UPCALLS: u8 = 1;
-
-impl<T: Ticks> Default for AlarmData<T> {
-    fn default() -> AlarmData<T> {
-        AlarmData { expiration: None }
+    #[derive(Copy, Clone, Debug)]
+    pub struct Expiration<T: Ticks> {
+        pub reference: T,
+        pub dt: T,
     }
-}
 
-pub struct AlarmDriver<'a, A: Alarm<'a>> {
-    alarm: &'a A,
-    app_alarms:
-        Grant<AlarmData<A::Ticks>, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
-}
-
-impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
-    pub const fn new(
-        alarm: &'a A,
-        grant: Grant<
-            AlarmData<A::Ticks>,
-            UpcallCount<NUM_UPCALLS>,
-            AllowRoCount<0>,
-            AllowRwCount<0>,
-        >,
-    ) -> AlarmDriver<'a, A> {
-        AlarmDriver {
-            alarm,
-            app_alarms: grant,
+    impl<T: Ticks> Expiration<T> {
+        pub fn new(reference: T, dt: T) -> Self {
+            Self { reference, dt }
         }
     }
 
@@ -94,7 +67,13 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     ///   already expired.
     /// - `Err((exp, ud, R))`: If a callback for an expired alarm signals to
     ///   stop iteration.
-    fn earliest_alarm<UD, R, F: FnOnce(Expiration<A::Ticks>, &UD) -> Option<R>>(
+    pub fn earliest_alarm<
+        'a,
+        UD,
+        R,
+        A: Alarm<'a>,
+        F: FnOnce(Expiration<A::Ticks>, &UD) -> Option<R>,
+    >(
         now: A::Ticks,
         expirations: impl Iterator<Item = (Expiration<A::Ticks>, UD, F)>,
     ) -> Result<Option<(Expiration<A::Ticks>, UD)>, (Expiration<A::Ticks>, UD, R)> {
@@ -160,6 +139,43 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // We have iterated over all alarms. Return the earliest one found.
         Ok(earliest)
     }
+}
+
+#[derive(Copy, Clone)]
+pub struct AlarmData<T: Ticks> {
+    expiration: Option<util::Expiration<T>>,
+}
+
+const ALARM_CALLBACK_NUM: usize = 0;
+const NUM_UPCALLS: u8 = 1;
+
+impl<T: Ticks> Default for AlarmData<T> {
+    fn default() -> AlarmData<T> {
+        AlarmData { expiration: None }
+    }
+}
+
+pub struct AlarmDriver<'a, A: Alarm<'a>> {
+    alarm: &'a A,
+    app_alarms:
+        Grant<AlarmData<A::Ticks>, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
+}
+
+impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
+    pub const fn new(
+        alarm: &'a A,
+        grant: Grant<
+            AlarmData<A::Ticks>,
+            UpcallCount<NUM_UPCALLS>,
+            AllowRoCount<0>,
+            AllowRwCount<0>,
+        >,
+    ) -> AlarmDriver<'a, A> {
+        AlarmDriver {
+            alarm,
+            app_alarms: grant,
+        }
+    }
 
     /// Re-arm the timer. This must be called in response to the underlying
     /// timer firing, or the set of [`Expiration`]s changing. This will iterate
@@ -173,7 +189,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // volatile read, and this may not be optimized if done in a loop:
         let now = self.alarm.now();
 
-        let expired_handler = |expired: Expiration<A::Ticks>, process_id: &ProcessId| {
+        let expired_handler = |expired: util::Expiration<A::Ticks>, process_id: &ProcessId| {
             // This closure is run on every expired alarm, _after_ the `enter()`
             // closure on the Grant iterator has returned. We are thus not
             // risking reentrancy here.
@@ -204,7 +220,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // Compute the earliest alarm, and invoke the `expired_handler` for
         // every expired alarm. This will issue a callback and reset the alarms
         // respectively.
-        let res = Self::earliest_alarm(
+        let res = util::earliest_alarm::<'a, _, _, A, _>(
             now,
             // Pass an interator of all non-None expirations:
             self.app_alarms.iter().filter_map(|app| {
@@ -227,7 +243,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
             }
 
             // A future, non-expired alarm should fire:
-            Ok(Some((Expiration { reference, dt }, _))) => {
+            Ok(Some((util::Expiration { reference, dt }, _))) => {
                 self.alarm.set_alarm(reference, dt);
             }
 
@@ -243,7 +259,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         now: A::Ticks,
         reference_u32: Option<u32>,
         dt_u32: u32,
-        expiration: &mut Option<Expiration<A::Ticks>>,
+        expiration: &mut Option<util::Expiration<A::Ticks>>,
     ) -> u32 {
         let reference_unshifted = reference_u32.map(|ref_u32| ref_u32 >> A::Ticks::u32_padding());
 
@@ -337,7 +353,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
 
                     // Finally, return the new expiration. We don't have to do
                     // anything special for `dt`, as it's relative:
-                    Expiration {
+                    util::Expiration {
                         reference: rebased_reference,
                         dt: A::Ticks::from(dt_unshifted),
                     }
@@ -359,7 +375,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
 
                     // Finally, return the new expiration. We don't have to do
                     // anything special for `dt`, as it's relative:
-                    Expiration {
+                    util::Expiration {
                         reference: rebased_reference,
                         dt: A::Ticks::from(dt_unshifted),
                     }
@@ -370,7 +386,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 // We have a userspace reference and timer is (less than) 32
                 // bit. Simply set to unshifted values:
 
-                Expiration {
+                util::Expiration {
                     reference: A::Ticks::from(userspace_reference_unshifted),
                     dt: A::Ticks::from(dt_unshifted),
                 }
@@ -378,7 +394,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
 
             (None, _) => {
                 // We have no userspace reference. Use `now` as a reference:
-                Expiration {
+                util::Expiration {
                     reference: now,
                     dt: A::Ticks::from(dt_unshifted),
                 }

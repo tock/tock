@@ -1,0 +1,31 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "nrf52840dk-test-app-watchdog"
+version.workspace = true
+authors.workspace = true
+build = "../../../build.rs"
+edition.workspace = true
+
+[dependencies]
+nrf52840dk-test-base = { path = "../nrf52840dk-test-base" }
+
+components = { path = "../../../components" }
+cortexm4 = { path = "../../../../arch/cortex-m4" }
+kernel = { path = "../../../../kernel" }
+nrf52840 = { path = "../../../../chips/nrf52840" }
+segger = { path = "../../../../chips/segger" }
+nrf52_components = { path = "../../../nordic/nrf52_components" }
+
+capsules-core = { path = "../../../../capsules/core" }
+capsules-extra = { path = "../../../../capsules/extra" }
+capsules-system = { path = "../../../../capsules/system" }
+ecdsa-sw = { path = "../../../../capsules/ecdsa_sw" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../../../build_scripts" }
+
+[lints]
+workspace = true
