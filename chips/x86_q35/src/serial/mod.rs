@@ -13,6 +13,9 @@
 //! * <https://wiki.osdev.org/Serial_Ports>
 //! * <https://docs.freebsd.org/en/articles/serial-uart/index.html>
 
+#[cfg(test)]
+mod tests;
+
 use core::cell::Cell;
 use core::fmt;
 use core::mem::MaybeUninit;
@@ -127,7 +130,11 @@ register_bitfields!(u8,
     ],
 );
 
-pub struct SerialPort<'a, P: ports::Interface = ports::Real> {
+pub struct SerialPort<
+    'a,
+    P: ports::Interface = ports::Real,
+    DC: DeferredCallInterface = DeferredCall,
+> {
     ports: P,
 
     /// Client of transmit operations
@@ -161,11 +168,11 @@ pub struct SerialPort<'a, P: ports::Interface = ports::Real> {
     rx_abort: Cell<bool>,
 
     /// Deferred call instance
-    dc: DeferredCall,
+    dc: DC,
 }
 
-impl<P: ports::Interface> SerialPort<'_, P> {
-    fn new(ports: P) -> Self {
+impl<P: ports::Interface, DC: DeferredCallInterface> SerialPort<'_, P, DC> {
+    fn new(ports: P, dc: DC) -> Self {
         Self {
             ports,
             tx_client: OptionalCell::empty(),
@@ -178,7 +185,7 @@ impl<P: ports::Interface> SerialPort<'_, P> {
             rx_len: Cell::new(0),
             rx_index: Cell::new(0),
             rx_abort: Cell::new(false),
-            dc: DeferredCall::new(),
+            dc,
         }
     }
 
@@ -261,7 +268,7 @@ impl<P: ports::Interface> SerialPort<'_, P> {
     }
 }
 
-impl<P: ports::Interface> Configure for SerialPort<'_, P> {
+impl<P: ports::Interface, DC: DeferredCallInterface> Configure for SerialPort<'_, P, DC> {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate == 0 {
             return Err(ErrorCode::INVAL);
@@ -322,7 +329,7 @@ impl<P: ports::Interface> Configure for SerialPort<'_, P> {
     }
 }
 
-impl<'a, P: ports::Interface> Transmit<'a> for SerialPort<'a, P> {
+impl<'a, P: ports::Interface, DC: DeferredCallInterface> Transmit<'a> for SerialPort<'a, P, DC> {
     fn set_transmit_client(&self, client: &'a dyn TransmitClient) {
         self.tx_client.set(client);
     }
@@ -372,7 +379,7 @@ impl<'a, P: ports::Interface> Transmit<'a> for SerialPort<'a, P> {
     }
 }
 
-impl<'a, P: ports::Interface> Receive<'a> for SerialPort<'a, P> {
+impl<'a, P: ports::Interface, DC: DeferredCallInterface> Receive<'a> for SerialPort<'a, P, DC> {
     fn set_receive_client(&self, client: &'a dyn ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -419,7 +426,7 @@ impl<'a, P: ports::Interface> Receive<'a> for SerialPort<'a, P> {
     }
 }
 
-impl<P: ports::Interface> DeferredCallClient for SerialPort<'_, P> {
+impl<P: ports::Interface, DC: DeferredCallInterface> DeferredCallClient for SerialPort<'_, P, DC> {
     fn handle_deferred_call(&self) {
         if self.tx_abort.get() {
             self.finish_tx(Err(ErrorCode::CANCEL));
@@ -472,7 +479,7 @@ impl Component for SerialPortComponent {
         //    only be called once, and no other SerialPortComponent method
         //    accesses the serial port.
         let ports = unsafe { ports::Real::new(port) };
-        let serial = s.0.write(SerialPort::new(ports));
+        let serial = s.0.write(SerialPort::new(ports, DeferredCall::new()));
 
         // Deferred call registration
         serial.register();
@@ -534,5 +541,27 @@ impl<P: ports::Interface> IoWrite for BlockingSerialPort<P> {
         }
 
         buf.len()
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Trait allowing DeferredCall to be swapped out for unit testing.
+// TODO: Move this, and the test implementation, somewhere more appropriate
+// (e.g. DeferredCallInterface should probably be part of the kernel crate).
+// Also figure out lifetimes, we don't want to force everything to be 'static in
+// tests.
+// -----------------------------------------------------------------------------
+
+pub trait DeferredCallInterface {
+    fn register<DC: DeferredCallClient>(&self, client: &'static DC);
+    fn set(&self);
+}
+
+impl DeferredCallInterface for DeferredCall {
+    fn register<DC: DeferredCallClient>(&self, client: &'static DC) {
+        self.register(client);
+    }
+    fn set(&self) {
+        self.set();
     }
 }
