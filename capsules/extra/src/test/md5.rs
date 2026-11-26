@@ -56,6 +56,10 @@ impl<'a, H: digest::Digest<'a, 16> + digest::Md5> TestMd5<'a, H> {
         }
         self.sha.set_client(self);
         let data = self.data.take().unwrap();
+        let r = self.sha.preset_message_length(data.len());
+        if r.is_err() {
+            panic!("Md5Test: failed to preset the length: {:?}", r);
+        }
         let chunk_size = cmp::min(CHUNK_SIZE, data.len());
         self.position.set(chunk_size);
         let mut buffer = SubSliceMut::new(data);
