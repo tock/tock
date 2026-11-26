@@ -14,10 +14,10 @@
 //! * <https://docs.freebsd.org/en/articles/serial-uart/index.html>
 
 use core::cell::Cell;
-use core::fmt::{self, Write};
+use core::fmt;
 use core::mem::MaybeUninit;
 
-use x86::registers::io;
+use x86::registers::io::Port;
 
 use kernel::ErrorCode;
 use kernel::component::Component;
@@ -29,7 +29,7 @@ use kernel::hil::uart::{
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::io_write::IoWrite;
 use tock_cells::take_cell::TakeCell;
-use tock_registers_v0::{LocalRegisterCopy, register_bitfields};
+use tock_registers_v0::{LocalRegisterCopy, Read, Write, register_bitfields, register_map};
 
 /// Base I/O port address of the standard COM1 serial device.
 pub const COM1_BASE: u16 = 0x03F8;
@@ -46,35 +46,40 @@ pub const COM4_BASE: u16 = 0x02E8;
 /// Fixed clock frequency used to generate baud rate on 8250-compatible UART devices.
 const BAUD_CLOCK: u32 = 115_200;
 
-/// The following offsets are relative to the base I/O port address of an 8250-compatible UART
-/// device. Reference: <https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming>
-mod offsets {
-    /// Transmit Holding Register
-    pub(crate) const THR: u16 = 0;
+register_map! {
+    #![bus(Port)]
+    // The following offsets are relative to the base I/O port address of an
+    // 8250-compatible UART device. Reference:
+    // <https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming>
+    ports {
+        // When DLAB is 1, this port is used to access divisor_lsb. When DLAB is
+        // 0, this port accesses the RX and TX buffers.
+        0 => divisor_lsb: u8 { Read, Write },
+        #[aliased]
+        0 => rx_buffer: u8 { Read },
+        #[aliased]
+        0 => tx_buffer: u8 { Write },
 
-    /// Receive Buffer Register
-    pub(crate) const RBR: u16 = 0;
+        // When DLAB is 1, this port accesses divisor_msb. When DLAB is 0, it
+        // accesses interrupt_enable.
+        1 => divisor_msb: u8 { Read, Write },
+        #[aliased]
+        1 => interrupt_enable: IER::Register { Read, Write },
 
-    /// Divisor Latch Low Register
-    pub(crate) const DLL: u16 = 0;
+        2 => interrupt_id: IIR::Register { Read },
+        #[aliased]
+        2 => fifo_control: u8 { Write },
 
-    /// Interrupt Enable Register
-    pub(crate) const IER: u16 = 1;
+        // FCR, MCR, and MSR have bitfields, but this driver does not use them
+        // and therefore doesn't define them, so this map specifies them as u8
+        // instead.
 
-    /// Divisor Latch High Register
-    pub(crate) const DLH: u16 = 1;
-
-    /// Interrupt Identification Register
-    pub(crate) const IIR: u16 = 2;
-
-    /// FIFO Control Register
-    pub(crate) const FCR: u16 = 2;
-
-    /// Line Control Register
-    pub(crate) const LCR: u16 = 3;
-
-    /// Line Status Register
-    pub(crate) const LSR: u16 = 5;
+        3 => line_control_register: LCR::Register { Read, Write },
+        4 => modem_control_register: u8 { Read, Write },
+        5 => line_status_register: LSR::Register { Read },
+        6 => modem_status_register: u8 { Read },
+        7 => scratch: u8 { Read, Write },
+    }
 }
 
 register_bitfields!(u8,
@@ -122,9 +127,8 @@ register_bitfields!(u8,
     ],
 );
 
-pub struct SerialPort<'a> {
-    /// Base I/O port address
-    base: u16,
+pub struct SerialPort<'a, P: ports::Interface = ports::Real> {
+    ports: P,
 
     /// Client of transmit operations
     tx_client: OptionalCell<&'a dyn TransmitClient>,
@@ -160,7 +164,24 @@ pub struct SerialPort<'a> {
     dc: DeferredCall,
 }
 
-impl SerialPort<'_> {
+impl<P: ports::Interface> SerialPort<'_, P> {
+    fn new(ports: P) -> Self {
+        Self {
+            ports,
+            tx_client: OptionalCell::empty(),
+            tx_buffer: TakeCell::empty(),
+            tx_len: Cell::new(0),
+            tx_index: Cell::new(0),
+            tx_abort: Cell::new(false),
+            rx_client: OptionalCell::empty(),
+            rx_buffer: TakeCell::empty(),
+            rx_len: Cell::new(0),
+            rx_index: Cell::new(0),
+            rx_abort: Cell::new(false),
+            dc: DeferredCall::new(),
+        }
+    }
+
     /// Finishes out a long-running TX operation.
     fn finish_tx(&self, res: Result<(), ErrorCode>) {
         if let Some(b) = self.tx_buffer.take() {
@@ -173,12 +194,10 @@ impl SerialPort<'_> {
     /// Finishes out a long-running RX operation.
     fn finish_rx(&self, res: Result<(), ErrorCode>, error: Error) {
         // Turn off RX interrupts
-        unsafe {
-            let ier_value = io::inb(self.base + offsets::IER);
-            let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
-            ier.modify(IER::RDA::CLEAR);
-            io::outb(self.base + offsets::IER, ier.get());
-        }
+        let ier_value = self.ports.interrupt_enable().get();
+        let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
+        ier.modify(IER::RDA::CLEAR);
+        self.ports.interrupt_enable().set(ier.get());
 
         if let Some(b) = self.rx_buffer.take() {
             self.rx_client
@@ -191,8 +210,8 @@ impl SerialPort<'_> {
         if self.tx_index.get() < self.tx_len.get() {
             // Still have bytes to send
             let tx_index = self.tx_index.get();
-            self.tx_buffer.map(|b| unsafe {
-                io::outb(self.base + offsets::THR, b[tx_index]);
+            self.tx_buffer.map(|b| {
+                self.ports.tx_buffer().set(b[tx_index]);
             });
             self.tx_index.set(tx_index + 1);
         } else {
@@ -205,8 +224,8 @@ impl SerialPort<'_> {
         if self.rx_index.get() < self.rx_len.get() {
             // Still have bytes to receive
             let rx_index = self.rx_index.get();
-            self.rx_buffer.map(|b| unsafe {
-                b[rx_index] = io::inb(self.base + offsets::RBR);
+            self.rx_buffer.map(|b| {
+                b[rx_index] = self.ports.rx_buffer().get();
             });
             self.rx_index.set(rx_index + 1);
         }
@@ -222,7 +241,7 @@ impl SerialPort<'_> {
         // highest-priority one. So we need to read IIR in a loop until the Interrupt Pending flag
         // becomes set (indicating that there are no more pending interrupts).
         loop {
-            let iir_val = unsafe { io::inb(self.base + offsets::IIR) };
+            let iir_val = self.ports.interrupt_id().get();
 
             let iir: LocalRegisterCopy<u8, IIR::Register> = LocalRegisterCopy::new(iir_val);
 
@@ -242,7 +261,7 @@ impl SerialPort<'_> {
     }
 }
 
-impl Configure for SerialPort<'_> {
+impl<P: ports::Interface> Configure for SerialPort<'_, P> {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate == 0 {
             return Err(ErrorCode::INVAL);
@@ -280,32 +299,30 @@ impl Configure for SerialPort<'_> {
 
         lcr.modify(LCR::DLAB::SET);
 
-        unsafe {
-            // Program line control, and set DLAB so we can program baud divisor
-            io::outb(self.base + offsets::LCR, lcr.get());
+        // Program line control, and set DLAB so we can program baud divisor
+        self.ports.line_control_register().set(lcr.get());
 
-            // Program the divisor and clear DLAB
-            lcr.modify(LCR::DLAB::CLEAR);
-            let divisor_bytes = divisor.to_le_bytes();
-            io::outb(self.base + offsets::DLL, divisor_bytes[0]);
-            io::outb(self.base + offsets::DLH, divisor_bytes[1]);
-            io::outb(self.base + offsets::LCR, lcr.get());
+        // Program the divisor and clear DLAB
+        lcr.modify(LCR::DLAB::CLEAR);
+        let divisor_bytes = divisor.to_le_bytes();
+        self.ports.divisor_lsb().set(divisor_bytes[0]);
+        self.ports.divisor_msb().set(divisor_bytes[1]);
+        self.ports.line_control_register().set(lcr.get());
 
-            // Disable FIFOs
-            io::outb(self.base + offsets::FCR, 0);
+        // Disable FIFOs
+        self.ports.fifo_control().set(0);
 
-            // Read IIR once to clear any pending interrupts
-            let _ = io::inb(self.base + offsets::IIR);
+        // Read IIR once to clear any pending interrupts
+        self.ports.interrupt_id().get();
 
-            // Start with all interrupts disabled
-            io::outb(self.base + offsets::IER, 0);
-        }
+        // Start with all interrupts disabled
+        self.ports.interrupt_enable().set(0);
 
         Ok(())
     }
 }
 
-impl<'a> Transmit<'a> for SerialPort<'a> {
+impl<'a, P: ports::Interface> Transmit<'a> for SerialPort<'a, P> {
     fn set_transmit_client(&self, client: &'a dyn TransmitClient) {
         self.tx_client.set(client);
     }
@@ -324,19 +341,17 @@ impl<'a> Transmit<'a> for SerialPort<'a> {
         }
 
         // Transmit the first byte
-        unsafe { io::outb(self.base + offsets::THR, tx_buffer[0]) };
+        self.ports.tx_buffer().set(tx_buffer[0]);
 
         self.tx_buffer.replace(tx_buffer);
         self.tx_len.set(tx_len);
         self.tx_index.set(1);
 
         // Enable TX interrupts
-        unsafe {
-            let ier_value = io::inb(self.base + offsets::IER);
-            let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
-            ier.modify(IER::THRE::SET);
-            io::outb(self.base + offsets::IER, ier.get());
-        }
+        let ier_value = self.ports.interrupt_enable().get();
+        let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
+        ier.modify(IER::THRE::SET);
+        self.ports.interrupt_enable().set(ier.get());
 
         Ok(())
     }
@@ -357,7 +372,7 @@ impl<'a> Transmit<'a> for SerialPort<'a> {
     }
 }
 
-impl<'a> Receive<'a> for SerialPort<'a> {
+impl<'a, P: ports::Interface> Receive<'a> for SerialPort<'a, P> {
     fn set_receive_client(&self, client: &'a dyn ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -380,12 +395,10 @@ impl<'a> Receive<'a> for SerialPort<'a> {
         self.rx_index.set(0);
 
         // Enable RX interrupts
-        unsafe {
-            let ier_value = io::inb(self.base + offsets::IER);
-            let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
-            ier.modify(IER::RDA::SET);
-            io::outb(self.base + offsets::IER, ier.get());
-        }
+        let ier_value = self.ports.interrupt_enable().get();
+        let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
+        ier.modify(IER::RDA::SET);
+        self.ports.interrupt_enable().set(ier.get());
 
         Ok(())
     }
@@ -406,7 +419,7 @@ impl<'a> Receive<'a> for SerialPort<'a> {
     }
 }
 
-impl DeferredCallClient for SerialPort<'_> {
+impl<P: ports::Interface> DeferredCallClient for SerialPort<'_, P> {
     fn handle_deferred_call(&self) {
         if self.tx_abort.get() {
             self.finish_tx(Err(ErrorCode::CANCEL));
@@ -449,20 +462,17 @@ impl Component for SerialPortComponent {
     type Output = &'static SerialPort<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let serial = s.0.write(SerialPort {
-            base: self.base,
-            tx_client: OptionalCell::empty(),
-            tx_buffer: TakeCell::empty(),
-            tx_len: Cell::new(0),
-            tx_index: Cell::new(0),
-            tx_abort: Cell::new(false),
-            rx_client: OptionalCell::empty(),
-            rx_buffer: TakeCell::empty(),
-            rx_len: Cell::new(0),
-            rx_index: Cell::new(0),
-            rx_abort: Cell::new(false),
-            dc: DeferredCall::new(),
-        });
+        let port = Port::new(self.base);
+        // Safety:
+        // 1. The caller of SerialPortComponent guaranteed that an
+        //    8250-compatible serial port exists at self.base.
+        // 2. `ports` was defined correctly.
+        // 3. The caller of SerialPortComponent guaranteed that nothing else
+        //    accesses the serial port. finalize() consumes `self` so it may
+        //    only be called once, and no other SerialPortComponent method
+        //    accesses the serial port.
+        let ports = unsafe { ports::Real::new(port) };
+        let serial = s.0.write(SerialPort::new(ports));
 
         // Deferred call registration
         serial.register();
@@ -473,12 +483,13 @@ impl Component for SerialPortComponent {
 
 /// Serial port handle for blocking I/O
 ///
-/// This struct is a lightweight version of [`SerialPort`] that can be used to perform blocking
-/// serial I/O (via [`Write`] or [`IoWrite`]). It is intended for use in places where
-/// interrupt-driven I/O is not possible, such as early bootstrapping or panic handling.
-pub struct BlockingSerialPort(u16);
+/// This struct is a lightweight version of [`SerialPort`] that can be used to
+/// perform blocking serial I/O (via [`Write`](fmt::Write) or [`IoWrite`]). It
+/// is intended for use in places where interrupt-driven I/O is not possible,
+/// such as early bootstrapping or panic handling.
+pub struct BlockingSerialPort<P: ports::Interface>(P);
 
-impl BlockingSerialPort {
+impl BlockingSerialPort<ports::Real> {
     /// Creates and returns a new `BlockingSerialPort` instance.
     ///
     /// # Safety
@@ -486,36 +497,40 @@ impl BlockingSerialPort {
     /// An 8250-compatible serial port must exist at the specified address. Otherwise we could end
     /// up spamming some unknown device with I/O operations.
     ///
-    /// For a given `base` address, there must be no other `SerialPort` or `BlockingSerialPort` in
-    /// active use.
+    /// No other code may access the serial port that `base` points to.
     pub unsafe fn new(base: u16) -> Self {
-        Self(base)
+        let port = Port::new(base);
+        // Safety:
+        // 1. The caller guaranteed that a 8250-compatible serial port is an
+        //    `base`.
+        // 2. `ports` was defined correctly.
+        // 3. The caller guaranteed that no other code accesses this serial
+        //    port.
+        Self(unsafe { ports::Real::new(port) })
     }
 }
 
-impl Write for BlockingSerialPort {
+impl<P: ports::Interface> fmt::Write for BlockingSerialPort<P> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write(s.as_bytes());
         Ok(())
     }
 }
 
-impl IoWrite for BlockingSerialPort {
+impl<P: ports::Interface> IoWrite for BlockingSerialPort<P> {
     fn write(&mut self, buf: &[u8]) -> usize {
-        unsafe {
-            for b in buf {
-                // Wait for any pending transmission to complete
-                loop {
-                    let line_status_value = io::inb(self.0 + offsets::LSR);
-                    let lsr: LocalRegisterCopy<u8, LSR::Register> =
-                        LocalRegisterCopy::new(line_status_value);
-                    if lsr.is_set(LSR::THRE) {
-                        break;
-                    }
+        for b in buf {
+            // Wait for any pending transmission to complete
+            loop {
+                let line_status_value = self.0.line_status_register().get();
+                let lsr: LocalRegisterCopy<u8, LSR::Register> =
+                    LocalRegisterCopy::new(line_status_value);
+                if lsr.is_set(LSR::THRE) {
+                    break;
                 }
-
-                io::outb(self.0 + offsets::THR, *b);
             }
+
+            self.0.tx_buffer().set(*b);
         }
 
         buf.len()
