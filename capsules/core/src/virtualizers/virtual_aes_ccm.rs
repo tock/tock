@@ -426,7 +426,6 @@ impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> VirtualAES128CCM<'a, A> 
             self.crypt_auth_len.get()
         };
 
-        self.aes.start_message();
         match self.aes.crypt(None, crypt_buf, 0, auth_end) {
             None => {
                 self.state.set(CCMState::Auth);
@@ -472,7 +471,6 @@ impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> VirtualAES128CCM<'a, A> 
             return res;
         }
 
-        self.aes.start_message();
         let crypt_buf = match self.crypt_buf.take() {
             None => panic!("Cannot perform CCM* encrypt because crypt_buf is not present."),
             Some(buf) => buf,
@@ -748,12 +746,6 @@ impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> symmetric_encryption::AE
             self.mux.aes.set_iv(iv)
         } else {
             Err(ErrorCode::BUSY)
-        }
-    }
-
-    fn start_message(&self) {
-        if self.mux.inflight.is_none() {
-            self.mux.aes.start_message()
         }
     }
 
