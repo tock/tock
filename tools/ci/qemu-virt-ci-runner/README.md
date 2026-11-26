@@ -97,8 +97,8 @@ new module to `src/boards/mod.rs` (`pub mod <board_name>;`) and append
 Add a `TestCase` entry to the `TESTS` slice in the appropriate board file
 (e.g. `src/boards/qemu_rv64_virt.rs`).  Each test has a name, a
 human-readable description, a list of apps to install, an ordered sequence of
-steps, an optional settle delay before the screenshot, and an optional expected
-screenshot hash.
+steps, an optional settle delay before the screenshot, an optional expected
+screenshot hash, and `needs_serial1` (see below).
 
 ### Test steps
 
@@ -112,6 +112,21 @@ serial writes, and sleeps can be freely interleaved.
 | `Sleep(duration)`                         | Pause for `duration` without reading serial or interacting with QEMU.                     |
 | `SendKey(qcode)`                          | Send a single keystroke via QMP. `qcode` is a QEMU key name ([QEMU key documentation]).   |
 | `SendSerial(text)`                        | Write raw bytes to the serial port as if typed at a terminal.                             |
+| `SendFileYmodem { port, path }`           | Send `path` over `port` using YMODEM (as host-side `lsb -vv <file>` would).                |
+
+`WaitSerial*` and `SendSerial` always act on the primary serial port.
+`SendFileYmodem`'s `port` is a `SerialPort` (`Primary` or `Secondary`) so it
+can target either one.
+
+### Boards with a second serial port
+
+Some boards wire up a second UART (e.g. for a YMODEM app-loading console
+separate from the normal debug console).  Set `needs_serial1: true` on a
+`TestCase` to have the runner add a second `-chardev`/`-serial` pair to the
+QEMU command line and connect to it (as a TCP socket on local port 44446,
+alongside the primary serial port on 44445) before running the test's steps.
+A step can then use `SerialPort::Secondary` to act on it; using `Secondary`
+on a test that doesn't set `needs_serial1` is an error.
 
 ## How QEMU is controlled
 

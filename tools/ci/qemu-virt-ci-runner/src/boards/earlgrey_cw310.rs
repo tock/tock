@@ -31,4 +31,5 @@ static TESTS: &[TestCase] = &[TestCase {
     }],
     screenshot_delay: Duration::from_millis(0),
     expected_screen_hash: None,
+    needs_serial1: false,
 }];
