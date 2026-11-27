@@ -161,6 +161,15 @@ enum Width {
     W32,
 }
 
+/// Which callback an operation finishes with.
+#[derive(Clone, Copy, PartialEq)]
+enum Kind {
+    /// `add_data_done` or `add_mut_data_done`.
+    Data,
+    /// `hash_done` or `verification_done`.
+    Hash,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Op {
     Idle,
@@ -169,6 +178,34 @@ enum Op {
     HashPad,
     /// All blocks are written; waiting for the final digest.
     HashDigest,
+    /// The operation has ended (it completed within the downcall or was
+    /// cancelled by `clear_data`) and the engine no longer works on it. The
+    /// deferred call issues its callback with `result`; interrupts are
+    /// ignored until then.
+    Done {
+        kind: Kind,
+        result: Result<(), ErrorCode>,
+    },
+}
+
+impl Op {
+    /// Which callback the operation finishes with, or `None` if there is no
+    /// operation.
+    fn kind(self) -> Option<Kind> {
+        match self {
+            Op::Idle => None,
+            Op::AddData => Some(Kind::Data),
+            Op::HashPad | Op::HashDigest => Some(Kind::Hash),
+            Op::Done { kind, .. } => Some(kind),
+        }
+    }
+}
+
+/// A bus-master run: the data the engine is reading, and how many blocks of it
+/// the run covers.
+struct MasterRun {
+    data: DmaSubSliceMutImmut<'static, u8>,
+    blocks: usize,
 }
 
 /// Clients and the digest buffer for one digest length.
@@ -202,14 +239,12 @@ pub struct Hashcrypt<'a> {
     width: Cell<Width>,
     /// Whether the outstanding hash operation is a verification.
     verify: Cell<bool>,
-    /// Result reported by the deferred call.
-    deferred_result: Cell<Result<(), ErrorCode>>,
 
     /// Data passed to `add_data` or `add_mut_data`, while the CPU owns it.
     data: MapCell<SubSliceMutImmut<'static, u8>>,
     /// The same data while the engine is reading it as bus master. It is only
     /// moved back into `data` once the engine can no longer access it.
-    dma_data: MapCell<DmaSubSliceMutImmut<'static, u8>>,
+    master_run: MapCell<MasterRun>,
     /// Bytes not yet written to the engine. Never holds a full block between
     /// operations.
     block: MapCell<[u8; BLOCK_LEN]>,
@@ -218,8 +253,6 @@ pub struct Hashcrypt<'a> {
     total_len: Cell<u64>,
     /// Whether the engine has been started (NEW_HASH written) for this hash.
     started: Cell<bool>,
-    /// Number of blocks of `data` the engine is reading as bus master, or 0.
-    master_blocks: Cell<usize>,
 
     clients20: Clients<'a, SHA1_DIGEST_LEN>,
     clients32: Clients<'a, SHA256_DIGEST_LEN>,
@@ -236,14 +269,12 @@ impl<'a> Hashcrypt<'a> {
             op: Cell::new(Op::Idle),
             width: Cell::new(Width::W32),
             verify: Cell::new(false),
-            deferred_result: Cell::new(Ok(())),
             data: MapCell::empty(),
-            dma_data: MapCell::empty(),
+            master_run: MapCell::empty(),
             block: MapCell::new([0; BLOCK_LEN]),
             block_len: Cell::new(0),
             total_len: Cell::new(0),
             started: Cell::new(false),
-            master_blocks: Cell::new(0),
             clients20: Clients::new(),
             clients32: Clients::new(),
         }
@@ -365,10 +396,9 @@ impl<'a> Hashcrypt<'a> {
         // makes its contents visible to the engine before the MMIO write that
         // starts the run. The engine only reads the buffer, and it is only
         // moved back into `self.data` once the engine has stopped.
-        let dma_data = DmaSubSliceMutImmut::new(data, self.fence);
-        regs.memaddr.set(dma_data.ptr_addr() as u32);
-        self.dma_data.replace(dma_data);
-        self.master_blocks.set(blocks);
+        let data = DmaSubSliceMutImmut::new(data, self.fence);
+        regs.memaddr.set(data.ptr_addr() as u32);
+        self.master_run.replace(MasterRun { data, blocks });
         regs.intenclr.write(INT::WAITING::SET);
         regs.memctrl
             .write(MEMCTRL::MASTER::SET + MEMCTRL::COUNT.val(blocks as u32));
@@ -387,20 +417,21 @@ impl<'a> Hashcrypt<'a> {
         }
         regs.intenclr.write(INT::DIGEST::SET);
         regs.memctrl.write(MEMCTRL::MASTER::CLEAR);
-        let bytes = self.master_blocks.get() * BLOCK_LEN;
-        self.reclaim_dma_data();
-        self.data.map(|data| data.slice(bytes..));
-        self.total_len.set(self.total_len.get() + bytes as u64);
+        if let Some(blocks) = self.end_master_run() {
+            let bytes = blocks * BLOCK_LEN;
+            self.data.map(|data| data.slice(bytes..));
+            self.total_len.set(self.total_len.get() + bytes as u64);
+        }
         true
     }
 
-    /// Take the data back from the engine. The bus-master run must have ended
-    /// or been stopped, so that the engine no longer reads the buffer.
-    fn reclaim_dma_data(&self) {
-        self.master_blocks.set(0);
-        if let Some(dma_data) = self.dma_data.take() {
-            self.data.replace(dma_data.take());
-        }
+    /// Take the data back from the engine and return the number of blocks the
+    /// run covered, or `None` if no run was in progress. The run must have
+    /// ended or been stopped, so that the engine no longer reads the buffer.
+    fn end_master_run(&self) -> Option<usize> {
+        let run = self.master_run.take()?;
+        self.data.replace(run.data.take());
+        Some(run.blocks)
     }
 
     /// Write the padding blocks. Returns `false` if the engine cannot accept
@@ -447,7 +478,7 @@ impl<'a> Hashcrypt<'a> {
         regs.status.write(STATUS::ERROR::SET);
         // The engine is stopped, so a cancelled or failed run can return the
         // data to the client.
-        self.reclaim_dma_data();
+        self.end_master_run();
         self.block.map(|block| block.fill(0));
         self.block_len.set(0);
         self.total_len.set(0);
@@ -471,7 +502,10 @@ impl<'a> Hashcrypt<'a> {
         if self.process_data() {
             // Everything fit in the block buffer or the engine; the callback
             // must not be issued from within this downcall.
-            self.deferred_result.set(Ok(()));
+            self.op.set(Op::Done {
+                kind: Kind::Data,
+                result: Ok(()),
+            });
             self.deferred_call.set();
         }
     }
@@ -505,39 +539,47 @@ impl<'a> Hashcrypt<'a> {
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
         let status = regs.status.extract();
-
-        if self.deferred_call.is_pending() {
-            // The operation was cancelled by `clear_data` and the engine
-            // reset; the deferred call reports the result.
-            regs.intenclr
-                .write(INT::WAITING::SET + INT::DIGEST::SET + INT::ERROR::SET);
-            return;
-        }
+        let op = self.op.get();
 
         if status.is_set(STATUS::ERROR) {
-            if self.op.get() != Op::Idle {
-                self.reset_hash();
-                self.complete(Err(ErrorCode::FAIL));
-            } else {
-                self.reset_hash();
+            self.reset_hash();
+            match op {
+                // The deferred call issues the callback. Data it would report
+                // as accepted went into hash state that is now lost.
+                Op::Done {
+                    kind,
+                    result: Ok(()),
+                } => self.op.set(Op::Done {
+                    kind,
+                    result: Err(ErrorCode::FAIL),
+                }),
+                Op::Done { .. } => {}
+                _ => {
+                    if let Some(kind) = op.kind() {
+                        self.complete(kind, Err(ErrorCode::FAIL));
+                    }
+                }
             }
             return;
         }
 
-        match self.op.get() {
-            Op::Idle => {
+        match op {
+            // No operation is waiting on the engine. This may be an interrupt
+            // that was already pending when the operation ended; for `Done`,
+            // the deferred call issues the callback.
+            Op::Idle | Op::Done { .. } => {
                 regs.intenclr
                     .write(INT::WAITING::SET + INT::DIGEST::SET + INT::ERROR::SET);
             }
             Op::AddData => {
-                let ready = if self.master_blocks.get() != 0 {
+                let ready = if self.master_run.is_some() {
                     self.finish_master()
                 } else {
                     status.is_set(STATUS::WAITING)
                 };
                 if ready && self.process_data() {
                     regs.intenclr.write(INT::ERROR::SET);
-                    self.complete(Ok(()));
+                    self.complete(Kind::Data, Ok(()));
                 }
             }
             Op::HashPad => {
@@ -548,19 +590,17 @@ impl<'a> Hashcrypt<'a> {
             Op::HashDigest => {
                 if status.is_set(STATUS::DIGEST) {
                     regs.intenclr.write(INT::DIGEST::SET + INT::ERROR::SET);
-                    self.complete(Ok(()));
+                    self.complete(Kind::Hash, Ok(()));
                 }
             }
         }
     }
 
     /// Finish the outstanding operation and issue its callback.
-    fn complete(&self, result: Result<(), ErrorCode>) {
-        let op = self.op.get();
+    fn complete(&self, kind: Kind, result: Result<(), ErrorCode>) {
         self.op.set(Op::Idle);
-        match op {
-            Op::Idle => {}
-            Op::AddData => {
+        match kind {
+            Kind::Data => {
                 if let Some(data) = self.data.take() {
                     match self.width.get() {
                         Width::W20 => notify_data(&self.clients20, result, data),
@@ -568,7 +608,7 @@ impl<'a> Hashcrypt<'a> {
                     }
                 }
             }
-            Op::HashPad | Op::HashDigest => match self.width.get() {
+            Kind::Hash => match self.width.get() {
                 Width::W20 => self.finish_hash(&self.clients20, result),
                 Width::W32 => self.finish_hash(&self.clients32, result),
             },
@@ -624,11 +664,18 @@ impl<'a> Hashcrypt<'a> {
 
     fn clear(&self) {
         self.reset_hash();
-        if self.op.get() != Op::Idle {
-            // Report the cancellation from a deferred call, as callbacks
-            // must not be issued from within this downcall.
-            self.deferred_result.set(Err(ErrorCode::CANCEL));
-            self.deferred_call.set();
+        let op = self.op.get();
+        if let Some(kind) = op.kind() {
+            self.op.set(Op::Done {
+                kind,
+                result: Err(ErrorCode::CANCEL),
+            });
+            // Report the cancellation from a deferred call, as callbacks must
+            // not be issued from within this downcall. A `Done` operation
+            // already has one scheduled.
+            if !matches!(op, Op::Done { .. }) {
+                self.deferred_call.set();
+            }
         }
     }
 }
@@ -646,7 +693,9 @@ fn notify_data<const L: usize>(
 
 impl DeferredCallClient for Hashcrypt<'_> {
     fn handle_deferred_call(&self) {
-        self.complete(self.deferred_result.get());
+        if let Op::Done { kind, result } = self.op.get() {
+            self.complete(kind, result);
+        }
     }
 
     fn register(&'static self) {
