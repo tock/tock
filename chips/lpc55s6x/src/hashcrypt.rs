@@ -30,9 +30,9 @@ use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::digest;
-use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::dma_slice::DmaSubSliceMutImmut;
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut, SubSliceMutImmut};
 use tock_registers_v0::interfaces::{Readable, Writeable};
 use tock_registers_v0::registers::{ReadOnly, ReadWrite, WriteOnly};
@@ -205,8 +205,11 @@ pub struct Hashcrypt<'a> {
     /// Result reported by the deferred call.
     deferred_result: Cell<Result<(), ErrorCode>>,
 
-    /// Data passed to `add_data` or `add_mut_data`.
+    /// Data passed to `add_data` or `add_mut_data`, while the CPU owns it.
     data: MapCell<SubSliceMutImmut<'static, u8>>,
+    /// The same data while the engine is reading it as bus master. It is only
+    /// moved back into `data` once the engine can no longer access it.
+    dma_data: MapCell<DmaSubSliceMutImmut<'static, u8>>,
     /// Bytes not yet written to the engine. Never holds a full block between
     /// operations.
     block: MapCell<[u8; BLOCK_LEN]>,
@@ -235,6 +238,7 @@ impl<'a> Hashcrypt<'a> {
             verify: Cell::new(false),
             deferred_result: Cell::new(Ok(())),
             data: MapCell::empty(),
+            dma_data: MapCell::empty(),
             block: MapCell::new([0; BLOCK_LEN]),
             block_len: Cell::new(0),
             total_len: Cell::new(0),
@@ -354,17 +358,16 @@ impl<'a> Hashcrypt<'a> {
     /// engine must be waiting for data.
     fn start_master(&self, blocks: usize) {
         let regs = self.registers;
-        self.data.map(|data| {
-            let ptr = data.as_ptr();
-            // Make the contents of the buffer visible to the engine before
-            // the MMIO write that starts it. The engine only reads the buffer,
-            // which stays in `self.data` until the run has ended.
-            self.fence.release(core::ptr::slice_from_raw_parts_mut(
-                ptr.cast_mut(),
-                blocks * BLOCK_LEN,
-            ));
-            regs.memaddr.set(ptr.addr() as u32);
-        });
+        let Some(data) = self.data.take() else {
+            return;
+        };
+        // Hand the buffer to the engine. Creating the `DmaSubSliceMutImmut`
+        // makes its contents visible to the engine before the MMIO write that
+        // starts the run. The engine only reads the buffer, and it is only
+        // moved back into `self.data` once the engine has stopped.
+        let dma_data = DmaSubSliceMutImmut::new(data, self.fence);
+        regs.memaddr.set(dma_data.ptr_addr() as u32);
+        self.dma_data.replace(dma_data);
         self.master_blocks.set(blocks);
         regs.intenclr.write(INT::WAITING::SET);
         regs.memctrl
@@ -385,10 +388,19 @@ impl<'a> Hashcrypt<'a> {
         regs.intenclr.write(INT::DIGEST::SET);
         regs.memctrl.write(MEMCTRL::MASTER::CLEAR);
         let bytes = self.master_blocks.get() * BLOCK_LEN;
-        self.master_blocks.set(0);
+        self.reclaim_dma_data();
         self.data.map(|data| data.slice(bytes..));
         self.total_len.set(self.total_len.get() + bytes as u64);
         true
+    }
+
+    /// Take the data back from the engine. The bus-master run must have ended
+    /// or been stopped, so that the engine no longer reads the buffer.
+    fn reclaim_dma_data(&self) {
+        self.master_blocks.set(0);
+        if let Some(dma_data) = self.dma_data.take() {
+            self.data.replace(dma_data.take());
+        }
     }
 
     /// Write the padding blocks. Returns `false` if the engine cannot accept
@@ -433,7 +445,9 @@ impl<'a> Hashcrypt<'a> {
         regs.memctrl.write(MEMCTRL::MASTER::CLEAR);
         regs.ctrl.write(CTRL::MODE::Disabled);
         regs.status.write(STATUS::ERROR::SET);
-        self.master_blocks.set(0);
+        // The engine is stopped, so a cancelled or failed run can return the
+        // data to the client.
+        self.reclaim_dma_data();
         self.block.map(|block| block.fill(0));
         self.block_len.set(0);
         self.total_len.set(0);
