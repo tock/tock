@@ -6,6 +6,7 @@
 use core::fmt::Write;
 use core::panic;
 
+use cortexm33::dma_fence::CortexMDmaFence;
 use cortexm33::{CortexM33, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
@@ -16,6 +17,7 @@ use crate::ctimer0::LPCTimer;
 use crate::dma::{DMA0_CHANNELS, DMA1_CHANNELS, Dma0, Dma1, DmaDescriptorTable};
 use crate::flexcomm::Flexcomm;
 use crate::gpio::Pins;
+use crate::hashcrypt::Hashcrypt;
 use crate::interrupts;
 use crate::rng::RNG;
 use crate::uart::Uart;
@@ -117,6 +119,7 @@ pub struct Lpc55s69DefaultPeripherals<'a> {
     pub dma0: Dma0<'a>,
     pub dma1: Dma1<'a>,
     pub rng: RNG<'a>,
+    pub hashcrypt: Hashcrypt<'a>,
 }
 
 impl Lpc55s69DefaultPeripherals<'_> {
@@ -146,12 +149,19 @@ impl Lpc55s69DefaultPeripherals<'_> {
             // SAFETY: See function-level doc.
             dma1: unsafe { Dma1::new_dma1(dma1_descriptors) },
             rng: RNG::new(),
+            // SAFETY: The LPC55S6x has an ARM Cortex-M33 core, for which
+            // `CortexMDmaFence` is the architecture-provided `DmaFence`. The
+            // chip has no data cache in front of SRAM, so the `DMB` issued by
+            // this fence is sufficient to order CPU writes before the
+            // HASHCRYPT bus master reads them.
+            hashcrypt: Hashcrypt::new(clocks, unsafe { CortexMDmaFence::new() }),
         }
     }
 
     pub fn init(&'static self) {
         kernel::deferred_call::DeferredCallClient::register(&self.uart);
         kernel::deferred_call::DeferredCallClient::register(&self.rng);
+        kernel::deferred_call::DeferredCallClient::register(&self.hashcrypt);
     }
 }
 
@@ -208,6 +218,11 @@ impl InterruptService for Lpc55s69DefaultPeripherals<'_> {
             }
             interrupts::SDMA1 => {
                 self.dma1.handle_interrupt();
+                true
+            }
+
+            interrupts::HASH => {
+                self.hashcrypt.handle_interrupt();
                 true
             }
 

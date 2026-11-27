@@ -680,6 +680,7 @@ name = "lpc55s69-evk"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
+ "capsules-extra",
  "capsules-system",
  "components",
  "cortexm33",
